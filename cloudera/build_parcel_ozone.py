@@ -297,6 +297,7 @@ class WriteMetadata(object):
         self._scratch_dir = scratch_dir
         self._meta_dir = os.path.join(self._scratch_dir, "meta")
         self._gbn = gbn
+        self._stack_version = stack_version
         self._version = stack_version + "-1.ozone" + stack_version + ".p0." + self._gbn
         self._ozone_jar_version = ozone_jar_version
 
@@ -306,21 +307,23 @@ class WriteMetadata(object):
             "name": "OZONE",
             "version": self._version,
             "extraVersionInfo": {
-                "patchCount": 0,
+                "patchCount": "0",
+                "fullVersion": self._version,
+                "baseVersion": "ozone" + self._stack_version
             },
             "setActiveSymlink": True,
             "components": [
                 {
-                    "name": "ozone\n",
+                    "name": "ozone",
                     "pkg_release": self._gbn,
                     "pkg_version": self._ozone_jar_version,
-                    "version": self._ozone_jar_version,
+                    "version": self._ozone_jar_version
                 }
             ],
             "packages": [
                 {
-                    "name": "ozone\n",
-                    "version": "na\n"
+                    "name": "ozone",
+                    "version": self._ozone_jar_version.split("-")[0] if "-" in self._ozone_jar_version else self._ozone_jar_version
                 }
             ],
             "replaces": "OZONE",
@@ -452,7 +455,7 @@ class Archive(object):
                 {
                     "pkg_version": self._ozone_jar_version,
                     "pkg_release": self._gbn,
-                    "name": "ozone\n",
+                    "name": "ozone",
                     "version": self._ozone_jar_version
                 }
             ],
