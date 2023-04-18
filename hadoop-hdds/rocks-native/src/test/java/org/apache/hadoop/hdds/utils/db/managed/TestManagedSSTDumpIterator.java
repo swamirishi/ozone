@@ -4,12 +4,11 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.junit.jupiter.api.Assertions;
-import org.rocksdb.NativeLibraryLoader;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -21,26 +20,16 @@ import java.util.stream.IntStream;
  */
 public class TestManagedSSTDumpIterator {
 
-  private static final String DELETE_SUFFIX = "delete";
-  private static final String CREATE_SUFFIX = "put";
-
-  @Test
-  @Category(NativeTests.class)
-  public void testSSTDumpIterator() throws Exception {
-
+  private void testSSTDumpIteratorWithKeys(
+      Map<Pair<String, Integer>, String> records)
+      throws Exception {
+    Map<Pair<String, Integer>, String> keys = records instanceof TreeMap ?
+        records : new TreeMap<>(records);
     File file = File.createTempFile("tmp_sst_file", ".sst");
+    file.deleteOnExit();
     try (ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
         new ManagedEnvOptions(), new ManagedOptions())) {
       sstFileWriter.open(file.getAbsolutePath());
-      Map<Pair<String, Integer>, String> keys = new TreeMap<>();
-      IntStream.range(0, 100).forEach(i -> {
-        if (i % 10 == 0) {
-          keys.put(Pair.of("'key" + i + "'=>" + DELETE_SUFFIX, 0), null);
-        } else {
-          keys.put(Pair.of("'key" + i + "'=>" + CREATE_SUFFIX, 1),
-              i + "value\n");
-        }
-      });
       for (Map.Entry<Pair<String, Integer>, String> entry : keys.entrySet()) {
         if (entry.getKey().getValue() == 0) {
           sstFileWriter.delete(entry.getKey().getKey()
@@ -59,19 +48,62 @@ public class TestManagedSSTDumpIterator {
               new ThreadPoolExecutor.CallerRunsPolicy()), 8192);
       ManagedSSTDumpIterator iterator = new ManagedSSTDumpIterator(tool,
           file.getAbsolutePath(), new ManagedOptions());
-      int cnt = 0;
       while (iterator.hasNext()) {
         ManagedSSTDumpIterator.KeyValue r = iterator.next();
-        System.out.println(r);
-        if (r.getType() == 0) {
-          Assert.assertTrue(r.getKey().endsWith(DELETE_SUFFIX));
-        } else {
-          Assert.assertTrue(r.getKey().endsWith(CREATE_SUFFIX));
-        }
-        cnt += 1;
+        Pair<String, Integer> recordKey = Pair.of(r.getKey(), r.getType());
+        Assert.assertTrue(keys.containsKey(recordKey));
+        Assert.assertEquals(Optional.ofNullable(keys.get(recordKey)).orElse(""),
+            r.getValue());
+        keys.remove(recordKey);
       }
-      Assert.assertEquals(100, cnt);
+      Assert.assertEquals(keys.size(), 0);
       iterator.close();
     }
+  }
+  @Test
+  @Category(NativeTests.class)
+  public void testSSTDumpIteratorWithKeySingleQuotes() throws Exception {
+    Map<Pair<String, Integer>, String> keys = new TreeMap<>();
+    IntStream.range(0, 100).forEach(i -> {
+      if (i % 10 == 0) {
+        keys.put(Pair.of("'key" + i, 0), null);
+      } else {
+        keys.put(Pair.of("'key" + i, 1),
+            i + "value\n");
+      }
+    });
+    testSSTDumpIteratorWithKeys(keys);
+  }
+
+  @Test
+  @Category(NativeTests.class)
+  public void testSSTDumpIteratorWithValueHavingSingleQuotes()
+      throws Exception {
+    Map<Pair<String, Integer>, String> keys = new TreeMap<>();
+    IntStream.range(0, 100).forEach(i -> {
+      if (i % 10 == 0) {
+        keys.put(Pair.of("'key" + i, 0), null);
+      } else {
+        keys.put(Pair.of("'key" + i, 1),
+            i + "value\n'");
+      }
+    });
+    testSSTDumpIteratorWithKeys(keys);
+  }
+
+  @Test
+  @Category(NativeTests.class)
+  public void testSSTDumpIteratorWithKeyHavingEqualGreaterThan()
+      throws Exception {
+    Map<Pair<String, Integer>, String> keys = new TreeMap<>();
+    IntStream.range(0, 100).forEach(i -> {
+      if (i % 10 == 0) {
+        keys.put(Pair.of("'key" + i + "=>", 0), null);
+      } else {
+        keys.put(Pair.of("'key" + i + "=>", 1),
+            i + "value\n'");
+      }
+    });
+    testSSTDumpIteratorWithKeys(keys);
   }
 }
