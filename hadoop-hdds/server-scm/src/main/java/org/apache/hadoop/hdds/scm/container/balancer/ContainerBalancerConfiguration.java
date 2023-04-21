@@ -100,12 +100,16 @@ public final class ContainerBalancerConfiguration {
   private long moveTimeout = Duration.ofMinutes(65).toMillis();
 
   @Config(key = "move.replication.timeout", type = ConfigType.TIME,
-      defaultValue = "50m", tags = {ConfigTag.BALANCER}, description = "The " +
+      defaultValue = "20m", tags = {ConfigTag.BALANCER}, description = "The " +
       "amount of time to allow a single container's replication from source " +
       "to target as part of container move. For example, if \"hdds.container" +
       ".balancer.move.timeout\" is 65 minutes, then out of those 65 minutes " +
       "50 minutes will be the deadline for replication to complete.")
-  private long moveReplicationTimeout = Duration.ofMinutes(50).toMillis();
+  /*
+   Set this to 20 minutes for compatibility with CM, which sets "move
+   .timeout" to 30 minutes.
+   */
+  private long moveReplicationTimeout = Duration.ofMinutes(20).toMillis();
 
   @Config(key = "balancing.iteration.interval", type = ConfigType.TIME,
       defaultValue = "70m", tags = {ConfigTag.BALANCER}, description =
