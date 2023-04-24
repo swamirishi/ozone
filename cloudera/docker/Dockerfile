@@ -15,3 +15,6 @@ RUN mkdir -p /opt/ozone-addon/cli/ /cdep /opt/ozone-addon/jar/ /ozone-parcel/ozo
 COPY . /opt/ozone-addon/cli/
 RUN mv /opt/ozone-addon/cli/ozone-filesystem-hadoop3*.jar /opt/ozone-addon/jar/
 RUN ln -s /opt/ozone-addon/jar/ozone-filesystem-hadoop3*.jar /ozone-parcel/ozone-fatjar/$(basename /opt/ozone-addon/jar/ozone-filesystem-hadoop3*.jar)
+
+WORKDIR /opt/ozone-addon/jar
+RUN ln -s ozone-filesystem-hadoop3*.jar ozone-filesystem-hadoop3.jar
