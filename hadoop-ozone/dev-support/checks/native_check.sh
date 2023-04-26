@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -x;
+set -x -e;
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -21,6 +21,7 @@ function get_rocks_native_git_sha() {
     # Getting the latest git hash for the ./hadoop-hdds/rocks-native directory
     echo "git log -n 1 --format=\"%h\" ./hadoop-hdds/rocks-native"
     ROCKS_NATIVE_GIT_SHA=$(git log -n 1 --format="%h" ./hadoop-hdds/rocks-native)
+    echo $(git log -n 100 --format="%h %aN %s %ad")
     echo "ROCKS_NATIVE_GIT_SHA = ${ROCKS_NATIVE_GIT_SHA}"
     readonly ROCKS_NATIVE_GIT_SHA
 }
