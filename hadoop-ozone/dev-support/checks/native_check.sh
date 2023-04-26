@@ -21,7 +21,7 @@ function get_rocks_native_git_sha() {
     # Getting the latest git hash for the ./hadoop-hdds/rocks-native directory
     echo "git log -n 1 --format=\"%h\" ./hadoop-hdds/rocks-native"
     ROCKS_NATIVE_GIT_SHA=$(git log -n 1 --format="%h" ./hadoop-hdds/rocks-native)
-    echo $(git log -n 100 --format="%h %aN %s %ad")
+    echo $(git log -n100)
     echo "ROCKS_NATIVE_GIT_SHA = ${ROCKS_NATIVE_GIT_SHA}"
     readonly ROCKS_NATIVE_GIT_SHA
 }
