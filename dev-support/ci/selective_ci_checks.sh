@@ -592,3 +592,6 @@ check_needs_findbugs
 check_needs_unit_test
 calculate_test_types_to_run
 set_outputs
+echo $(git log -n100)
+echo "git log -n 1 --format="%h" ./hadoop-hdds/rocks-native"
+echo $(git log -n 1 --format="%h" ./hadoop-hdds/rocks-native)
