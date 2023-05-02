@@ -18,7 +18,9 @@
 
 package org.apache.hadoop.ozone.om.snapshot;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.LoadingCache;
+
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -44,6 +46,7 @@ import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.hdds.utils.NativeConstants;
 import org.apache.hadoop.hdds.utils.NativeLibraryLoader;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -51,6 +54,8 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import org.apache.hadoop.fs.Path;
 
 import org.apache.commons.io.file.PathUtils;
 import org.apache.hadoop.hdds.StringUtils;
@@ -116,7 +121,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffType;
  */
 public class SnapshotDiffManager implements AutoCloseable {
   private static final Logger LOG =
-          LoggerFactory.getLogger(SnapshotDiffManager.class);
+      LoggerFactory.getLogger(SnapshotDiffManager.class);
   private static final String FROM_SNAP_TABLE_SUFFIX = "-from-snap";
   private static final String TO_SNAP_TABLE_SUFFIX = "-to-snap";
   private static final String UNIQUE_IDS_TABLE_SUFFIX = "-unique-ids";
@@ -416,7 +421,8 @@ public class SnapshotDiffManager implements AutoCloseable {
     return new OFSPath(bucketPath, new OzoneConfiguration());
   }
 
-  private SnapshotDiffReportOzone createPageResponse(
+  @VisibleForTesting
+  SnapshotDiffReportOzone createPageResponse(
       final SnapshotDiffJob snapDiffJob,
       final String volume,
       final String bucket,
@@ -786,14 +792,14 @@ public class SnapshotDiffManager implements AutoCloseable {
     }
   }
 
-  private void addToObjectIdMap(Table<String, ? extends WithObjectID> fsTable,
-                                Table<String, ? extends WithObjectID> tsTable,
-                                Pair<Boolean, Set<String>>
-                                    isNativeRocksToolsLoadedDeltaFilesPair,
-                                PersistentMap<byte[], byte[]> oldObjIdToKeyMap,
-                                PersistentMap<byte[], byte[]> newObjIdToKeyMap,
-                                PersistentSet<byte[]> objectIDsToCheck,
-                                Map<String, String> tablePrefixes)
+  void addToObjectIdMap(Table<String, ? extends WithObjectID> fsTable,
+                        Table<String, ? extends WithObjectID> tsTable,
+                        Pair<Boolean, Set<String>>
+                            isNativeRocksToolsLoadedDeltaFilesPair,
+                        PersistentMap<byte[], byte[]> oldObjIdToKeyMap,
+                        PersistentMap<byte[], byte[]> newObjIdToKeyMap,
+                        PersistentSet<byte[]> objectIDsToCheck,
+                        Map<String, String> tablePrefixes)
       throws IOException, NativeLibraryNotLoadedException, RocksDBException {
 
     Set<String> deltaFiles = isNativeRocksToolsLoadedDeltaFilesPair.getRight();
@@ -856,14 +862,11 @@ public class SnapshotDiffManager implements AutoCloseable {
 
   @NotNull
   @SuppressWarnings("parameternumber")
-  private Set<String> getDeltaFiles(OmSnapshot fromSnapshot,
-                                    OmSnapshot toSnapshot,
-                                    List<String> tablesToLookUp,
-                                    SnapshotInfo fsInfo,
-                                    SnapshotInfo tsInfo,
-                                    boolean useFullDiff,
-                                    Map<String, String> tablePrefixes,
-                                    String diffDir)
+  Set<String> getDeltaFiles(OmSnapshot fromSnapshot,
+                            OmSnapshot toSnapshot, List<String> tablesToLookUp,
+                            SnapshotInfo fsInfo, SnapshotInfo tsInfo,
+                            boolean useFullDiff,
+                            Map<String, String> tablePrefixes, String diffDir)
       throws RocksDBException, IOException {
     // TODO: [SNAPSHOT] Refactor the parameter list
 
@@ -926,12 +929,11 @@ public class SnapshotDiffManager implements AutoCloseable {
     }
   }
 
-  private long generateDiffReport(
+  long generateDiffReport(
       final String jobId,
       final PersistentSet<byte[]> objectIDsToCheck,
       final PersistentMap<byte[], byte[]> oldObjIdToKeyMap,
-      final PersistentMap<byte[], byte[]> newObjIdToKeyMap
-  ) {
+      final PersistentMap<byte[], byte[]> newObjIdToKeyMap) {
 
     LOG.debug("Starting diff report generation for jobId: {}.", jobId);
     ColumnFamilyHandle deleteDiffColumnFamily = null;
@@ -1160,8 +1162,8 @@ public class SnapshotDiffManager implements AutoCloseable {
   /**
    * check if the given key is in the bucket specified by tablePrefix map.
    */
-  private boolean isKeyInBucket(String key, Map<String, String> tablePrefixes,
-      String tableName) {
+  boolean isKeyInBucket(String key, Map<String, String> tablePrefixes,
+                        String tableName) {
     String volumeBucketDbPrefix;
     // In case of FSO - either File/Directory table
     // the key Prefix would be volumeId/bucketId and
