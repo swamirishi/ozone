@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -x
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -41,7 +42,12 @@ if [[ "${CHECK:-unit}" == "integration" ]]; then
       >> "${tempfile}"
 fi
 
+
 #Copy heap dump and dump leftovers
+echo "hello"
+find "."
+echo "hihihi"
+
 find "." -not -path '*/iteration*' \
     \( -name "*.hprof" \
     -or -name "*.dump" \
