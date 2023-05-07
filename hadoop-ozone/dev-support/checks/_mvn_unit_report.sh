@@ -45,7 +45,7 @@ fi
 
 #Copy heap dump and dump leftovers
 echo "hello"
-find "."
+find "/var/lib/systemd/coredump"
 echo "hihihi"
 
 find "." -not -path '*/iteration*' \
