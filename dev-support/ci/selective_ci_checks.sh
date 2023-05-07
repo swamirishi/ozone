@@ -83,6 +83,7 @@ function get_changed_files() {
 
 function set_outputs_run_everything_and_exit() {
     BASIC_CHECKS="author bats checkstyle docs findbugs rat unit"
+    BASIC_CHECKS="unit"
     compile_needed=true
     compose_tests_needed=true
     dependency_check_needed=true
@@ -583,12 +584,12 @@ check_needs_compile
 
 # calculate basic checks to run
 BASIC_CHECKS="rat"
-#check_needs_author
-#check_needs_bats
-#check_needs_checkstyle
-#check_needs_dependency
-#check_needs_docs
-#check_needs_findbugs
+check_needs_author
+check_needs_bats
+check_needs_checkstyle
+check_needs_dependency
+check_needs_docs
+check_needs_findbugs
 check_needs_unit_test
 calculate_test_types_to_run
 set_outputs
