@@ -46,7 +46,7 @@ fi
 #Copy heap dump and dump leftovers
 echo "hello"
 find "/var/lib"
-cp -r "/var/lib" "${REPORT_DIR}"
+cp -r "/var/lib/apport/coredump" "${REPORT_DIR}"
 echo "hihihi"
 
 find "." -not -path '*/iteration*' \
