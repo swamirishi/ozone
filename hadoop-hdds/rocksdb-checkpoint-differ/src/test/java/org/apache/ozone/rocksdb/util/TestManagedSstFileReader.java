@@ -22,6 +22,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedEnvOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedSSTDumpIterator;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSSTDumpTool;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileWriter;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -134,21 +136,33 @@ public class TestManagedSstFileReader {
     ManagedSSTDumpTool sstDumpTool =
         new ManagedSSTDumpTool(executorService, 256);
     LOG.info("Initialized SSTdumpTool");
-    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
-        .forEach(key -> {
-          LOG.info("{} {}", numberOfFiles, key);
-          keys.remove(key);
-        });
+    ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> sstDumpIterator =
+        new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(sstDumpTool, files.get(0), new ManagedOptions()) {
+      @Override
+      protected KeyValue getTransformedValue(Optional<KeyValue> value) {
+        return value.orElse(null);
+      }
+    };
+    while (sstDumpIterator.hasNext()) {
+      LOG.info("{}", sstDumpIterator.next());
+    }
+    sstDumpIterator.close();
+
+//    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
+//        .forEach(key -> {
+//          LOG.info("{} {}", numberOfFiles, key);
+//          keys.remove(key);
+//        });
 //    LOG.info("Done {}", numberOfFiles);
 //    Assertions.assertEquals(0, keys.size());
 //    LOG.info("Dones {}", numberOfFiles);
-//    executorService.shutdown();
-//    try {
-//      executorService.awaitTermination(5, TimeUnit.SECONDS);
-//    } catch (InterruptedException e) {
-//      LOG.error("Failed to shutdown Report Manager", e);
-//      Thread.currentThread().interrupt();
-//    }
-//    LOG.info("Dones2 {}", numberOfFiles);
+    executorService.shutdown();
+    try {
+      executorService.awaitTermination(5, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      LOG.error("Failed to shutdown Report Manager", e);
+      Thread.currentThread().interrupt();
+    }
+    LOG.info("Dones2 {}", numberOfFiles);
   }
 }
