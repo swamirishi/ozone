@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -165,6 +166,8 @@ public class SnapshotDiffManager implements AutoCloseable {
   private final boolean isNativeRocksToolsLoaded;
   private final ManagedSSTDumpTool sstDumpTool;
 
+  private Optional<ExecutorService> sstDumptoolExecService;
+
   @SuppressWarnings("parameternumber")
   public SnapshotDiffManager(ManagedRocksDB db,
                              RocksDBCheckpointDiffer differ,
@@ -258,16 +261,17 @@ public class SnapshotDiffManager implements AutoCloseable {
           OMConfigKeys
               .OZONE_OM_SNAPSHOT_SST_DUMPTOOL_EXECUTOR_BUFFER_SIZE_DEFAULT,
               StorageUnit.BYTES);
-      ExecutorService execService = new ThreadPoolExecutor(0,
+      this.sstDumptoolExecService = Optional.of(new ThreadPoolExecutor(0,
               threadPoolSize, 60, TimeUnit.SECONDS,
               new SynchronousQueue<>(), new ThreadFactoryBuilder()
               .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
               .build(),
               new ThreadPoolExecutor.DiscardPolicy());
-      return new ManagedSSTDumpTool(execService, bufferSize);
+      return new ManagedSSTDumpTool(sstDumptoolExecService.get(), bufferSize);
     } catch (NativeLibraryNotLoadedException e) {
-      return null;
+      this.sstDumptoolExecService.ifPresent(ExecutorService::shutdown);
     }
+    return null;
   }
 
   /**
@@ -1253,5 +1257,6 @@ public class SnapshotDiffManager implements AutoCloseable {
     if (executorService != null) {
       executorService.shutdown();
     }
+    this.sstDumptoolExecService.ifPresent(ExecutorService::shutdown);
   }
 }
