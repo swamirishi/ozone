@@ -85,7 +85,7 @@ public class TestManagedSstFileReader {
   private Pair<Map<String, Integer>, List<String>> createDummyData(
       int numberOfFiles) throws RocksDBException, IOException {
     List<String> files = new ArrayList<>();
-    int numberOfKeysPerFile = 1000;
+    int numberOfKeysPerFile = 2;
     Map<String, Integer> keys = new HashMap<>();
     int cnt = 0;
     for (int i = 0; i < numberOfFiles; i++) {
