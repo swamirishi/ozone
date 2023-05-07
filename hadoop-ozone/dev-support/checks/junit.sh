@@ -69,6 +69,7 @@ for i in $(seq 1 ${ITERATIONS}); do
   mvn ${MAVEN_OPTIONS} "$@" test \
     | tee "${REPORT_DIR}/output.log"
   irc=$?
+  cp -r "hadoop-hdds/rocksdb-checkpoint-differ/target/surefire-reports" "${REPORT_DIR}"
 
   # shellcheck source=hadoop-ozone/dev-support/checks/_mvn_unit_report.sh
   source "${DIR}/_mvn_unit_report.sh"
