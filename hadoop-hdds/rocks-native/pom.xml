@@ -80,7 +80,7 @@
                                     <goal>wget</goal>
                                 </goals>
                                 <configuration>
-                                    <url>https://github.com/swamirishi/lfs/blob/master/libozone_rocksdb_tools.so</url>
+                                    <url>https://github.com/swamirishi/lfs/raw/master/libozone_rocksdb_tools.so</url>
                                     <outputFileName>libozone_rocksdb_tools.so</outputFileName>
                                     <outputDirectory>${project.build.directory}/rocksdb</outputDirectory>
                                 </configuration>
