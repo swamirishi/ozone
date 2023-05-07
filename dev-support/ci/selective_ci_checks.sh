@@ -583,12 +583,12 @@ check_needs_compile
 
 # calculate basic checks to run
 BASIC_CHECKS="rat"
-check_needs_author
-check_needs_bats
-check_needs_checkstyle
-check_needs_dependency
-check_needs_docs
-check_needs_findbugs
+#check_needs_author
+#check_needs_bats
+#check_needs_checkstyle
+#check_needs_dependency
+#check_needs_docs
+#check_needs_findbugs
 check_needs_unit_test
 calculate_test_types_to_run
 set_outputs

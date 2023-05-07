@@ -16,4 +16,4 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 CHECK=unit
-source "${DIR}/junit.sh" -pl :rocksdb-checkpoint-differ "$@"
+source "${DIR}/junit.sh" -pl :rocksdb-checkpoint-differ -am "$@"
