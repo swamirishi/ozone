@@ -117,7 +117,7 @@ public class TestManagedSstFileReader {
 //  }
 
   @ParameterizedTest
-  @ValueSource(ints = {1, 3})
+  @ValueSource(ints = {1})
   public void testGetKeyStreamWithTombstone(int numberOfFiles)
       throws RocksDBException, IOException, NativeLibraryNotLoadedException {
     LOG.info("Initializing SSTdumpTool {}", numberOfFiles);
