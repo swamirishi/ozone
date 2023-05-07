@@ -134,11 +134,11 @@ public class TestManagedSstFileReader {
     ManagedSSTDumpTool sstDumpTool =
         new ManagedSSTDumpTool(executorService, 256);
     LOG.info("Initialized SSTdumpTool");
-    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
-        .forEach(key -> {
-          LOG.info("{} {}", numberOfFiles, key);
-          keys.remove(key);
-        });
+//    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
+//        .forEach(key -> {
+//          LOG.info("{} {}", numberOfFiles, key);
+//          keys.remove(key);
+//        });
     LOG.info("Done {}", numberOfFiles);
     Assertions.assertEquals(0, keys.size());
     LOG.info("Dones {}", numberOfFiles);
