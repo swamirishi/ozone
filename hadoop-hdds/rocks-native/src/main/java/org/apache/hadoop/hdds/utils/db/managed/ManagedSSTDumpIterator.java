@@ -76,8 +76,10 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
       throw new IOException(String.format("Path given: %s is not a file",
           sstFile.getAbsolutePath()));
     }
+    LOG.info("Initting {}", sstFilePath);
     init(sstDumpTool, sstFile, options);
-    this.stackTrace = Thread.currentThread().getStackTrace();
+//    this.stackTrace = Thread.currentThread().getStackTrace();
+    this.stackTrace = new StackTraceElement[]{};
   }
 
   /**
@@ -135,7 +137,7 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
         sstDumpToolTask.getPipedOutput(), StandardCharsets.UTF_8));
     LOG.info("{}", processOutput.readLine());
     LOG.info("{}", processOutput.readLine());
-    charBuffer = new char[8192];
+    charBuffer = new char[256];
     open = new AtomicBoolean(true);
     currentKey = Optional.empty();
     nextKey = Optional.empty();
