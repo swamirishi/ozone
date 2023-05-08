@@ -45,6 +45,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.helpers.WithObjectID;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffReportOzone;
+import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
 import org.apache.ozone.rocksdb.util.ManagedSstFileReader;
 import org.apache.ozone.rocksdb.util.RdbUtil;
 import org.apache.ozone.rocksdiff.DifferSnapshotInfo;
@@ -125,15 +126,13 @@ public class TestSnapshotDiffManager {
 
   @BeforeAll
   public static void initCodecRegistry() {
-    codecRegistry = new CodecRegistry();
-
     // Integers are used for indexing persistent list.
-    codecRegistry.addCodec(Integer.class, new IntegerCodec());
-    // DiffReportEntry codec for Diff Report.
-    codecRegistry.addCodec(SnapshotDiffReportOzone.DiffReportEntry.class,
-        new OmDBDiffReportEntryCodec());
-    codecRegistry.addCodec(SnapshotDiffJob.class,
-        new SnapshotDiffJob.SnapshotDiffJobCodec());
+    codecRegistry = CodecRegistry.newBuilder()
+        .addCodec(Integer.class, new IntegerCodec())
+        .addCodec(SnapshotDiffReportOzone.DiffReportEntry.class,
+            new OmDBDiffReportEntryCodec())
+        .addCodec(SnapshotDiffJob.class,
+            new SnapshotDiffJob.SnapshotDiffJobCodec()).build();
   }
 
   private DBStore getMockedDBStore(String dbStorePath) {
@@ -312,7 +311,7 @@ public class TestSnapshotDiffManager {
       "true," + OmMetadataManagerImpl.KEY_TABLE})
   public void testObjectIdMapWithTombstoneEntries(boolean nativeLibraryLoaded,
                                                   String snapshotTableName)
-      throws NativeLibraryNotLoadedException, IOException {
+      throws NativeLibraryNotLoadedException, IOException, RocksDBException {
     Set<String> keysWithTombstones = IntStream.range(0, 100)
         .boxed().map(i -> "key" + i).collect(Collectors.toSet());
     Set<String> keys = IntStream.range(0, 50).boxed()
@@ -339,11 +338,11 @@ public class TestSnapshotDiffManager {
           getMockedTable(fromSnapshotTableMap, snapshotTableName);
       SnapshotDiffManager snapshotDiffManager =
           getMockedSnapshotDiffManager(10);
-      Mockito.when(snapshotDiffManager
-          .isKeyInBucket(Matchers.anyString(), Matchers.any(), Matchers.any()))
-          .thenAnswer((Answer<Boolean>) invocationOnMock ->
+      Mockito.doAnswer((Answer<Boolean>) invocationOnMock ->
           Integer.parseInt(invocationOnMock.getArgument(0, String.class)
-              .substring(3)) % 2 == 0);
+              .substring(3)) % 2 == 0).when(snapshotDiffManager)
+          .isKeyInBucket(Matchers.anyString(), Matchers.anyMap(),
+              Matchers.anyString());
       PersistentMap<byte[], byte[]> oldObjectIdKeyMap =
           new SnapshotTestUtils.HashPersistentMap<>();
       PersistentMap<byte[], byte[]> newObjectIdKeyMap =
@@ -470,8 +469,11 @@ public class TestSnapshotDiffManager {
           getMockedSnapshotDiffManager(10);
       snapshotDiffManager.generateDiffReport("jobId",
           objectIdsToCheck, oldObjectIdKeyMap, newObjectIdKeyMap);
+      SnapshotDiffJob snapshotDiffJob = new SnapshotDiffJob(0, "jobId",
+          SnapshotDiffResponse.JobStatus.DONE, "vol", "buck", "fs", "ts",
+          true, diffMap.size());
       SnapshotDiffReportOzone snapshotDiffReportOzone =
-          snapshotDiffManager.createPageResponse("jobId", "vol",
+          snapshotDiffManager.createPageResponse(snapshotDiffJob, "vol",
           "buck", getMockedOmSnapshot("fs"), getMockedOmSnapshot("ts"),
           0, Integer.MAX_VALUE);
       List<SnapshotDiffReport.DiffType> expectedOrder = Arrays.asList(
