@@ -134,10 +134,10 @@ public class TestManagedSstFileReader {
 //        new SynchronousQueue<>(), new ThreadFactoryBuilder()
 //        .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
 //        .build(), new ThreadPoolExecutor.DiscardPolicy());
-//    ManagedSSTDumpTool sstDumpTool =
-//        new ManagedSSTDumpTool(executorService, 256);
-//    LOG.info("Initialized SSTdumpTool");
-//    sstDumpTool.run(new String[]{"--comand=scan", "--file=" + files.get(0)}, new ManagedOptions());
+    ManagedSSTDumpTool sstDumpTool =
+        new ManagedSSTDumpTool(executorService, 256);
+    LOG.info("Initialized SSTdumpTool");
+    sstDumpTool.run(new String[]{"--comand=scan", "--file=" + files.get(0)}, new ManagedOptions());
 //    ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> sstDumpIterator =
 //        new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(sstDumpTool, files.get(0), new ManagedOptions()) {
 //      @Override
