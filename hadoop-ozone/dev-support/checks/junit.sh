@@ -90,6 +90,6 @@ if [[ "${OZONE_WITH_COVERAGE}" == "true" ]]; then
   #Archive combined jacoco records
   mvn -B -N jacoco:merge -Djacoco.destFile=$REPORT_DIR/jacoco-combined.exec
 fi
-cp -r "hadoop-hdds/rocks-native/target/class*" "${REPORT_DIR}"
-cp -r "hadoop-hdds/rocksdb-checkpoint-differ/target" "${REPORT_DIR}"
+cp -r "hadoop-hdds/rocks-native/target" "${REPORT_DIR}"
+#cp -r "hadoop-hdds/rocksdb-checkpoint-differ/target" "${REPORT_DIR}"
 exit ${rc}
