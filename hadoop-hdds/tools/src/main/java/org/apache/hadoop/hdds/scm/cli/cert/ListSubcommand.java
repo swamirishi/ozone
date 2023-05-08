@@ -18,15 +18,12 @@
 package org.apache.hadoop.hdds.scm.cli.cert;
 
 import java.io.IOException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.List;
 
 import org.apache.hadoop.hdds.cli.HddsVersionProvider;
 import org.apache.hadoop.hdds.protocol.SCMSecurityProtocol;
 
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
@@ -65,7 +62,7 @@ public class ListSubcommand extends ScmCertSubcommand {
       description = "Filter certificate by the type: valid or revoked",
       defaultValue = "valid", showDefaultValue = Visibility.ALWAYS)
   private String type;
-  
+
   @Option(names = { "--json" },
       defaultValue = "false",
       description = "Format output as JSON")
@@ -89,6 +86,10 @@ public class ListSubcommand extends ScmCertSubcommand {
         startSerialId, count, isRevoked);
     LOG.info("Certificate list:(Type={}, BatchSize={}, CertCount={})",
         type.toUpperCase(), count, certPemList.size());
+    if (count == certPemList.size()) {
+      LOG.info("The certificate list could be longer than the batch size: {}." +
+          " Please use the \"-c\" option to see more certificates.", count);
+    }
     printCertList(LOG, certPemList);
   }
 }
