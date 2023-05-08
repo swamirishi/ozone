@@ -72,7 +72,7 @@ if(${SST_DUMP_INCLUDE})
                 zstd
                 PROPERTIES
                 IMPORTED_LOCATION ${ZSTD_LIB}/libzstd.a)
-    set(linked_libraries ${linked_libraries} bz2 zlib rocks_tools rocksdb lz4 snappy zstd)
+    set(linked_libraries ${linked_libraries} rocks_tools rocksdb zstd)
 endif()
 add_library(ozone_rocksdb_tools SHARED ${SOURCE_FILES})
 target_link_libraries(ozone_rocksdb_tools ${linked_libraries})
