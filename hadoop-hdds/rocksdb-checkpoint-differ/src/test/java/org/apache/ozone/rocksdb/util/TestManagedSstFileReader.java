@@ -128,25 +128,27 @@ public class TestManagedSstFileReader {
     List<String> files = data.getRight();
     Map<String, Integer> keys = data.getLeft();
     LOG.info("Initializing SSTdumpTools {}", numberOfFiles);
-    ExecutorService executorService = new ThreadPoolExecutor(0,
-        1, 60, TimeUnit.SECONDS,
-        new SynchronousQueue<>(), new ThreadFactoryBuilder()
-        .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
-        .build(), new ThreadPoolExecutor.DiscardPolicy());
+    ExecutorService executorService = null;
+//    ExecutorService executorService = new ThreadPoolExecutor(0,
+//        1, 60, TimeUnit.SECONDS,
+//        new SynchronousQueue<>(), new ThreadFactoryBuilder()
+//        .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
+//        .build(), new ThreadPoolExecutor.DiscardPolicy());
     ManagedSSTDumpTool sstDumpTool =
         new ManagedSSTDumpTool(executorService, 256);
     LOG.info("Initialized SSTdumpTool");
-    ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> sstDumpIterator =
-        new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(sstDumpTool, files.get(0), new ManagedOptions()) {
-      @Override
-      protected KeyValue getTransformedValue(Optional<KeyValue> value) {
-        return value.orElse(null);
-      }
-    };
-    while (sstDumpIterator.hasNext()) {
-      LOG.info("{}", sstDumpIterator.next());
-    }
-    sstDumpIterator.close();
+    sstDumpTool.run(new String[]{"--comand=scan", "--file=" + files.get(0)}, new ManagedOptions());
+//    ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> sstDumpIterator =
+//        new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(sstDumpTool, files.get(0), new ManagedOptions()) {
+//      @Override
+//      protected KeyValue getTransformedValue(Optional<KeyValue> value) {
+//        return value.orElse(null);
+//      }
+//    };
+//    while (sstDumpIterator.hasNext()) {
+//      LOG.info("{}", sstDumpIterator.next());
+//    }
+//    sstDumpIterator.close();
 
 //    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
 //        .forEach(key -> {
@@ -156,13 +158,13 @@ public class TestManagedSstFileReader {
 //    LOG.info("Done {}", numberOfFiles);
 //    Assertions.assertEquals(0, keys.size());
 //    LOG.info("Dones {}", numberOfFiles);
-    executorService.shutdown();
-    try {
-      executorService.awaitTermination(5, TimeUnit.SECONDS);
-    } catch (InterruptedException e) {
-      LOG.error("Failed to shutdown Report Manager", e);
-      Thread.currentThread().interrupt();
-    }
+//    executorService.shutdown();
+//    try {
+//      executorService.awaitTermination(5, TimeUnit.SECONDS);
+//    } catch (InterruptedException e) {
+//      LOG.error("Failed to shutdown Report Manager", e);
+//      Thread.currentThread().interrupt();
+//    }
     LOG.info("Dones2 {}", numberOfFiles);
   }
 }

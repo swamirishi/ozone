@@ -59,10 +59,12 @@ public class ManagedSSTDumpTool {
 
   public SSTDumpToolTask run(String[] args, ManagedOptions options)
       throws NativeLibraryNotLoadedException {
-    PipeInputStream pipeInputStream = new PipeInputStream(bufferCapacity);
-    return new SSTDumpToolTask(this.executorService.submit(() ->
-        this.runInternal(args, options.getNativeHandle(),
-            pipeInputStream.getNativeHandle())), pipeInputStream);
+    this.runInternal(args, options.getNativeHandle());
+//    PipeInputStream pipeInputStream = new PipeInputStream(bufferCapacity);
+//    return new SSTDumpToolTask(this.executorService.submit(() ->
+//        this.runInternal(args, options.getNativeHandle(),
+//            pipeInputStream.getNativeHandle())), pipeInputStream);
+      return null;
   }
 
   public SSTDumpToolTask run(Map<String, String> args, ManagedOptions options)
@@ -74,6 +76,7 @@ public class ManagedSSTDumpTool {
 
   private native int runInternal(String[] args, long optionsHandle,
                                  long pipeHandle);
+  private native int runInternal(String[] args, long optionsHandle);
 
   /**
    * Class holding piped output of SST Dumptool & future of command.

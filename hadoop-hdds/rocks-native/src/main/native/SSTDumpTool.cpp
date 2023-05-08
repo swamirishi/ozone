@@ -46,3 +46,22 @@ jint Java_org_apache_hadoop_hdds_utils_db_managed_ManagedSSTDumpTool_runInternal
     pipe->close();
     return ret;
 }
+
+jint Java_org_apache_hadoop_hdds_utils_db_managed_ManagedSSTDumpTool_runInternal(JNIEnv *env, jobject obj,
+  jobjectArray argsArray, jlong optionsHandle) {
+    ROCKSDB_NAMESPACE::SSTDumpTool dumpTool;
+    ROCKSDB_NAMESPACE::Options *options = reinterpret_cast<ROCKSDB_NAMESPACE::Options *>(optionsHandle);
+    int length = env->GetArrayLength(argsArray);
+    char *args[length + 1];
+    for (int i = 0; i < length; i++) {
+        jstring str_val = (jstring)env->GetObjectArrayElement(argsArray, (jsize)i);
+        char *utf_str = (char *)env->GetStringUTFChars(str_val, JNI_FALSE);
+        args[i + 1] = utf_str;
+    }
+    int ret = dumpTool.Run(length + 1, args, *options);
+    for (int i = 1; i < length + 1; i++) {
+        jstring str_val = (jstring)env->GetObjectArrayElement(argsArray, (jsize)(i - 1));
+        env->ReleaseStringUTFChars(str_val, args[i]);
+    }
+    return ret;
+}
