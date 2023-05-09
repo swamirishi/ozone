@@ -22,6 +22,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
@@ -302,6 +303,7 @@ public class TestSnapshotDiffManager {
    * @throws NativeLibraryNotLoadedException
    * @throws IOException
    */
+  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   @ParameterizedTest
   @CsvSource({"false," + OmMetadataManagerImpl.DIRECTORY_TABLE,
       "true," + OmMetadataManagerImpl.DIRECTORY_TABLE,
@@ -338,7 +340,7 @@ public class TestSnapshotDiffManager {
           getMockedTable(fromSnapshotTableMap, snapshotTableName);
       SnapshotDiffManager snapshotDiffManager =
           getMockedSnapshotDiffManager(10);
-      boolean val = Mockito.doAnswer((Answer<Boolean>) invocationOnMock ->
+      Mockito.doAnswer((Answer<Boolean>) invocationOnMock ->
           Integer.parseInt(invocationOnMock.getArgument(0, String.class)
               .substring(3)) % 2 == 0).when(snapshotDiffManager)
           .isKeyInBucket(Matchers.anyString(), Matchers.anyMap(),
