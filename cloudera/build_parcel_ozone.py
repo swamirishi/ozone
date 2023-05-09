@@ -267,8 +267,15 @@ class CopyAndModifyData(object):
 
     def _docker_image_copy_files_util(self, destination_path, classpath_name):
         try:
+            exclude_jars_list = []
+            for files in self._configs['exclude_jars_in_docker']:
+                logging.info("Exclude_jars {}".format(files))
+                for file in glob.glob(os.path.join(self._in_dir, f"hadoop-ozone/dist/target/ozone-*/share/ozone/lib/{files}")):
+                    logging.info("[Docker image] Add files to exclude_jars_list {}".format(file))
+                    exclude_jars_list.append(file)
+
             for file in glob.glob(os.path.join(self._in_dir, f"hadoop-ozone/dist/target/ozone-*/share/ozone/lib/{classpath_name}-*.jar")):
-                logging.info(f"Copying {file} to {destination_path}")
+                logging.info(f"[Docker image] Copying {file} to {destination_path}")
                 shutil.copy(file, destination_path)
 
             for file in glob.glob(os.path.join(self._in_dir, "hadoop-ozone/dist/target/ozone-*/share/ozone/lib/*.jar")):
@@ -276,8 +283,8 @@ class CopyAndModifyData(object):
                     with open(classpath_file, 'r') as f:
                         contents = f.read()
                     jar_name = file[file.rindex("/")+1:] if '/' in file else file
-                    if jar_name in contents:
-                        logging.info(f"Copying {file} to {destination_path}")
+                    if jar_name in contents and file not in exclude_jars_list:
+                        logging.info(f"[Docker image] Copying {file} to {destination_path}")
                         shutil.copy(file, destination_path)
         except Exception:
             logging.info("Exception in _docker_image_copy_files_util {}".format(traceback.format_exc()))
