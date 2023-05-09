@@ -338,7 +338,7 @@ public class TestSnapshotDiffManager {
           getMockedTable(fromSnapshotTableMap, snapshotTableName);
       SnapshotDiffManager snapshotDiffManager =
           getMockedSnapshotDiffManager(10);
-      Mockito.doAnswer((Answer<Boolean>) invocationOnMock ->
+      boolean val = Mockito.doAnswer((Answer<Boolean>) invocationOnMock ->
           Integer.parseInt(invocationOnMock.getArgument(0, String.class)
               .substring(3)) % 2 == 0).when(snapshotDiffManager)
           .isKeyInBucket(Matchers.anyString(), Matchers.anyMap(),
