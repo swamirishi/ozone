@@ -1,4 +1,8 @@
 ---
 linux_distro: ['bionic', 'el7', 'el8', 'focal', 'sles12']
 additional_jars: ['*']
+# For Ozone parcel, exclude both log4j1 and log4j2. Log4j2 is in the runtime classpath anyway through CDP parcel.
 exclude_jars: ['log4j*']
+# Exclude log4j1 in the docker image; reload4j is in the runtime so it's fine.
+# Include log4j2 because docker image does not contain CDP runtime.
+exclude_jars_in_docker: ['log4j-1.2.17*']
