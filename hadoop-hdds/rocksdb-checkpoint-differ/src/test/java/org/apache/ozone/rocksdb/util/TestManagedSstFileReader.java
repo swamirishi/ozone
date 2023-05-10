@@ -119,7 +119,6 @@ public class TestManagedSstFileReader {
     }
   }
 
-
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2, 3, 7, 10})
   public void testGetKeyStreamWithTombstone(int numberOfFiles)
