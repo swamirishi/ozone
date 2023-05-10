@@ -112,33 +112,6 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
     return Optional.of(val);
   }
 
-  /**
-   * Reads the next n chars from the stream & makes a string.
-   *
-   * @param numberOfChars
-   * @return String of next chars read
-   * @throws IOException
-   */
-  private String readNextNumberOfCharsFromStream(int numberOfChars)
-      throws IOException {
-    StringBuilder value = new StringBuilder();
-    while (numberOfChars > 0) {
-      int noOfCharsRead = processOutput.read(intBuffer, 0,
-          Math.min(numberOfChars, intBuffer.length));
-      if (noOfCharsRead == -1) {
-        break;
-      }
-      int idx = 0;
-      while (idx < noOfCharsRead) {
-        value.append((char) intBuffer[idx]);
-        idx += 1;
-      }
-      numberOfChars -= noOfCharsRead;
-    }
-
-    return value.toString();
-  }
-
   private void init(ManagedSSTDumpTool sstDumpTool, File sstFile,
                     ManagedOptions options)
       throws NativeLibraryNotLoadedException {
@@ -268,7 +241,6 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
       return key;
     }
 
-    @SuppressFBWarnings("EI_EXPOSE_REP")
     public BigInteger getSequence() {
       return sequence;
     }
@@ -277,6 +249,7 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
       return type;
     }
 
+    @SuppressFBWarnings("EI_EXPOSE_REP")
     public byte[] getValue() {
       return value;
     }

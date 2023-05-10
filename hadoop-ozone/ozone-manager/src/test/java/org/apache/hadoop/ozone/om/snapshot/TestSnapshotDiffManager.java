@@ -302,7 +302,8 @@ public class TestSnapshotDiffManager {
    * @throws NativeLibraryNotLoadedException
    * @throws IOException
    */
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
+  @SuppressFBWarnings({"DLS_DEAD_LOCAL_STORE",
+      "RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT"})
   @ParameterizedTest
   @CsvSource({"false," + OmMetadataManagerImpl.DIRECTORY_TABLE,
       "true," + OmMetadataManagerImpl.DIRECTORY_TABLE,
