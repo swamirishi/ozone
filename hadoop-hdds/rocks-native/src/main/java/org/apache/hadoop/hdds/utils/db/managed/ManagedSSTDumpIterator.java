@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.hdds.utils.db.managed;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.hadoop.util.ClosableIterator;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
 import org.eclipse.jetty.io.RuntimeIOException;
@@ -258,14 +259,16 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
                      byte[] value) {
       this.key = key;
       this.sequence = sequence;
-      this.type = Integer.valueOf(type);
+      this.type = type;
       this.value = value;
     }
 
+    @SuppressFBWarnings("EI_EXPOSE_REP")
     public byte[] getKey() {
       return key;
     }
 
+    @SuppressFBWarnings("EI_EXPOSE_REP")
     public BigInteger getSequence() {
       return sequence;
     }

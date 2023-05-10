@@ -33,6 +33,11 @@
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-io</artifactId>
         </dependency>
+      <dependency>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-annotations</artifactId>
+        <scope>compile</scope>
+      </dependency>
     </dependencies>
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
