@@ -139,11 +139,5 @@ public class TestManagedSstFileReader {
         .forEach(keys::remove);
     Assertions.assertEquals(0, keys.size());
     executorService.shutdown();
-    try {
-      executorService.awaitTermination(5, TimeUnit.SECONDS);
-    } catch (InterruptedException e) {
-      LOG.error("Failed to shutdown Report Manager", e);
-      Thread.currentThread().interrupt();
-    }
   }
 }
