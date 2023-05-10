@@ -22,7 +22,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedEnvOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
-import org.apache.hadoop.hdds.utils.db.managed.ManagedReadOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSSTDumpTool;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileWriter;
 import org.junit.jupiter.api.Assertions;
@@ -54,6 +53,7 @@ public class TestManagedSstFileReader {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(TestManagedSstFileReader.class);
+
   private String createRandomSSTFile(Map<String, Integer> records)
       throws IOException, RocksDBException {
     Map<String, Integer> keys = records instanceof TreeMap ?
@@ -64,7 +64,7 @@ public class TestManagedSstFileReader {
     try (ManagedOptions managedOptions = new ManagedOptions();
          ManagedEnvOptions managedEnvOptions = new ManagedEnvOptions();
          ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
-        managedEnvOptions, managedOptions)) {
+             managedEnvOptions, managedOptions)) {
       sstFileWriter.open(file.getAbsolutePath());
       for (Map.Entry<String, Integer> entry : keys.entrySet()) {
         if (entry.getValue() == 0) {
