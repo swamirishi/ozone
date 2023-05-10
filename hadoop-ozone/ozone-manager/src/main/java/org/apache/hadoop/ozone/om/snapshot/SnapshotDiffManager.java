@@ -270,7 +270,7 @@ public class SnapshotDiffManager implements AutoCloseable {
               new SynchronousQueue<>(), new ThreadFactoryBuilder()
               .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
               .build(),
-              new ThreadPoolExecutor.DiscardPolicy());
+              new ThreadPoolExecutor.DiscardPolicy()));
       return Optional.of(new ManagedSSTDumpTool(sstDumptoolExecService.get(), bufferSize));
     } catch (NativeLibraryNotLoadedException e) {
       this.sstDumptoolExecService.ifPresent(ExecutorService::shutdown);
@@ -834,7 +834,7 @@ public class SnapshotDiffManager implements AutoCloseable {
   }
 
   @SuppressWarnings("checkstyle:ParameterNumber")
-  private void addToObjectIdMap(Table<String, ? extends WithObjectID> fsTable,
+  void addToObjectIdMap(Table<String, ? extends WithObjectID> fsTable,
                                 Table<String, ? extends WithObjectID> tsTable,
                                 Set<String> deltaFiles,
                                 boolean nativeRocksToolsLoaded,

@@ -352,8 +352,7 @@ public class TestSnapshotDiffManager {
       PersistentSet<byte[]> objectIdsToCheck =
           new SnapshotTestUtils.HashPersistentSet<>();
       snapshotDiffManager.addToObjectIdMap(toSnapshotTable,
-          fromSnapshotTable,
-          Pair.of(nativeLibraryLoaded, Mockito.mock(Set.class)),
+          fromSnapshotTable, Mockito.mock(Set.class), nativeLibraryLoaded,
           oldObjectIdKeyMap, newObjectIdKeyMap, objectIdsToCheck,
           Maps.newHashMap());
 
@@ -476,7 +475,7 @@ public class TestSnapshotDiffManager {
           true, diffMap.size());
       SnapshotDiffReportOzone snapshotDiffReportOzone =
           snapshotDiffManager.createPageResponse(snapshotDiffJob, "vol",
-          "buck", getMockedOmSnapshot("fs"), getMockedOmSnapshot("ts"),
+          "buck", "fs", "ts",
           0, Integer.MAX_VALUE);
       List<SnapshotDiffReport.DiffType> expectedOrder = Arrays.asList(
           SnapshotDiffReport.DiffType.DELETE,
