@@ -271,7 +271,8 @@ public class SnapshotDiffManager implements AutoCloseable {
               .setNameFormat("snapshot-diff-manager-sst-dump-tool-TID-%d")
               .build(),
               new ThreadPoolExecutor.DiscardPolicy()));
-      return Optional.of(new ManagedSSTDumpTool(sstDumptoolExecService.get(), bufferSize));
+      return Optional.of(new ManagedSSTDumpTool(sstDumptoolExecService.get(),
+          bufferSize));
     } catch (NativeLibraryNotLoadedException e) {
       this.sstDumptoolExecService.ifPresent(ExecutorService::shutdown);
     }
