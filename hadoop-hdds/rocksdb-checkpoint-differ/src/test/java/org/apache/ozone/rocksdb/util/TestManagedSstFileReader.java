@@ -45,6 +45,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * ManagedSstFileReader tests.
@@ -54,10 +55,8 @@ public class TestManagedSstFileReader {
   private static final Logger LOG =
       LoggerFactory.getLogger(TestManagedSstFileReader.class);
 
-  private String createRandomSSTFile(Map<String, Integer> records)
+  private String createRandomSSTFile(TreeMap<String, Integer> keys)
       throws IOException, RocksDBException {
-    Map<String, Integer> keys = records instanceof TreeMap ?
-        records : new TreeMap<>(records);
     File file = File.createTempFile("tmp_sst_file", ".sst");
     file.deleteOnExit();
 
@@ -81,7 +80,7 @@ public class TestManagedSstFileReader {
 
   private Map<String, Integer> createKeys(int startRange, int endRange) {
     return IntStream.range(startRange, endRange).boxed()
-        .collect(Collectors.toMap(i -> "key" + i,
+        .collect(Collectors.toMap(i -> "key\0=>\n\t\r*." + i,
             i -> i % 2));
   }
 
@@ -92,8 +91,8 @@ public class TestManagedSstFileReader {
     Map<String, Integer> keys = new HashMap<>();
     int cnt = 0;
     for (int i = 0; i < numberOfFiles; i++) {
-      Map<String, Integer> fileKeys = createKeys(cnt,
-          cnt + numberOfKeysPerFile);
+      TreeMap<String, Integer> fileKeys = new TreeMap<>(createKeys(cnt,
+          cnt + numberOfKeysPerFile));
       cnt += fileKeys.size();
       String tmpSSTFile = createRandomSSTFile(fileKeys);
       files.add(tmpSSTFile);
@@ -111,12 +110,13 @@ public class TestManagedSstFileReader {
         createDummyData(numberOfFiles);
     List<String> files = data.getRight();
     Map<String, Integer> keys = data.getLeft();
-    new ManagedSstFileReader(files).getKeyStream().forEach(
-        key -> {
-          Assertions.assertEquals(keys.get(key), 1);
-          keys.remove(key);
-        });
-    keys.values().forEach(val -> Assertions.assertEquals(0, val));
+    try (Stream<String> keyStream = new ManagedSstFileReader(files).getKeyStream()) {
+      keyStream.forEach(key -> {
+        Assertions.assertEquals(keys.get(key), 1);
+        keys.remove(key);
+      });
+      keys.values().forEach(val -> Assertions.assertEquals(0, val));
+    }
   }
 
 
@@ -135,9 +135,12 @@ public class TestManagedSstFileReader {
         .build(), new ThreadPoolExecutor.DiscardPolicy());
     ManagedSSTDumpTool sstDumpTool =
         new ManagedSSTDumpTool(executorService, 256);
-    new ManagedSstFileReader(files).getKeyStreamWithTombstone(sstDumpTool)
-        .forEach(keys::remove);
-    Assertions.assertEquals(0, keys.size());
+
+    try (Stream<String> keyStream = new ManagedSstFileReader(files)
+        .getKeyStreamWithTombstone(sstDumpTool)) {
+      keyStream.forEach(keys::remove);
+      Assertions.assertEquals(0, keys.size());
+    }
     executorService.shutdown();
   }
 }
