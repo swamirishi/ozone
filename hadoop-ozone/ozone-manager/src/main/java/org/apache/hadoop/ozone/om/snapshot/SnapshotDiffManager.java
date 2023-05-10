@@ -813,7 +813,7 @@ public class SnapshotDiffManager implements AutoCloseable {
     boolean isDirectoryTable =
         fsTable.getName().equals(OmMetadataManagerImpl.DIRECTORY_TABLE);
     ManagedSstFileReader sstFileReader = new ManagedSstFileReader(deltaFiles);
-    validateEstimatedKeyChangesAreInLimits(sstFileReader);
+//    validateEstimatedKeyChangesAreInLimits(sstFileReader);
 
     try (Stream<String> keysToCheck = nativeRocksToolsLoaded
                  ? sstFileReader.getKeyStreamWithTombstone(sstDumpTool)

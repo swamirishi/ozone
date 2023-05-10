@@ -143,7 +143,8 @@ public class ManagedSstFileReader {
                 options) {
               @Override
               protected String getTransformedValue(Optional<KeyValue> value) {
-                return value.map(KeyValue::getKey).orElse(null);
+                return value.map(v -> new String(v.getKey(), UTF_8))
+                    .orElse(null);
               }
             };
           }
