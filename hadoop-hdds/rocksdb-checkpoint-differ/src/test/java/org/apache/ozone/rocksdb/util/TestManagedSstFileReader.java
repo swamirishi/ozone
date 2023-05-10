@@ -22,6 +22,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedEnvOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedReadOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSSTDumpTool;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileWriter;
 import org.junit.jupiter.api.Assertions;
@@ -59,8 +60,11 @@ public class TestManagedSstFileReader {
         records : new TreeMap<>(records);
     File file = File.createTempFile("tmp_sst_file", ".sst");
     file.deleteOnExit();
-    try (ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
-        new ManagedEnvOptions(), new ManagedOptions())) {
+
+    try (ManagedOptions managedOptions = new ManagedOptions();
+         ManagedEnvOptions managedEnvOptions = new ManagedEnvOptions();
+         ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
+        managedEnvOptions, managedOptions)) {
       sstFileWriter.open(file.getAbsolutePath());
       for (Map.Entry<String, Integer> entry : keys.entrySet()) {
         if (entry.getValue() == 0) {
