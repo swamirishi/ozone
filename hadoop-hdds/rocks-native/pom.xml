@@ -465,7 +465,7 @@
             </build>
         </profile>
         <profile>
-            <id>noNativeTest</id>
+            <id>disable-native-testing</id>
             <activation>
                 <property>
                     <name>!rocks_tools_native</name>
