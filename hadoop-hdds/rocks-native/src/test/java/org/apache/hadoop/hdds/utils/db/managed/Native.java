@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Tag;
 @Tag("native")
 public @interface Native {
   /**
-   * Native Library being used
+   * Native Library being used.
    */
   String value() default "";
 }

@@ -51,7 +51,7 @@ public class TestManagedSSTDumpIterator {
     try (ManagedEnvOptions envOptions = new ManagedEnvOptions();
          ManagedOptions managedOptions = new ManagedOptions();
          ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
-        envOptions, managedOptions)) {
+             envOptions, managedOptions)) {
       sstFileWriter.open(file.getAbsolutePath());
       for (Map.Entry<Pair<String, Integer>, String> entry : keys.entrySet()) {
         if (entry.getKey().getValue() == 0) {
@@ -65,9 +65,10 @@ public class TestManagedSSTDumpIterator {
       }
       sstFileWriter.finish();
       sstFileWriter.close();
-      ExecutorService executorService = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
-          new ArrayBlockingQueue<>(1),
-          new ThreadPoolExecutor.CallerRunsPolicy());
+      ExecutorService executorService =
+          new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
+              new ArrayBlockingQueue<>(1),
+              new ThreadPoolExecutor.CallerRunsPolicy());
       ManagedSSTDumpTool tool = new ManagedSSTDumpTool(executorService, 8192);
       ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> iterator =
           new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(tool,
