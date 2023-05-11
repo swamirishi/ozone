@@ -19,7 +19,7 @@
 package org.apache.hadoop.hdds.utils.db.managed;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -70,24 +70,27 @@ public class TestManagedSSTDumpIterator {
               new ArrayBlockingQueue<>(1),
               new ThreadPoolExecutor.CallerRunsPolicy());
       ManagedSSTDumpTool tool = new ManagedSSTDumpTool(executorService, 8192);
-      ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> iterator =
-          new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(tool,
-              file.getAbsolutePath(), new ManagedOptions()) {
+      try (ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue> iterator =
+              new ManagedSSTDumpIterator<ManagedSSTDumpIterator.KeyValue>(
+              tool, file.getAbsolutePath(), new ManagedOptions()) {
+
             @Override
-            protected KeyValue getTransformedValue(KeyValue value) {
-              return value;
+            protected KeyValue getTransformedValue(Optional<KeyValue> value) {
+              return value.orElse(null);
             }
-          };
-      while (iterator.hasNext()) {
-        ManagedSSTDumpIterator.KeyValue r = iterator.next();
-        Pair<String, Integer> recordKey = Pair.of(r.getKey(), r.getType());
-        Assert.assertTrue(keys.containsKey(recordKey));
-        Assert.assertEquals(Optional.ofNullable(keys.get(recordKey)).orElse(""),
-            r.getValue());
-        keys.remove(recordKey);
+          }) {
+        while (iterator.hasNext()) {
+          ManagedSSTDumpIterator.KeyValue r = iterator.next();
+          Pair<String, Integer> recordKey = Pair.of(new String(r.getKey(),
+              StandardCharsets.UTF_8), r.getType());
+          Assertions.assertTrue(keys.containsKey(recordKey));
+          Assertions.assertEquals(
+              Optional.ofNullable(keys.get(recordKey)).orElse(""),
+              new String(r.getValue(), StandardCharsets.UTF_8));
+          keys.remove(recordKey);
+        }
+        Assertions.assertEquals(0, keys.size());
       }
-      Assert.assertEquals(0, keys.size());
-      iterator.close();
       executorService.shutdown();
     }
   }
@@ -101,7 +104,7 @@ public class TestManagedSSTDumpIterator {
         IntStream.range(0, 100).boxed().collect(
             Collectors.toMap(
                 i -> Pair.of(String.format(keyFormat, i), i % 2),
-                i -> String.format(valueFormat, i),
+                i -> i % 2 == 0 ? "" : String.format(valueFormat, i),
                 (v1, v2) -> v2,
                 TreeMap::new));
     testSSTDumpIteratorWithKeys(keys);
@@ -117,7 +120,8 @@ class KeyValueFormatArgumentProvider implements ArgumentsProvider {
         Arguments.of("key%1$d", "%1$dvalue%1$d"),
         Arguments.of("'key%1$d", "%1$d'value%1$d'"),
         Arguments.of("'key%1$d", "%1$d'value%1$d'"),
-        Arguments.of("key%1$d", "%1$dvalue\n\0%1$d")
+        Arguments.of("key%1$d", "%1$dvalue\n\0%1$d"),
+        Arguments.of("key\0%1$d", "%1$dvalue\r%1$d")
     );
   }
 }
