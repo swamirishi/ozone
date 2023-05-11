@@ -55,6 +55,10 @@ public class TestManagedSstFileReader {
   private static final Logger LOG =
       LoggerFactory.getLogger(TestManagedSstFileReader.class);
 
+  private static final String KEY_PREFIX = IntStream.range(0, 256).boxed()
+      .map(i-> String.format("%c", i))
+      .collect(Collectors.joining(""));
+
   private String createRandomSSTFile(TreeMap<String, Integer> keys)
       throws IOException, RocksDBException {
     File file = File.createTempFile("tmp_sst_file", ".sst");
@@ -80,7 +84,7 @@ public class TestManagedSstFileReader {
 
   private Map<String, Integer> createKeys(int startRange, int endRange) {
     return IntStream.range(startRange, endRange).boxed()
-        .collect(Collectors.toMap(i -> "key\0=>\n\t\r*." + i,
+        .collect(Collectors.toMap(i -> KEY_PREFIX + i,
             i -> i % 2));
   }
 
