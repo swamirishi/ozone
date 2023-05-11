@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.hdds.utils.db.managed;
 
+import com.google.common.primitives.UnsignedLong;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.hadoop.util.ClosableIterator;
 import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
@@ -96,20 +97,17 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
     return Optional.empty();
   }
 
-  private Optional<BigInteger> getNextUnsignedLong() {
-    BigInteger val = BigInteger.ZERO;
-    BigInteger multiplier = new BigInteger("256");
+  private Optional<UnsignedLong> getNextUnsignedLong() {
+    long val = 0;
     for (int i = 0; i < 8; i++) {
-
-      val = val.multiply(multiplier);
+      val = val << 8;
       int nextByte = processOutput.read();
       if (nextByte < 0) {
         return Optional.empty();
       }
-
-      val = val.add(new BigInteger(String.valueOf(nextByte)));
+      val += nextByte;
     }
-    return Optional.of(val);
+    return Optional.of(UnsignedLong.fromLongBits(val));
   }
 
   private void init(ManagedSSTDumpTool sstDumpTool, File sstFile,
@@ -176,7 +174,7 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
     try {
       Optional<byte[]> key = getNextByteArray();
       if (key.isPresent()) {
-        Optional<BigInteger> sequenceNumber = getNextUnsignedLong();
+        Optional<UnsignedLong> sequenceNumber = getNextUnsignedLong();
         if (sequenceNumber.isPresent()) {
           Optional<Integer> type = getNextNumberInStream();
           if (type.isPresent()) {
@@ -225,11 +223,11 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
    */
   public static final class KeyValue {
     private byte[] key;
-    private BigInteger sequence;
+    private UnsignedLong sequence;
     private Integer type;
     private byte[] value;
 
-    private KeyValue(byte[] key, BigInteger sequence, Integer type,
+    private KeyValue(byte[] key, UnsignedLong sequence, Integer type,
                      byte[] value) {
       this.key = key;
       this.sequence = sequence;
@@ -242,7 +240,7 @@ public abstract class ManagedSSTDumpIterator<T> implements ClosableIterator<T> {
       return key;
     }
 
-    public BigInteger getSequence() {
+    public UnsignedLong getSequence() {
       return sequence;
     }
 
