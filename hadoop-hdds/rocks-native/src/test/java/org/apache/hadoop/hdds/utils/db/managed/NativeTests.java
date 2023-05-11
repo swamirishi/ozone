@@ -1,7 +1,7 @@
 package org.apache.hadoop.hdds.utils.db.managed;
 
 /**
- * Category for NativeTests
+ * Category for NativeTests.
  */
 public interface NativeTests {
 }

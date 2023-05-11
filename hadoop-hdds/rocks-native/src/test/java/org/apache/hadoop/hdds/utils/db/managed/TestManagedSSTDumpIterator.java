@@ -4,6 +4,8 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.jupiter.api.Assertions;
+import org.rocksdb.NativeLibraryLoader;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +29,6 @@ public class TestManagedSSTDumpIterator {
   public void testSSTDumpIterator() throws Exception {
 
     File file = File.createTempFile("tmp_sst_file", ".sst");
-    file = new File("/tmp/hi.sst");
     try (ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(
         new ManagedEnvOptions(), new ManagedOptions())) {
       sstFileWriter.open(file.getAbsolutePath());
@@ -58,16 +59,19 @@ public class TestManagedSSTDumpIterator {
               new ThreadPoolExecutor.CallerRunsPolicy()), 8192);
       ManagedSSTDumpIterator iterator = new ManagedSSTDumpIterator(tool,
           file.getAbsolutePath(), new ManagedOptions());
+      int cnt = 0;
       while (iterator.hasNext()) {
         ManagedSSTDumpIterator.KeyValue r = iterator.next();
+        System.out.println(r);
         if (r.getType() == 0) {
           Assert.assertTrue(r.getKey().endsWith(DELETE_SUFFIX));
         } else {
           Assert.assertTrue(r.getKey().endsWith(CREATE_SUFFIX));
         }
+        cnt += 1;
       }
+      Assert.assertEquals(100, cnt);
       iterator.close();
-      System.out.println("Test native completed");
     }
   }
 }
