@@ -404,7 +404,6 @@
         <module>ozonefs-shaded</module>
         <module>ozonefs-hadoop2</module>
         <module>ozonefs-hadoop3</module>
-        <module>ozonefs-hadoop3-client</module>
       </modules>
     </profile>
     <profile>
