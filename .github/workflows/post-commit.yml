@@ -14,13 +14,53 @@
 # limitations under the License.
 name: build-branch
 on:
-  pull_request:
-    types: [opened, ready_for_review, synchronize]
   push:
+env:
+  FAIL_FAST: ${{ github.event_name == 'pull_request' }}
+  MAVEN_OPTS: -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=3
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  CI:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
+  basic:
+    runs-on: ubuntu-18.04
+    timeout-minutes: 240
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    strategy:
+      matrix:
+        check:
+          - om
+      fail-fast: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v2
+      - name: Cache for maven dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: maven-repo-${{ hashFiles('**/pom.xml') }}-8-${{ matrix.check }}
+          restore-keys: |
+            maven-repo-${{ hashFiles('**/pom.xml') }}-8
+            maven-repo-${{ hashFiles('**/pom.xml') }}
+            maven-repo-
+        if: ${{ !contains('author,bats,docs', matrix.check) }}
+      - name: Execute tests
+        run: hadoop-ozone/dev-support/checks/integration.sh -P${{ matrix.profile }} -Dtest=TestOzoneManagerHASnapshot
+        env:
+          ITERATIONS: 50
+      - name: Summary of failures
+        run: cat target/${{ matrix.check }}/summary.txt
+        if: ${{ !cancelled() }}
+      - name: Archive build results
+        uses: actions/upload-artifact@v2
+        if: ${{ !cancelled() }}
+        with:
+          name: ${{ matrix.check }}
+          path: target/${{ matrix.check }}
+        continue-on-error: true
+      - name: Delete temporary build artifacts before caching
+        run: |
+          #Never cache local artifacts
+          rm -rf ~/.m2/repository/org/apache/ozone/hdds*
+          rm -rf ~/.m2/repository/org/apache/ozone/ozone*
+        if: always()

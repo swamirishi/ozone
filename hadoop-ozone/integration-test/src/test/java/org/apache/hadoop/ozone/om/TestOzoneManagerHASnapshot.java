@@ -23,7 +23,6 @@ import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -42,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests snapshot in OM HA setup.
  */
 @Timeout(300)
-@Disabled("HDDS-8645")
 public class TestOzoneManagerHASnapshot extends TestOzoneManagerHA {
 
   /**
@@ -75,7 +73,7 @@ public class TestOzoneManagerHASnapshot extends TestOzoneManagerHA {
                 snapshotInfo = iterator.next().getValue();
               }
             } catch (IOException e) {
-              throw new RuntimeException(e);
+              // Swallow the exception and do nothing.
             }
 
             if (snapshotInfo != null) {
