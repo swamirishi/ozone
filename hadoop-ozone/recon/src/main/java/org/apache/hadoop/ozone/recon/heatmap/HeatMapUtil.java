@@ -21,7 +21,6 @@ package org.apache.hadoop.ozone.recon.heatmap;
 
 import com.google.inject.Inject;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.ozone.recon.api.handlers.EntityHandler;
@@ -31,7 +30,6 @@ import org.apache.hadoop.ozone.recon.api.types.EntityReadAccessHeatMapResponse;
 import org.apache.hadoop.ozone.recon.api.types.ResponseStatus;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,78 +38,27 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.apache.hadoop.hdds.recon.ReconConfigKeys.OZONE_RECON_HEATMAP_PROVIDER_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
-
 /**
- * This class is an implementation of abstract class for retrieving
- * data through HeatMapService.
+ * This class is general utility class for keeping heatmap utility functions.
  */
-public class HeatMapServiceImpl extends HeatMapService {
+public class HeatMapUtil {
   private static final Logger LOG =
-      LoggerFactory.getLogger(HeatMapServiceImpl.class);
-  private final OzoneConfiguration ozoneConfiguration;
+      LoggerFactory.getLogger(HeatMapUtil.class);
+  private OzoneConfiguration ozoneConfiguration;
   private final ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private final ReconOMMetadataManager omMetadataManager;
   private final OzoneStorageContainerManager reconSCM;
-  private IHeatMapProvider heatMapProvider;
-  private HeatMapUtil heatMapUtil;
 
   @Inject
-  public HeatMapServiceImpl(OzoneConfiguration ozoneConfiguration,
-                            ReconNamespaceSummaryManager
-                                namespaceSummaryManager,
-                            ReconOMMetadataManager omMetadataManager,
-                            OzoneStorageContainerManager reconSCM) {
-    this.ozoneConfiguration = ozoneConfiguration;
+  public HeatMapUtil(ReconNamespaceSummaryManager
+                      namespaceSummaryManager,
+                     ReconOMMetadataManager omMetadataManager,
+                     OzoneStorageContainerManager reconSCM,
+                     OzoneConfiguration ozoneConfiguration) {
     this.reconNamespaceSummaryManager = namespaceSummaryManager;
     this.omMetadataManager = omMetadataManager;
     this.reconSCM = reconSCM;
-    heatMapUtil =
-        new HeatMapUtil(reconNamespaceSummaryManager, omMetadataManager,
-            reconSCM, ozoneConfiguration);
-    initializeProvider();
-  }
-
-  private void initializeProvider() {
-    String heatMapProviderCls =
-        ozoneConfiguration.get(OZONE_RECON_HEATMAP_PROVIDER_KEY);
-    LOG.info("HeatMapProvider: {}", heatMapProviderCls);
-    if (!StringUtils.isEmpty(heatMapProviderCls)) {
-      try {
-        heatMapProvider = heatMapUtil.loadHeatMapProvider(heatMapProviderCls);
-      } catch (Exception e) {
-        LOG.error("Loading HeatMapProvider fails!!! : {}", e);
-        return;
-      }
-      if (null != heatMapProvider) {
-        try {
-          heatMapProvider.init(ozoneConfiguration, omMetadataManager,
-              reconNamespaceSummaryManager, reconSCM);
-        } catch (Exception e) {
-          LOG.error("Initializing HeatMapProvider fails!!! : {}", e);
-          heatMapProvider = null;
-        }
-      } else {
-        LOG.error("Loading HeatMapProvider fails!!!");
-      }
-    }
-  }
-
-  @Override
-  public EntityReadAccessHeatMapResponse retrieveData(
-      String path,
-      String entityType,
-      String startDate) throws Exception {
-    return heatMapUtil.retrieveData(heatMapProvider, validatePath(path),
-        entityType, startDate);
-  }
-
-  private String validatePath(String path) {
-    if (null != path && path.startsWith(OM_KEY_PREFIX)) {
-      path = path.substring(1);
-    }
-    return path;
+    this.ozoneConfiguration = ozoneConfiguration;
   }
 
   private void addBucketData(
@@ -138,23 +85,15 @@ public class HeatMapServiceImpl extends HeatMapService {
 
   private void addVolumeData(
       EntityReadAccessHeatMapResponse rootEntity,
-      String[] split, int readAccessCount, long entitySize) {
+      String[] split, int readAccessCount, long keySize) {
     List<EntityReadAccessHeatMapResponse> children =
         rootEntity.getChildren();
     EntityReadAccessHeatMapResponse volumeInfo =
         new EntityReadAccessHeatMapResponse();
     volumeInfo.setLabel(split[0]);
-    volumeInfo.setPath(split[0]);
     children.add(volumeInfo);
-    if (split.length < 2) {
-      volumeInfo.setSize(entitySize);
-      volumeInfo.setAccessCount(readAccessCount);
-      volumeInfo.setMinAccessCount(readAccessCount);
-      volumeInfo.setMaxAccessCount(readAccessCount);
-      return;
-    }
     addBucketAndPrefixPath(split, rootEntity, volumeInfo, readAccessCount,
-        entitySize);
+        keySize);
   }
 
   private void updateVolumeSize(
@@ -164,29 +103,21 @@ public class HeatMapServiceImpl extends HeatMapService {
     children.stream().forEach(bucket -> {
       volumeInfo.setSize(volumeInfo.getSize() + bucket.getSize());
       updateBucketLevelMinMaxAccessCount(bucket);
+      updateBucketAccessRatio(bucket);
     });
   }
 
-  private void updateEntityAccessRatio(EntityReadAccessHeatMapResponse entity) {
-    long delta = entity.getMaxAccessCount() - entity.getMinAccessCount();
+  private void updateBucketAccessRatio(EntityReadAccessHeatMapResponse bucket) {
+    long delta = bucket.getMaxAccessCount() - bucket.getMinAccessCount();
     List<EntityReadAccessHeatMapResponse> children =
-        entity.getChildren();
+        bucket.getChildren();
     children.stream().forEach(path -> {
-      if (path.getChildren().size() != 0) {
-        updateEntityAccessRatio(path);
-      } else {
-        path.setColor(1.000);
-        long accessCount = path.getAccessCount();
-        accessCount =
-            (accessCount == 0 ? path.getMinAccessCount() : accessCount);
-        if (delta >= 0) {
-          if (accessCount > 0) {
-            double truncatedValue = truncate(
-                ((double) accessCount /
-                    (double) entity.getMaxAccessCount()), 3);
-            path.setColor(truncatedValue);
-          }
-        }
+      path.setColor(1.000);
+      if (delta > 0) {
+        double truncatedValue = truncate(
+            ((double) path.getAccessCount() /
+                (double) bucket.getMaxAccessCount()), 3);
+        path.setColor(truncatedValue);
       }
     });
   }
@@ -207,8 +138,6 @@ public class HeatMapServiceImpl extends HeatMapService {
         rootEntity.getChildren();
     children.stream().forEach(volume -> {
       updateVolumeSize(volume);
-      updateVolumeLevelMinMaxAccessCount(volume);
-      setEntityLevelAccessCount(volume);
       rootEntity.setSize(rootEntity.getSize() + volume.getSize());
     });
   }
@@ -222,27 +151,10 @@ public class HeatMapServiceImpl extends HeatMapService {
     EntityReadAccessHeatMapResponse bucket =
         new EntityReadAccessHeatMapResponse();
     bucket.setLabel(split[1]);
-    bucket.setPath(omMetadataManager.getBucketKey(split[0], split[1]));
     bucketEntities.add(bucket);
     bucket.setMinAccessCount(readAccessCount);
-    if (split.length > 2) {
-      addPrefixPathInfoToBucket(rootEntity, split, bucket, readAccessCount,
-          keySize);
-    } else {
-      updateBucketSize(bucket, keySize);
-    }
-  }
-
-  private void setEntityLevelAccessCount(
-      EntityReadAccessHeatMapResponse entity) {
-    List<EntityReadAccessHeatMapResponse> children = entity.getChildren();
-    children.stream().forEach(child -> {
-      entity.setAccessCount(entity.getAccessCount() + child.getAccessCount());
-    });
-    // This is being taken as whole number
-    if (entity.getAccessCount() > 0 && children.size() > 0) {
-      entity.setAccessCount(entity.getAccessCount() / children.size());
-    }
+    addPrefixPathInfoToBucket(rootEntity, split, bucket, readAccessCount,
+        keySize);
   }
 
   private void addPrefixPathInfoToBucket(
@@ -256,7 +168,6 @@ public class HeatMapServiceImpl extends HeatMapService {
     EntityReadAccessHeatMapResponse prefixPathInfo =
         new EntityReadAccessHeatMapResponse();
     prefixPathInfo.setLabel(path);
-    prefixPathInfo.setPath(bucket.getPath() + OM_KEY_PREFIX + path);
     prefixPathInfo.setAccessCount(readAccessCount);
     prefixPathInfo.setSize(keySize);
     prefixes.add(prefixPathInfo);
@@ -265,43 +176,13 @@ public class HeatMapServiceImpl extends HeatMapService {
     updateRootLevelMinMaxAccessCount(readAccessCount, rootEntity);
   }
 
-  private void updateVolumeLevelMinMaxAccessCount(
-      EntityReadAccessHeatMapResponse volume) {
-    List<EntityReadAccessHeatMapResponse>
-        children = initializeEntityMinMaxCount(volume);
-    children.stream().forEach(child -> {
-      long bucketMinAccessCount = child.getMinAccessCount();
-      long bucketMaxAccessCount = child.getMaxAccessCount();
-      volume.setMinAccessCount(
-          bucketMinAccessCount < volume.getMinAccessCount() ?
-              bucketMinAccessCount :
-              volume.getMinAccessCount());
-      volume.setMaxAccessCount(
-          bucketMaxAccessCount > volume.getMaxAccessCount() ?
-              bucketMaxAccessCount :
-              volume.getMaxAccessCount());
-    });
-  }
-
-  @NotNull
-  private static List<EntityReadAccessHeatMapResponse>
-      initializeEntityMinMaxCount(
-      EntityReadAccessHeatMapResponse entity) {
-    List<EntityReadAccessHeatMapResponse> children =
-        entity.getChildren();
-    if (children.size() == 0) {
-      entity.setMaxAccessCount(entity.getMinAccessCount());
-    }
-    if (children.size() > 0) {
-      entity.setMinAccessCount(Long.MAX_VALUE);
-    }
-    return children;
-  }
-
   private void updateBucketLevelMinMaxAccessCount(
       EntityReadAccessHeatMapResponse bucket) {
-    List<EntityReadAccessHeatMapResponse>
-        children = initializeEntityMinMaxCount(bucket);
+    List<EntityReadAccessHeatMapResponse> children =
+        bucket.getChildren();
+    if (children.size() > 0) {
+      bucket.setMinAccessCount(Long.MAX_VALUE);
+    }
     children.stream().forEach(path -> {
       long readAccessCount = path.getAccessCount();
       bucket.setMinAccessCount(
@@ -325,7 +206,7 @@ public class HeatMapServiceImpl extends HeatMapService {
   }
 
   private void updateBucketSize(EntityReadAccessHeatMapResponse bucket,
-                                long keySize) {
+                                       long keySize) {
     bucket.setSize(bucket.getSize() + keySize);
   }
 
@@ -346,8 +227,6 @@ public class HeatMapServiceImpl extends HeatMapService {
    *             {
    *               "label": "enc_path/hive_tpcds/store_sales/store_sales.dat",
    *               "size": 256,
-   *               "path": "/hivevol1676574631/hiveencbuck1676574631/enc_path/
-   *               hive_tpcds/store_sales/store_sales.dat",
    *               "accessCount": 155074,
    *               "color": 1
    *             },
@@ -355,14 +234,11 @@ public class HeatMapServiceImpl extends HeatMapService {
    *               "label": "enc_path/hive_tpcds/catalog_sales/
    *               catalog_sales.dat",
    *               "size": 256,
-   *               "path": "/hivevol1676574631/hiveencbuck1676574631/enc_path/
-   *               hive_tpcds/catalog_sales/catalog_sales.dat",
    *               "accessCount": 68567,
    *               "color": 0.442
    *             }
    *           ],
    *           "size": 3584,
-   *           "path": "/hivevol1676574631/hiveencbuck1676574631",
    *           "minAccessCount": 2924,
    *           "maxAccessCount": 155074
    *         },
@@ -372,8 +248,6 @@ public class HeatMapServiceImpl extends HeatMapService {
    *             {
    *               "label": "reg_path/hive_tpcds/store_sales/store_sales.dat",
    *               "size": 256,
-   *               "path": "/hivevol1676574631/hivebuck1676574631/reg_path/
-   *               hive_tpcds/store_sales/store_sales.dat",
    *               "accessCount": 155069,
    *               "color": 1
    *             },
@@ -381,20 +255,16 @@ public class HeatMapServiceImpl extends HeatMapService {
    *               "label": "reg_path/hive_tpcds/catalog_sales/
    *               catalog_sales.dat",
    *               "size": 256,
-   *               "path": "/hivevol1676574631/hivebuck1676574631/reg_path/
-   *               hive_tpcds/catalog_sales/catalog_sales.dat",
    *               "accessCount": 68566,
    *               "color": 0.442
    *             }
    *           ],
    *           "size": 3584,
-   *           "path": "/hivevol1676574631/hivebuck1676574631",
    *           "minAccessCount": 2924,
    *           "maxAccessCount": 155069
    *         }
    *       ],
-   *       "size": 7168,
-   *       "path": "/hivevol1676574631"
+   *       "size": 7168
    *     },
    *     {
    *       "label": "hivevol1675429570",
@@ -405,19 +275,15 @@ public class HeatMapServiceImpl extends HeatMapService {
    *             {
    *               "label": "reg_path/hive_tpcds/store_sales/store_sales.dat",
    *               "size": 256,
-   *               "path": "/hivevol1675429570/hivebuck1675429570/reg_path/
-   *               hive_tpcds/store_sales/store_sales.dat",
    *               "accessCount": 129977,
    *               "color": 1
    *             }          ],
    *           "size": 3072,
-   *           "path": "/hivevol1675429570/hivebuck1675429570",
    *           "minAccessCount": 3195,
    *           "maxAccessCount": 129977
    *         }
    *       ],
-   *       "size": 6144,
-   *       "path": "/hivevol1675429570"
+   *       "size": 6144
    *     }
    *   ],
    *   "size": 25600,
@@ -434,7 +300,6 @@ public class HeatMapServiceImpl extends HeatMapService {
     rootEntity.setMinAccessCount(
         entityMetaDataList.get(0).getReadAccessCount());
     rootEntity.setLabel("root");
-    rootEntity.setPath(OM_KEY_PREFIX);
     List<EntityReadAccessHeatMapResponse> children =
         rootEntity.getChildren();
     entityMetaDataList.forEach(entityMetaData -> {
@@ -443,9 +308,9 @@ public class HeatMapServiceImpl extends HeatMapService {
       if (split.length == 0) {
         return;
       }
-      long entitySize = 0;
+      long keySize = 0;
       try {
-        entitySize = getEntitySize(path);
+        keySize = getEntitySize(path);
       } catch (IOException e) {
         LOG.error("IOException while getting key size for key : " +
             "{} - {}", path, e);
@@ -462,18 +327,16 @@ public class HeatMapServiceImpl extends HeatMapService {
           return;
         }
         addBucketData(rootEntity, volumeEntity, split,
-            entityMetaData.getReadAccessCount(), entitySize);
+            entityMetaData.getReadAccessCount(), keySize);
       } else {
         if (validateLength(split, 1)) {
           return;
         }
         addVolumeData(rootEntity, split,
-            entityMetaData.getReadAccessCount(), entitySize);
+            entityMetaData.getReadAccessCount(), keySize);
       }
     });
     updateRootEntitySize(rootEntity);
-    updateVolumeLevelMinMaxAccessCount(rootEntity);
-    updateEntityAccessRatio(rootEntity);
     return rootEntity;
   }
 
@@ -497,8 +360,8 @@ public class HeatMapServiceImpl extends HeatMapService {
     return 256L;
   }
 
-  public EntityReadAccessHeatMapResponse retrieveDataAndGenerateHeatMap(
-      String normalizePath,
+  public EntityReadAccessHeatMapResponse retrieveData(
+      IHeatMapProvider heatMapProvider, String normalizePath,
       String entityType,
       String startDate) throws Exception {
     if (null != heatMapProvider) {
