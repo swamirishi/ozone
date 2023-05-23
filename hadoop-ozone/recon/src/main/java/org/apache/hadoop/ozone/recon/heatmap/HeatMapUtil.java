@@ -21,7 +21,6 @@ package org.apache.hadoop.ozone.recon.heatmap;
 
 import com.google.inject.Inject;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.ozone.recon.api.handlers.EntityHandler;
@@ -39,81 +38,27 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.apache.hadoop.hdds.recon.ReconConfigKeys.OZONE_RECON_HEATMAP_PROVIDER_DEFAULT;
-import static org.apache.hadoop.hdds.recon.ReconConfigKeys.OZONE_RECON_HEATMAP_PROVIDER_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
-
 /**
- * This class is an implementation of abstract class for retrieving
- * data through HeatMapService.
+ * This class is general utility class for keeping heatmap utility functions.
  */
-public class HeatMapServiceImpl extends HeatMapService {
+public class HeatMapUtil {
   private static final Logger LOG =
-      LoggerFactory.getLogger(HeatMapServiceImpl.class);
-  private final OzoneConfiguration ozoneConfiguration;
+      LoggerFactory.getLogger(HeatMapUtil.class);
+  private OzoneConfiguration ozoneConfiguration;
   private final ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private final ReconOMMetadataManager omMetadataManager;
   private final OzoneStorageContainerManager reconSCM;
-  private IHeatMapProvider heatMapProvider;
-  private HeatMapUtil heatMapUtil;
 
   @Inject
-  public HeatMapServiceImpl(OzoneConfiguration ozoneConfiguration,
-                            ReconNamespaceSummaryManager
-                                namespaceSummaryManager,
-                            ReconOMMetadataManager omMetadataManager,
-                            OzoneStorageContainerManager reconSCM) {
-    this.ozoneConfiguration = ozoneConfiguration;
+  public HeatMapUtil(ReconNamespaceSummaryManager
+                      namespaceSummaryManager,
+                     ReconOMMetadataManager omMetadataManager,
+                     OzoneStorageContainerManager reconSCM,
+                     OzoneConfiguration ozoneConfiguration) {
     this.reconNamespaceSummaryManager = namespaceSummaryManager;
     this.omMetadataManager = omMetadataManager;
     this.reconSCM = reconSCM;
-    heatMapUtil =
-        new HeatMapUtil(reconNamespaceSummaryManager, omMetadataManager,
-            reconSCM, ozoneConfiguration);
-    initializeProvider();
-  }
-
-  private void initializeProvider() {
-    String heatMapProviderCls = ozoneConfiguration.get(
-        OZONE_RECON_HEATMAP_PROVIDER_KEY, OZONE_RECON_HEATMAP_PROVIDER_DEFAULT);
-    LOG.info("HeatMapProvider: {}", heatMapProviderCls);
-    if (StringUtils.isEmpty(heatMapProviderCls)) {
-      heatMapProvider = new HeatMapProviderImpl();
-    } else {
-      try {
-        heatMapProvider = heatMapUtil.loadHeatMapProvider(heatMapProviderCls);
-      } catch (Exception e) {
-        LOG.error("Loading HeatMapProvider fails!!! : {}", e);
-        return;
-      }
-      if (null != heatMapProvider) {
-        try {
-          heatMapProvider.init(ozoneConfiguration, omMetadataManager,
-              reconNamespaceSummaryManager, reconSCM);
-        } catch (Exception e) {
-          LOG.error("Initializing HeatMapProvider fails!!! : {}", e);
-          heatMapProvider = null;
-        }
-      } else {
-        LOG.error("Loading HeatMapProvider fails!!!");
-      }
-    }
-  }
-
-  @Override
-  public EntityReadAccessHeatMapResponse retrieveData(
-      String path,
-      String entityType,
-      String startDate) throws Exception {
-    return heatMapUtil.retrieveData(heatMapProvider, validatePath(path),
-        entityType, startDate);
-  }
-
-  private String validatePath(String path) {
-    if (null != path && path.startsWith(OM_KEY_PREFIX)) {
-      path = path.substring(1);
-    }
-    return path;
+    this.ozoneConfiguration = ozoneConfiguration;
   }
 
   private void addBucketData(
@@ -261,7 +206,7 @@ public class HeatMapServiceImpl extends HeatMapService {
   }
 
   private void updateBucketSize(EntityReadAccessHeatMapResponse bucket,
-                                long keySize) {
+                                       long keySize) {
     bucket.setSize(bucket.getSize() + keySize);
   }
 
@@ -415,8 +360,8 @@ public class HeatMapServiceImpl extends HeatMapService {
     return 256L;
   }
 
-  public EntityReadAccessHeatMapResponse retrieveDataAndGenerateHeatMap(
-      String normalizePath,
+  public EntityReadAccessHeatMapResponse retrieveData(
+      IHeatMapProvider heatMapProvider, String normalizePath,
       String entityType,
       String startDate) throws Exception {
     if (null != heatMapProvider) {

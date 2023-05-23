@@ -32,31 +32,31 @@ import java.util.Objects;
  * Technically at low level this class is used to hold an
  * entity's heatmap and access metadata info for its children.
  * Sample JSON format per Entity:
- *     {
- *       "label": "hivevol1675429570",
- *       "children": [
- *         {
- *           "label": "hivebuck1675429570",
- *           "children": [
-   *             {
-   *               "label": "reg_path/hive_tpcds/store_sales/store_sales.dat",
-   *               "size": 256,
-   *               "accessCount": 129977,
-   *               "color": 1
-   *             }
- *            ],
- *           "size": 3072,
- *           "minAccessCount": 3195,
- *           "maxAccessCount": 129977
- *         }
- *       ],
- *       "size": 6144
- *     }
+ * {
+ * label: 'hive_write/vectortab_txt/delta/vectortab',
+ * children: [
+ * {
+ * label: 'hivebucket1676574242',
+ * children: [
+ * {
+ * label: 'hive_write/vectortab_txt/delta/vectortab',
+ * size: 100,
+ * accessCount: 300
+ * },
+ * ]
+ * }
+ * ]
+ * }
  */
 public class EntityReadAccessHeatMapResponse {
 
+  /** Name of volume or bucket or full key name. */
   @JsonProperty("label")
   private String label;
+
+  /** Path at each node level. */
+  @JsonProperty("path")
+  private String path;
 
   /**
    * This property is a list of each Entity's
@@ -95,6 +95,14 @@ public class EntityReadAccessHeatMapResponse {
 
   public void setLabel(String label) {
     this.label = label;
+  }
+
+  public String getPath() {
+    return path;
+  }
+
+  public void setPath(String path) {
+    this.path = path;
   }
 
   public long getSize() {
