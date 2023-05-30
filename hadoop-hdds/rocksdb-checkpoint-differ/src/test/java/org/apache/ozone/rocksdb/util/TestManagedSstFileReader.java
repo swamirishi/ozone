@@ -62,11 +62,6 @@ public class TestManagedSstFileReader {
       .map(i -> String.format("%c", i))
       .collect(Collectors.joining(""));
 
-  static {
-    NativeLibraryLoader.getInstance()
-        .loadLibrary(ROCKS_TOOLS_NATIVE_LIBRARY_NAME);
-  }
-
   private String createRandomSSTFile(TreeMap<String, Integer> keys)
       throws IOException, RocksDBException {
     File file = File.createTempFile("tmp_sst_file", ".sst");
@@ -116,7 +111,7 @@ public class TestManagedSstFileReader {
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2, 3, 7, 10})
   public void testGetKeyStream(int numberOfFiles)
-      throws RocksDBException, IOException, NativeLibraryNotLoadedException {
+      throws RocksDBException, IOException {
     Pair<Map<String, Integer>, List<String>> data =
         createDummyData(numberOfFiles);
     List<String> files = data.getRight();
@@ -135,6 +130,8 @@ public class TestManagedSstFileReader {
   @ValueSource(ints = {0, 1, 2, 3, 7, 10})
   public void testGetKeyStreamWithTombstone(int numberOfFiles)
       throws RocksDBException, IOException, NativeLibraryNotLoadedException {
+    NativeLibraryLoader.getInstance()
+        .loadLibrary(ROCKS_TOOLS_NATIVE_LIBRARY_NAME);
     Pair<Map<String, Integer>, List<String>> data =
         createDummyData(numberOfFiles);
     List<String> files = data.getRight();
