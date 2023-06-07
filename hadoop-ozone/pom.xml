@@ -47,6 +47,7 @@
     <module>insight</module>
     <module>httpfsgateway</module>
     <module>s3-secret-store</module>
+    <module>test</module>
   </modules>
 
   <repositories>
