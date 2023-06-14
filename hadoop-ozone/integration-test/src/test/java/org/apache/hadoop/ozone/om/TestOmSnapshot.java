@@ -131,7 +131,7 @@ public class TestOmSnapshot {
   private static AtomicInteger counter;
 
   @Rule
-  public Timeout timeout = new Timeout(180, TimeUnit.HOURS);
+  public Timeout timeout = new Timeout(180, TimeUnit.SECONDS);
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
