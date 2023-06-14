@@ -892,7 +892,7 @@ public class SnapshotDiffManager implements AutoCloseable {
           if (newKey != null) {
             byte[] rawObjId = codecRegistry.asRawData(newKey.getObjectID());
             byte[] rawValue = codecRegistry.asRawData(
-                getKeyOrDirectoryName(isDirectoryTable, newKey));
+                key.substring(tablePrefix.length()));
             newObjIdToKeyMap.put(rawObjId, rawValue);
             objectIDsToCheck.add(rawObjId);
             if (newParentIds != null) {

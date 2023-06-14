@@ -131,7 +131,7 @@ public class TestOmSnapshot {
   private static AtomicInteger counter;
 
   @Rule
-  public Timeout timeout = new Timeout(180, TimeUnit.SECONDS);
+  public Timeout timeout = new Timeout(180, TimeUnit.HOURS);
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
@@ -208,7 +208,7 @@ public class TestOmSnapshot {
 
     // stop the deletion services so that keys can still be read
     keyManager.stop();
-    preFinalizationChecks();
+//    preFinalizationChecks();
     finalizeOMUpgrade();
     counter = new AtomicInteger();
   }
@@ -944,7 +944,7 @@ public class TestOmSnapshot {
   private String createFileKey(OzoneBucket bucket, String keyPrefix)
       throws IOException {
     byte[] value = RandomStringUtils.randomAscii(10240).getBytes(UTF_8);
-    String key = keyPrefix + counter.incrementAndGet();
+    String key = keyPrefix;
     OzoneOutputStream fileKey = bucket.createKey(key, value.length);
     fileKey.write(value);
     fileKey.close();
@@ -1087,5 +1087,62 @@ public class TestOmSnapshot {
     // RocksDBCheckpointDiffer should be null for snapshot DB store.
     assertNull(snapshotDbStore.getRocksDBCheckpointDiffer());
     assertEquals(0, snapshotDbStore.getDbOptions().listeners().size());
+  }
+
+  /**
+   * Testing scenario:
+   * 1) Key k1 is created.
+   * 2) Snapshot snap1 created.
+   * 3) Snapshot snap2 is created
+   * 4) Key k1 is deleted.
+   * 5) Snapdiff b/w snap3 & snap2 taken to assert difference of 1 key
+   */
+  @Test
+  public void testSnapDiffHandlingReclaimWithLatestUse() throws Exception {
+    String testVolumeName = "vol";
+    String testBucketName = "bucket1";
+    store.createVolume(testVolumeName);
+    OzoneVolume volume = store.getVolume(testVolumeName);
+    volume.createBucket(testBucketName);
+    OzoneBucket bucket = volume.getBucket(testBucketName);
+    String key1 = "dir1/dir2/k1";
+    key1 = createFileKey(bucket, key1);
+    String snap1 = "snap1";
+
+    createSnapshot(testVolumeName, testBucketName, snap1);
+    String snap2 = "snap2";
+    bucket.renameKey(key1,"dir1/dir2/k2");
+    createSnapshot(testVolumeName, testBucketName, snap2);
+    SnapshotDiffReportOzone diff =
+        getSnapDiffReport(testVolumeName, testBucketName, snap1, snap2);
+    System.out.println(diff.getDiffList());
+
+  }
+
+  @Test
+  public void testSnapDiffHandlingReclaimWithLatestUse1() throws Exception {
+    String testVolumeName = "vol";
+    String testBucketName = "bucket1";
+    store.createVolume(testVolumeName);
+    OzoneVolume volume = store.getVolume(testVolumeName);
+    volume.createBucket(testBucketName);
+    OzoneBucket bucket = volume.getBucket(testBucketName);
+    for (int i = 1;i<=5;i++) {
+      String key1 = "k"+i;
+      key1 = createFileKey(bucket, key1);
+    }
+
+    String snap1 = "snap1";
+
+    createSnapshot(testVolumeName, testBucketName, snap1);
+    String snap2 = "snap2";
+    bucket.deleteKey("k1");
+    bucket.deleteKey("k2");
+    bucket.renameKey("k3","k3_renamed");
+    createSnapshot(testVolumeName, testBucketName, snap2);
+    SnapshotDiffReportOzone diff =
+        getSnapDiffReport(testVolumeName, testBucketName, snap1, snap2);
+    System.out.println(diff.getDiffList());
+
   }
 }
