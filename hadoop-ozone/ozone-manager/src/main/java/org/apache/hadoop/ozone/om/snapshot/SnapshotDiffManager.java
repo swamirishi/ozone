@@ -1117,7 +1117,7 @@ public class SnapshotDiffManager implements AutoCloseable {
       Set<String> deltaFiles, boolean nativeRocksToolsLoaded,
       PersistentMap<byte[], byte[]> oldObjIdToKeyMap,
       PersistentMap<byte[], byte[]> newObjIdToKeyMap,
-      PersistentMap<byte[], SnapshotDiffObject> objectIdToDiffObject,
+      PersistentMap<byte[], Boolean> objectIdToBooleanObject,
       Optional<Set<Long>> oldParentIds,
       Optional<Set<Long>> newParentIds,
       Map<String, String> tablePrefixes) throws IOException,
@@ -1156,8 +1156,8 @@ public class SnapshotDiffManager implements AutoCloseable {
             oldObjIdToKeyMap.put(rawObjId, rawValue);
             SnapshotDiffObject diffObject =
                 createDiffObjectWithOldName(fromObjectId.getObjectID(), key,
-                    objectIdToDiffObject.get(rawObjId), isDirectoryTable);
-            objectIdToDiffObject.put(rawObjId, diffObject);
+                    objectIdToBooleanObject.get(rawObjId), isDirectoryTable);
+            objectIdToBooleanObject.put(rawObjId, diffObject);
             oldParentIds.ifPresent(set -> set.add(
                 fromObjectId.getParentObjectID()));
           }
@@ -1168,8 +1168,8 @@ public class SnapshotDiffManager implements AutoCloseable {
             newObjIdToKeyMap.put(rawObjId, rawValue);
             SnapshotDiffObject diffObject =
                 createDiffObjectWithNewName(toObjectId.getObjectID(), key,
-                    objectIdToDiffObject.get(rawObjId), isDirectoryTable);
-            objectIdToDiffObject.put(rawObjId, diffObject);
+                    objectIdToBooleanObject.get(rawObjId), isDirectoryTable);
+            objectIdToBooleanObject.put(rawObjId, diffObject);
             newParentIds.ifPresent(set -> set.add(toObjectId
                 .getParentObjectID()));
           }
