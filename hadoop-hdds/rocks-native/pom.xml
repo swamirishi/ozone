@@ -262,6 +262,7 @@
                                         <mkdir dir="${project.build.directory}/snappy/lib"/>
                                         <exec executable="cmake" failonerror="true" dir="${project.build.directory}/snappy/lib">
                                             <arg line="${project.build.directory}/snappy/snappy-${snappy.version}"/>
+                                            <arg line="-DSNAPPY_BUILD_TESTS=OFF"/>
                                             <env key="CFLAGS" value="-fPIC"/>
                                             <env key="CXXFLAGS" value="-fPIC"/>
                                         </exec>
