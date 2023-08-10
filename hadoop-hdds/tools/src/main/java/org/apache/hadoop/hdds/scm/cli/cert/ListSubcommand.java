@@ -65,7 +65,11 @@ public class ListSubcommand extends ScmCertSubcommand {
       description = "Filter certificate by the type: valid or revoked",
       defaultValue = "valid", showDefaultValue = Visibility.ALWAYS)
   private String type;
-  private static final String OUTPUT_FORMAT = "%-17s %-30s %-30s %-110s %-110s";
+  
+  @Option(names = { "--json" },
+      defaultValue = "false",
+      description = "Format output as JSON")
+  private boolean json;
 
   private HddsProtos.NodeType parseCertRole(String r) {
     if (r.equalsIgnoreCase("om")) {
@@ -77,12 +81,6 @@ public class ListSubcommand extends ScmCertSubcommand {
     }
   }
 
-  private void printCert(X509Certificate cert) {
-    LOG.info(String.format(OUTPUT_FORMAT, cert.getSerialNumber(),
-        cert.getNotBefore(), cert.getNotAfter(), cert.getSubjectDN(),
-        cert.getIssuerDN()));
-  }
-
   @Override
   protected void execute(SCMSecurityProtocol client) throws IOException {
     boolean isRevoked = type.equalsIgnoreCase("revoked");
@@ -91,19 +89,6 @@ public class ListSubcommand extends ScmCertSubcommand {
         startSerialId, count, isRevoked);
     LOG.info("Certificate list:(Type={}, BatchSize={}, CertCount={})",
         type.toUpperCase(), count, certPemList.size());
-    if (count == certPemList.size()) {
-      LOG.info("The certificate list could be longer than the batch size: {}." +
-          " Please use the \"-c\" option to see more certificates.", count);
-    }
-    LOG.info(String.format(OUTPUT_FORMAT, "SerialNumber", "Valid From",
-        "Expiry", "Subject", "Issuer"));
-    for (String certPemStr : certPemList) {
-      try {
-        X509Certificate cert = CertificateCodec.getX509Certificate(certPemStr);
-        printCert(cert);
-      } catch (CertificateException ex) {
-        LOG.error("Failed to parse certificate.");
-      }
-    }
+    printCertList(LOG, certPemList);
   }
 }
