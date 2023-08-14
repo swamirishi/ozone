@@ -114,11 +114,11 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
     Promise.allSettled([
       axios.get('/api/v1/clusterState'),
       axios.get('/api/v1/task/status'),
-      axios.get('/api/v1/keys/open?limit=0'),
-      axios.get('/api/v1/keys/deletePending?limit=1'),
+      axios.get('/api/v1/keys/open/summary'),
+      axios.get('/api/v1/keys/deletePending/summary'),
       axios.get('/api/v1/heatmap/healthCheck')
     ]).then(axios.spread((clusterStateResponse, taskstatusResponse, openResponse, deletePendingResponse, healthCheckResponse) => {
-      
+
       const clusterState: IClusterStateResponse = clusterStateResponse && clusterStateResponse.value && clusterStateResponse.value.data;
       const taskStatus = taskstatusResponse && taskstatusResponse.value && taskstatusResponse.value.data;
       const omDBDeltaObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmDeltaRequest');
@@ -234,7 +234,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       <div className='overview-content'>
         <div className='page-header'>
           Overview
-          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed} 
+          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed}
           lastUpdatedOMDBDelta={lastUpdatedOMDBDelta} lastUpdatedOMDBFull={lastUpdatedOMDBFull}
           togglePolling={this.autoReload.handleAutoReloadToggle} onReload={this._loadData} omSyncLoad={this.omSyncData} omStatus={omStatus}/>
         </div>
