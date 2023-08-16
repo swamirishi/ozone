@@ -874,7 +874,7 @@ public class ContainerStateMachine extends BaseStateMachine {
               .getFollowerNextIndices()).min().getAsLong();
           LOG.debug("Removing data corresponding to log index {} min index {} "
                   + "from cache", index, minIndex);
-          removeCacheDataUpTo(Math.min(minIndex, index));
+          stateMachineDataCache.removeIf(k -> k >= (Math.min(minIndex, index)));
         }
       } catch (Exception e) {
         throw new RuntimeException(e);
@@ -896,7 +896,9 @@ public class ContainerStateMachine extends BaseStateMachine {
       removeStateMachineDataIfNeeded(index);
       // if waitOnBothFollower is false, remove the entry from the cache
       // as soon as its applied and such entry exists in the cache.
-      removeStateMachineDataIfMajorityFollowSync(index);
+      if (!waitOnBothFollowers) {
+        stateMachineDataCache.removeIf(k -> k >= index);
+      }
       DispatcherContext.Builder builder =
           new DispatcherContext.Builder().setTerm(trx.getLogEntry().getTerm())
               .setLogIndex(index);
@@ -1003,18 +1005,6 @@ public class ContainerStateMachine extends BaseStateMachine {
     }
   }
 
-  private void removeStateMachineDataIfMajorityFollowSync(long index) {
-    if (!waitOnBothFollowers) {
-      // if majority follow in sync, remove all cache previous to current index
-      // including current index
-      removeCacheDataUpTo(index);
-    }
-  }
-
-  private void removeCacheDataUpTo(long index) {
-    stateMachineDataCache.removeIf(k -> k <= index);
-  }
-
   private static <T> CompletableFuture<T> completeExceptionally(Exception e) {
     final CompletableFuture<T> future = new CompletableFuture<>();
     future.completeExceptionally(e);
@@ -1029,7 +1019,7 @@ public class ContainerStateMachine extends BaseStateMachine {
 
   @Override
   public CompletableFuture<Void> truncate(long index) {
-    stateMachineDataCache.removeIf(k -> k > index);
+    stateMachineDataCache.removeIf(k -> k >= index);
     return CompletableFuture.completedFuture(null);
   }
 
