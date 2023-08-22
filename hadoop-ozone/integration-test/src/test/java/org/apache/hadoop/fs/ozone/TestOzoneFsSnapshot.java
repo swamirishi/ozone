@@ -16,6 +16,16 @@
  */
 package org.apache.hadoop.fs.ozone;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.hadoop.fs.FileSystem.FS_DEFAULT_NAME_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_INDICATOR;
+import static org.apache.hadoop.ozone.OzoneConsts.OZONE_OFS_URI_SCHEME;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL;
+import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPath;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.google.common.base.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -26,9 +36,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 import java.util.stream.Stream;
-
-import com.google.common.base.Strings;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -48,15 +55,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.apache.hadoop.fs.FileSystem.FS_DEFAULT_NAME_KEY;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
-import static org.apache.hadoop.ozone.OzoneConsts.OZONE_OFS_URI_SCHEME;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_INDICATOR;
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL;
-import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPath;
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Test client-side CRUD snapshot operations with Ozone Manager.
@@ -145,6 +143,39 @@ public class TestOzoneFsSnapshot {
         new String[]{"-createSnapshot", BUCKET_PATH, snapshotName});
     // Asserts that create request fails since snapshot name provided twice
     Assertions.assertEquals(1, res);
+  }
+
+  @Test
+  public void testCreateSnapshotWithSubDirInput() throws Exception {
+    // Test that:
+    // $ ozone fs -createSnapshot ofs://om/vol1/buck2/dir3/ snap1
+    //
+    // should print:
+    // Created snapshot ofs://om/vol1/buck2/.snapshot/snap1
+    //
+    // rather than:
+    // Created snapshot ofs://om/vol1/buck2/dir3/.snapshot/snap1
+
+    String snapshotName = "snap-" + RandomStringUtils.randomNumeric(5);
+
+    String dirPath = BUCKET_PATH + "/dir1/";
+
+    int res = ToolRunner.run(shell, new String[] {
+        "-mkdir", "-p", dirPath});
+    Assertions.assertEquals(0, res);
+
+    try (GenericTestUtils.SystemOutCapturer capture =
+             new GenericTestUtils.SystemOutCapturer()) {
+      res = ToolRunner.run(shell, new String[] {
+          "-createSnapshot", dirPath, snapshotName});
+      // Asserts that create request succeeded
+      Assertions.assertEquals(0, res);
+
+      String expectedSnapshotPath = Paths.get(
+          BUCKET_PATH, OM_SNAPSHOT_INDICATOR, snapshotName).toString();
+      String out = capture.getOutput().trim();
+      Assertions.assertTrue(out.endsWith(expectedSnapshotPath));
+    }
   }
 
   /**
