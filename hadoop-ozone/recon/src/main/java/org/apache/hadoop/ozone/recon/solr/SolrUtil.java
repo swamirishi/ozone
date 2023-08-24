@@ -134,8 +134,8 @@ public class SolrUtil {
   private String escapeQueryParamVal(String path) {
     StringBuilder sb = new StringBuilder();
     if (!StringUtils.isEmpty(path)) {
-      sb.append("*");
       sb.append(ClientUtils.escapeQueryChars(path));
+      sb.append("/");
       sb.append("*");
     }
     return sb.toString();
