@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-import axios from 'axios';
 import {Icon, Table, Tooltip, Tabs} from 'antd';
 import {PaginationConfig} from 'antd/lib/pagination';
 import filesize from 'filesize';
@@ -25,6 +24,7 @@ import moment from 'moment';
 import {showDataFetchError, timeFormat} from 'utils/common';
 import './missingContainers.less';
 import {ColumnSearch} from 'utils/columnSearch';
+import { AxiosGetHelper, cancelRequests } from 'utils/axiosRequestHelper';
 import {Link} from "react-router-dom";
 
 const size = filesize.partial({standard: 'iec'});
@@ -228,6 +228,9 @@ interface IMissingContainersState {
   currentPage: number;
 }
 
+let cancelContainerSignal: AbortController;
+let cancelRowExpandSignal: AbortController;
+
 export class MissingContainers extends React.Component<Record<string, object>, IMissingContainersState> {
   constructor(props = {}) {
     super(props);
@@ -259,8 +262,10 @@ export class MissingContainers extends React.Component<Record<string, object>, I
         : `&prevStartKey=${encodeURIComponent(this.state.firstSeenKey)}`;
 
     let urlVal = baseUrl + queryParam;
+    const { request, controller } = AxiosGetHelper(urlVal, cancelContainerSignal);
+    cancelContainerSignal = controller;
 
-    axios.get(urlVal).then(allContainersResponse => {
+    request.then(allContainersResponse => {
 
       const allContainersResponseData: IUnhealthyContainersResponse = allContainersResponse.data;
       let allContainers: IContainerResponse[] = allContainersResponseData.containers;
@@ -298,6 +303,13 @@ export class MissingContainers extends React.Component<Record<string, object>, I
     this.changeTab('1')
   }
 
+  componentWillUnmount(): void {
+    cancelRequests([
+      cancelContainerSignal,
+      cancelRowExpandSignal
+    ]);
+  }
+
   onShowSizeChange = (current: number, pageSize: number) => {
     console.log(current, pageSize);
     this.setState({
@@ -316,7 +328,11 @@ export class MissingContainers extends React.Component<Record<string, object>, I
           expandedRowData: Object.assign({}, expandedRowData, {[record.containerID]: expandedRowState})
         };
       });
-      axios.get(`/api/v1/containers/${record.containerID}/keys`).then(response => {
+
+      const { request, controller } = AxiosGetHelper(`/api/v1/containers/${record.containerID}/keys`, cancelRowExpandSignal);
+      cancelRowExpandSignal = controller;
+
+      request.then(response => {
         const containerKeysResponse: IContainerKeysResponse = response.data;
         this.setState(({expandedRowData}) => {
           const expandedRowState: IExpandedRowState =
@@ -337,6 +353,9 @@ export class MissingContainers extends React.Component<Record<string, object>, I
         });
         showDataFetchError(error.toString());
       });
+    }
+    else{
+      cancelRowExpandSignal && cancelRowExpandSignal.abort();
     }
   };
 

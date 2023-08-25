@@ -17,13 +17,16 @@
  */
 
 import React from 'react';
-import axios from 'axios';
 import { Row, Icon, Button, Input, Dropdown, Menu, DatePicker } from 'antd';
-import {DownOutlined} from '@ant-design/icons';
+import { DownOutlined } from '@ant-design/icons';
 import moment from 'moment';
-import {showDataFetchError} from 'utils/common';
+import { showDataFetchError } from 'utils/common';
 import './heatmap.less';
 import HeatMapConfiguration from './heatMapConfiguration';
+import * as CONSTANTS from './constants/heatmapConstants';
+import { AxiosGetHelper } from 'utils/axiosRequestHelper';
+
+type inputPathValidity = "" | "error" | "success" | "warning" | "validating" | undefined
 
 interface ITreeResponse {
   label: string;
@@ -109,7 +112,7 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
       alert("Please Enter Valid Input Path.");
       validExpression = '/';
     }
-    this.setState({ 
+    this.setState({
       inputPath: validExpression
     })
   };
@@ -127,7 +130,9 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
 
     if (date && path && entityType) {
       const treeEndpoint = `/api/v1/heatmap/readaccess?startDate=${date}&path=${path}&entityType=${entityType}`;
-      axios.get(treeEndpoint).then(response => {
+      const { request, controller } = AxiosGetHelper(treeEndpoint, cancelHeatmapSignal)
+      cancelHeatmapSignal = controller;
+      request.then(response => {
         minSize = this.minmax(response.data)[0];
         maxSize = this.minmax(response.data)[1];
         let treeResponse: ITreeResponse = this.updateSize(response.data);
@@ -170,6 +175,10 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
     });
     // By default render treemap for default path entity type and date
     this.updateTreeMap('/',this.state.entityType,this.state.date);
+  }
+
+  componentWillUnmount(): void {
+    cancelHeatmapSignal && cancelHeatmapSignal.abort()
   }
 
   onChange = (date: any[]) => {
@@ -244,7 +253,7 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
     var highMean = (max+mean)/2;
     var lowMean1 = (min+mean)/2;
     var lowMean2 = (lowMean1 + min) / 2;
-      
+
     if(size>highMean){
     var newsize= highMean+(size*0.1);
     return(newsize);
@@ -275,7 +284,7 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
         90 Days
         </Menu.Item>
         <Menu.SubMenu  title="Custom Select Last 90 Days">
-            <Menu.Item> 
+            <Menu.Item>
               <DatePicker
                 format="YYYY-MM-DD"
                 onChange={this.onChange}
@@ -285,7 +294,7 @@ export class Heatmap extends React.Component<Record<string, object>, ITreeState>
         </Menu.SubMenu>
       </Menu>
     );
-    
+
     const entityTypeMenu = (
       <Menu
         defaultSelectedKeys={[this.state.entityType]}
