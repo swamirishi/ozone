@@ -1305,8 +1305,11 @@ public abstract class DefaultCertificateClient implements CertificateClient {
               .setDaemon(true).build());
     }
     this.executorService.scheduleAtFixedRate(
-        new CertificateRenewerService(false),
-        timeBeforeGracePeriod, interval, TimeUnit.MILLISECONDS);
+        new CertificateRenewerService(false, () -> {
+        }),
+        // The Java mills resolution is 1ms, add 1ms to avoid task scheduled
+        // ahead of time.
+        timeBeforeGracePeriod + 1, interval, TimeUnit.MILLISECONDS);
     getLogger().info("CertificateRenewerService for {} is started with " +
             "first delay {} ms and interval {} ms.", component,
         timeBeforeGracePeriod, interval);
@@ -1336,6 +1339,9 @@ public abstract class DefaultCertificateClient implements CertificateClient {
         Duration timeLeft = timeBeforeExpiryGracePeriod(currentCert);
 
         if (!forceRenewal && !timeLeft.isZero()) {
+          getLogger().info("Current certificate {} hasn't entered the " +
+              "renew grace period. Remaining period is {}. ",
+              currentCert.getSerialNumber().toString(), timeLeft);
           return;
         }
         String newCertId;
