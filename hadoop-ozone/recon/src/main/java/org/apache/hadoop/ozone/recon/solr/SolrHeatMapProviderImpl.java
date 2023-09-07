@@ -24,28 +24,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationException;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.recon.ReconConfig;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.ozone.OzoneSecurityUtil;
 import org.apache.hadoop.ozone.recon.api.types.EntityMetaData;
 import org.apache.hadoop.ozone.recon.heatmap.IHeatMapProvider;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
-import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.naming.AuthenticationException;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-import static org.apache.hadoop.hdds.recon.ReconConfig.ConfigStrings.OZONE_RECON_KERBEROS_PRINCIPAL_KEY;
 import static org.apache.hadoop.ozone.recon.solr.SolrConstants.OZONE_SOLR_ADDRESS_KEY;
 import static org.apache.hadoop.ozone.recon.solr.SolrConstants.OZONE_SOLR_SERVER_PORT_DEFAULT;
 
@@ -56,7 +49,6 @@ public class SolrHeatMapProviderImpl implements IHeatMapProvider {
   private static final Logger LOG =
       LoggerFactory.getLogger(SolrHeatMapProviderImpl.class);
   private static final int NO_PORT = -1;
-  private UserGroupInformation reconUser;
   private OzoneConfiguration ozoneConfiguration;
   private ReconOMMetadataManager omMetadataManager;
 
@@ -76,7 +68,6 @@ public class SolrHeatMapProviderImpl implements IHeatMapProvider {
                    OzoneStorageContainerManager ozoneStorageContainerManager) {
     this.ozoneConfiguration = ozoneConfig;
     this.omMetadataManager = omMetadataMgr;
-    this.reconUser = initializeReconUGI(ozoneConfig);
   }
 
   /**
@@ -115,66 +106,6 @@ public class SolrHeatMapProviderImpl implements IHeatMapProvider {
           OZONE_SOLR_ADDRESS_KEY));
     }
     return solrAddr;
-  }
-
-  /**
-   * Initialize recon UGI if security is enabled in the configuration.
-   *
-   * @param conf OzoneConfiguration
-   * @return recon UserGroupInformation object
-   */
-  private UserGroupInformation initializeReconUGI(OzoneConfiguration conf) {
-    try {
-      if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
-        return getReconUGI(conf);
-      }
-    } catch (Exception ex) {
-      LOG.error("Error initializing recon UGI. ", ex);
-    }
-    return null;
-  }
-
-  /**
-   * Gets recon UGI if security is enabled.
-   *
-   * @param conf
-   * @return recon UserGroupInformation object
-   */
-  private UserGroupInformation getReconUGI(OzoneConfiguration conf)
-      throws AuthenticationException, IOException {
-    UserGroupInformation reconUGI;
-    if (SecurityUtil.getAuthenticationMethod(conf).equals(
-        UserGroupInformation.AuthenticationMethod.KERBEROS)) {
-      ReconConfig reconConfig = conf.getObject(ReconConfig.class);
-      String principalUser = reconConfig.getKerberosPrincipal();
-      String kerberosKeyTabFile = reconConfig.getKerberosKeytab();
-      LOG.info("Ozone security is enabled. Attempting to get UGI for "
-              + "recon user. Principal: {}, keytab: {}",
-          principalUser,
-          kerberosKeyTabFile);
-      UserGroupInformation.setConfiguration(conf);
-
-      InetSocketAddress solrAddr = getAndValidateInetSocketAddress();
-      LOG.info("Get principal config for Solr host address: {} " + solrAddr);
-      String principalConfig = conf.get(OZONE_RECON_KERBEROS_PRINCIPAL_KEY,
-          System.getProperty("user.name"));
-      String principalName = SecurityUtil.getServerPrincipal(
-          principalConfig, solrAddr.getHostName());
-      LOG.info("Principal name for  for Solr host address: {} " +
-          principalName);
-      reconUGI = UserGroupInformation.
-          loginUserFromKeytabAndReturnUGI(principalName, kerberosKeyTabFile);
-      LOG.info("recon UGI initialization successful. Auth  Method: {}," +
-              "  UserName: {}" + reconUGI.getAuthenticationMethod(),
-          reconUGI.getUserName());
-    } else {
-      reconUGI = null;
-      throw new AuthenticationException(
-          SecurityUtil.getAuthenticationMethod(conf) +
-              " authentication method not supported. Recon user " +
-              "initialization failed.");
-    }
-    return reconUGI;
   }
 
   /**
