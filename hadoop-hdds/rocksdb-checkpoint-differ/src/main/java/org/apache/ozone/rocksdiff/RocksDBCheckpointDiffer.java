@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -170,6 +171,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
   private ColumnFamilyHandle snapshotInfoTableCFHandle;
   private final AtomicInteger tarballRequestCount;
   private final String dagPruningServiceName = "CompactionDagPruningService";
+  private AtomicBoolean suspended;
 
   private ColumnFamilyHandle compactionLogTableCFHandle;
   private ManagedRocksDB activeRocksDB;
@@ -218,6 +220,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
         OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED,
         OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED_DEFAULT,
         TimeUnit.MILLISECONDS);
+    this.suspended = new AtomicBoolean(false);
 
     long pruneCompactionDagDaemonRunIntervalInMs =
         configuration.getTimeDuration(
@@ -1173,6 +1176,9 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
    * time to be in compaction DAG and removes them from the DAG.
    */
   public void pruneOlderSnapshotsWithCompactionHistory() {
+    if (!shouldRun()) {
+      return;
+    }
     Pair<Set<String>, List<byte[]>> fileNodeToKeyPair =
         getOlderFileNodes();
     Set<String> lastCompactionSstFiles = fileNodeToKeyPair.getLeft();
@@ -1375,6 +1381,9 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
    * non-leaf nodes of the DAG.
    */
   public void pruneSstFiles() {
+    if (!shouldRun()) {
+      return;
+    }
     Set<String> nonLeafSstFiles;
     // This is synchronized because compaction thread can update the compactionDAG and can be in situation
     // when nodes are added to the graph, but arcs are still in progress.
@@ -1411,6 +1420,10 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     }
   }
 
+  public boolean shouldRun() {
+    return !suspended.get();
+  }
+
   @VisibleForTesting
   public int getTarballRequestCount() {
     return tarballRequestCount.get();
@@ -1429,6 +1442,16 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
   @VisibleForTesting
   public ConcurrentHashMap<String, CompactionNode> getCompactionNodeMap() {
     return compactionNodeMap;
+  }
+
+  @VisibleForTesting
+  public void resume() {
+    suspended.set(false);
+  }
+
+  @VisibleForTesting
+  public void suspend() {
+    suspended.set(true);
   }
 
   /**
