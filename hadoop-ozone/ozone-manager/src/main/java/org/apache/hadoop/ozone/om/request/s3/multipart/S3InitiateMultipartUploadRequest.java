@@ -32,6 +32,7 @@ import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
 import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
+import org.apache.hadoop.ozone.om.request.util.OMMultipartUploadUtils;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
 import org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase;
@@ -50,7 +51,6 @@ import org.apache.hadoop.ozone.protocolPB.OMPBHelper;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.util.Time;
-import org.apache.hadoop.hdds.utils.UniqueId;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.slf4j.Logger;
@@ -61,7 +61,6 @@ import java.nio.file.InvalidPathException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
 
@@ -91,8 +90,9 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
         keyPath, getBucketLayout());
 
     KeyArgs.Builder newKeyArgs = keyArgs.toBuilder()
-            .setMultipartUploadID(UUID.randomUUID().toString() + "-" +
-                UniqueId.next()).setModificationTime(Time.now())
+            .setMultipartUploadID(
+                OMMultipartUploadUtils.getMultipartUploadId())
+            .setModificationTime(Time.now())
             .setKeyName(keyPath);
 
     generateRequiredEncryptionInfo(keyArgs, newKeyArgs, ozoneManager);
