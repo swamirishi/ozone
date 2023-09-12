@@ -245,7 +245,7 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
       nativeAuthorizerEnabled = mdReader.isNativeAuthorizerEnabled();
     }
     if (nativeAuthorizerEnabled) {
-      UserGroupInformation ugi = createUGI();
+      UserGroupInformation ugi = createUGIForApi();
       String bucketOwner = ozoneManager.getBucketOwner(volumeName, bucketName,
           IAccessAuthorizer.ACLType.READ, OzoneObj.ResourceType.BUCKET);
       if (!ozoneManager.isAdmin(ugi) &&

@@ -999,6 +999,10 @@ public interface ClientProtocol {
    */
   void clearThreadLocalS3Auth();
 
+  default ThreadLocal<S3Auth> getS3CredentialsProvider() {
+    return null;
+  }
+
   /**
    * Sets the owner of bucket.
    * @param volumeName Name of the Volume
