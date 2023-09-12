@@ -489,7 +489,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
           volumeId,
           bucketInfo.getObjectID(),
           deletedKeyInfo.getParentObjectID(),
-          deletedKeyInfo.getKeyName());
+          deletedKeyInfo.getFileName());
     } else {
       dbKey = ozoneManager.getMetadataManager().getOzoneKey(
           deletedKeyInfo.getVolumeName(),
