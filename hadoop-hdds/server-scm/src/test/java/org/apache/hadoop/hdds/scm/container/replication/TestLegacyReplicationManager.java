@@ -67,6 +67,7 @@ import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.hdds.utils.db.LongCodec;
 import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
+import org.apache.hadoop.ozone.protocol.commands.DeleteContainerCommand;
 import org.apache.hadoop.ozone.protocol.commands.ReplicateContainerCommand;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.TestClock;
@@ -1095,6 +1096,14 @@ public class TestLegacyReplicationManager {
       Assertions.assertTrue(datanodeCommandHandler.received(
           SCMCommandProto.Type.deleteContainerCommand,
           unhealthy.getDatanodeDetails()));
+
+      List<CommandForDatanode> commands = datanodeCommandHandler
+          .getReceivedCommands();
+      Assertions.assertEquals(1, commands.size());
+      DeleteContainerCommand deleteContainerCommand =
+          (DeleteContainerCommand) commands.get(0).getCommand();
+      Assertions.assertTrue(deleteContainerCommand.isForce());
+
       assertUnderReplicatedCount(1);
       // Update RM with the result of delete command
       containerStateManager.removeContainerReplica(
