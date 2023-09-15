@@ -133,13 +133,13 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
 
     requests.then(axios.spread((clusterStateResponse, taskstatusResponse, openResponse, deletePendingResponse, healthCheckResponse) => {
       
-      const clusterState: IClusterStateResponse = clusterStateResponse && clusterStateResponse.value && clusterStateResponse.value.data;
-      const taskStatus = taskstatusResponse && taskstatusResponse.value && taskstatusResponse.value.data;
+      const clusterState: IClusterStateResponse = clusterStateResponse && clusterStateResponse.data;
+      const taskStatus = taskstatusResponse && taskstatusResponse.data;
       const omDBDeltaObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmDeltaRequest');
       const omDBFullObject = taskStatus && taskStatus.find((item: any) => item.taskName === 'OmSnapshotRequest');
-      const openKeysSummary = openResponse && openResponse.value && openResponse.value.data && openResponse.value.data.keysSummary;
-      const deletePendingSummary = deletePendingResponse && deletePendingResponse.value && deletePendingResponse.value.data && deletePendingResponse.value.data.keysSummary;
-      const healthcheckStatus = healthCheckResponse && healthCheckResponse.value && healthCheckResponse.value.data && healthCheckResponse.value.data.message;
+      const openKeysSummary = openResponse && openResponse.data && openResponse.data.keysSummary;
+      const deletePendingSummary = deletePendingResponse && deletePendingResponse.data && deletePendingResponse.data.keysSummary;
+      const healthcheckStatus = healthCheckResponse && healthCheckResponse.data && healthCheckResponse.data.message;
       const clusterNotEmptyCheck = clusterState !== undefined && Object.keys(clusterState).length !== 0;
       sessionStorage.setItem('heatmapHealthCheck', JSON.stringify(healthcheckStatus === 'Healthy' ? true : false));
       this.setState({
@@ -306,10 +306,10 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
             <OverviewCard loading={loading} title='Pending Key Deletions' data={keysPendingDeletion.toString()} icon='delete' />
           </Col>
           <Col xs={24} sm={18} md={12} lg={12} xl={6} className='summary-font'>
-            <OverviewCard loading={loading} title='Open Keys Summary' data={openSummaryData} icon='file-text' />
+            <OverviewCard loading={loading} title='Open Keys Summary' data={openSummaryData} icon='file-text' linkToUrl='/Om' />
           </Col>
           <Col xs={24} sm={18} md={12} lg={12} xl={6} className='summary-font'>
-            <OverviewCard loading={loading} title='Pending Deleted Keys Summary' data={deletePendingSummaryData} icon='delete' />
+            <OverviewCard loading={loading} title='Pending Deleted Keys Summary' data={deletePendingSummaryData} icon='delete' linkToUrl='/Om'/>
           </Col>
         </Row>
       </div>
