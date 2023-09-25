@@ -393,7 +393,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       long dirNum, long subDirNum, long subFileNum,
       List<Pair<String, OmKeyInfo>> allSubDirList,
       List<PurgePathRequest> purgePathRequestList,
-      String snapTableKey, long startTime) {
+      String snapTableKey, long startTime, KeyManager keyManager) {
 
     // Optimization to handle delete sub-dir and keys to remove quickly
     // This case will be useful to handle when depth of directory is high
@@ -406,7 +406,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
         PurgePathRequest request = prepareDeleteDirRequest(
             remainNum, stringOmKeyInfoPair.getValue(),
             stringOmKeyInfoPair.getKey(), allSubDirList,
-            getOzoneManager().getKeyManager());
+            keyManager);
         purgePathRequestList.add(request);
         remainNum = remainNum - request.getDeletedSubFilesCount();
         remainNum = remainNum - request.getMarkDeletedSubDirsCount();

@@ -184,7 +184,8 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
 
           optimizeDirDeletesAndSubmitRequest(
               remainNum, dirNum, subDirNum, subFileNum,
-              allSubDirList, purgePathRequestList, null, startTime);
+              allSubDirList, purgePathRequestList, null, startTime,
+              getOzoneManager().getKeyManager());
 
         } catch (IOException e) {
           LOG.error("Error while running delete directories and files " +
