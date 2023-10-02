@@ -73,6 +73,7 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotDeletes;
   private @Metric MutableCounterLong numSnapshotLists;
   private @Metric MutableCounterLong numSnapshotPurges;
+  private @Metric MutableCounterLong numSnapshotDiffJobs;
 
   private @Metric MutableCounterLong numGetFileStatus;
   private @Metric MutableCounterLong numCreateDirectory;
@@ -134,9 +135,10 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotDeleteFails;
   private @Metric MutableCounterLong numSnapshotListFails;
   private @Metric MutableCounterLong numSnapshotPurgeFails;
+  private @Metric MutableCounterLong numSnapshotDiffJobFails;
+
   private @Metric MutableCounterLong numSnapshotActive;
   private @Metric MutableCounterLong numSnapshotDeleted;
-  private @Metric MutableCounterLong numSnapshotReclaimed;
 
   // Number of tenant operations attempted
   private @Metric MutableCounterLong numTenantOps;
@@ -477,12 +479,20 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     numSnapshotPurges.incr();
   }
 
+  public void incNumSnapshotDiffJobs() {
+    numSnapshotDiffJobs.incr();
+  }
+
   public void incNumSnapshotListFails() {
     numSnapshotListFails.incr();
   }
 
   public void incNumSnapshotPurgeFails() {
     numSnapshotPurgeFails.incr();
+  }
+
+  public void incNumSnapshotDiffJobFails() {
+    numSnapshotDiffJobFails.incr();
   }
 
   public void setNumSnapshotActive(long num) {
@@ -509,19 +519,6 @@ public class OMMetrics implements OmMetadataReaderMetrics {
 
   public void decNumSnapshotDeleted() {
     numSnapshotDeleted.incr(-1);
-  }
-
-  public void setNumSnapshotReclaimed(long num) {
-    long currVal = numSnapshotReclaimed.value();
-    numSnapshotReclaimed.incr(num - currVal);
-  }
-
-  public void incNumSnapshotReclaimed() {
-    numSnapshotReclaimed.incr();
-  }
-
-  public void decNumSnapshotReclaimed() {
-    numSnapshotReclaimed.incr(-1);
   }
 
   public void incNumCompleteMultipartUploadFails() {
@@ -1282,6 +1279,10 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     return numSnapshotCreates.value();
   }
 
+  public long getNumSnapshotDeletes() {
+    return numSnapshotDeletes.value();
+  }
+
   public long getNumSnapshotLists() {
     return numSnapshotLists.value();
   }
@@ -1289,12 +1290,24 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   public long getNumSnapshotPurges() {
     return numSnapshotPurges.value();
   }
+  public long getNumSnapshotDiffJobs() {
+    return numSnapshotDiffJobs.value();
+  }
+
   public long getNumSnapshotCreateFails() {
     return numSnapshotCreateFails.value();
   }
 
+  public long getNumSnapshotDeleteFails() {
+    return numSnapshotDeleteFails.value();
+  }
+
   public long getNumSnapshotListFails() {
     return numSnapshotListFails.value();
+  }
+
+  public long getNumSnapshotDiffJobFails() {
+    return numSnapshotDiffJobFails.value();
   }
 
   public long getNumSnapshotActive() {
@@ -1303,10 +1316,6 @@ public class OMMetrics implements OmMetadataReaderMetrics {
 
   public long getNumSnapshotDeleted() {
     return numSnapshotDeleted.value();
-  }
-
-  public long getNumSnapshotReclaimed() {
-    return numSnapshotReclaimed.value();
   }
 
   public long getNumSnapshotPurgeFails() {
