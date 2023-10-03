@@ -264,7 +264,6 @@ public class OMException extends IOException {
     SSL_CONNECTION_FAILURE,
     RENAME_OPEN_FILE,
     UNAUTHORIZED,
-
     INVALID_PATH
   }
 }
