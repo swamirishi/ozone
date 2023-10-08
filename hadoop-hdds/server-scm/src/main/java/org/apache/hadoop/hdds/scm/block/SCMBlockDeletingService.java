@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.conf.ReconfigurationHandler;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.SCMCommandProto.Type;
@@ -79,6 +80,7 @@ public class SCMBlockDeletingService extends BackgroundService
   private final NodeManager nodeManager;
   private final EventPublisher eventPublisher;
   private final SCMContext scmContext;
+  private final ScmConfig scmConf;
 
   private int blockDeleteLimitSize;
   private ScmBlockDeletingServiceMetrics metrics;
@@ -94,7 +96,6 @@ public class SCMBlockDeletingService extends BackgroundService
   private final long deleteBlocksPendingCommandLimit;
   private final Clock clock;
   private final int transactionToDNsCommitMapLimit;
-  private final ScmConfig scmConf;
 
   @SuppressWarnings("parameternumber")
   public SCMBlockDeletingService(DeletedBlockLog deletedBlockLog,
@@ -102,9 +103,10 @@ public class SCMBlockDeletingService extends BackgroundService
              SCMContext scmContext, SCMServiceManager serviceManager,
              ConfigurationSource conf,
              ScmBlockDeletingServiceMetrics metrics,
-             Clock clock, ScmConfig scmConfig) {
+             Clock clock, ScmConfig scmConfig, ReconfigurationHandler reconfigurationHandler) {
     super("SCMBlockDeletingService",
-        conf.getObject(ScmConfig.class).getBlockDeletionInterval().toMillis(),
+        conf.getObject(ScmConfig.class)
+            .getBlockDeletionInterval().toMillis(),
         TimeUnit.MILLISECONDS, BLOCK_DELETING_SERVICE_CORE_POOL_SIZE,
         conf.getTimeDuration(OZONE_BLOCK_DELETING_SERVICE_TIMEOUT,
             OZONE_BLOCK_DELETING_SERVICE_TIMEOUT_DEFAULT,
@@ -125,9 +127,8 @@ public class SCMBlockDeletingService extends BackgroundService
     this.scmContext = scmContext;
     this.metrics = metrics;
     scmConf = conf.getObject(ScmConfig.class);
-
-    blockDeleteLimitSize =
-        conf.getObject(ScmConfig.class).getBlockDeletionLimit();
+    reconfigurationHandler.register(scmConf);
+    blockDeleteLimitSize = scmConf.getBlockDeletionLimit();
     Preconditions.checkArgument(blockDeleteLimitSize > 0,
         "Block deletion limit should be positive.");
 

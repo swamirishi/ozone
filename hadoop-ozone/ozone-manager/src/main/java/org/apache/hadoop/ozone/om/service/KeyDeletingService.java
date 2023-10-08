@@ -21,6 +21,7 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_KEY_DELETING_LIMIT_P
 import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.protobuf.ServiceException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +36,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.protobuf.ServiceException;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.utils.BackgroundTask;
@@ -85,7 +88,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
   private static final int KEY_DELETING_CORE_POOL_SIZE = 1;
 
   private final KeyManager manager;
-  private final int keyLimitPerTask;
+  private int keyLimitPerTask;
   private final AtomicLong deletedKeyCount;
   private final AtomicBoolean suspended;
   private final boolean deepCleanSnapshots;
@@ -108,6 +111,8 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     this.manager = manager;
     this.keyLimitPerTask = conf.getInt(OZONE_KEY_DELETING_LIMIT_PER_TASK,
         OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT);
+    Preconditions.checkArgument(keyLimitPerTask >= 0,
+        OZONE_KEY_DELETING_LIMIT_PER_TASK + " cannot be negative.");
     this.deletedKeyCount = new AtomicLong(0);
     this.suspended = new AtomicBoolean(false);
     this.deepCleanSnapshots = deepCleanSnapshots;
@@ -165,6 +170,14 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     suspended.set(false);
   }
 
+  public int getKeyLimitPerTask() {
+    return keyLimitPerTask;
+  }
+
+  public void setKeyLimitPerTask(int keyLimitPerTask) {
+    this.keyLimitPerTask = keyLimitPerTask;
+  }
+
   /**
    * A key deleting task scans OM DB and looking for a certain number of
    * pending-deletion keys, sends these keys along with their associated blocks
@@ -203,7 +216,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
           // snapshotId since AOS could process multiple buckets in one iteration.
           UUID expectedPreviousSnapshotId = snapshotChainManager.getLatestGlobalSnapshotId();
           PendingKeysDeletion pendingKeysDeletion = manager
-              .getPendingDeletionKeys(keyLimitPerTask);
+              .getPendingDeletionKeys(getKeyLimitPerTask());
           List<BlockGroup> keyBlocksList = pendingKeysDeletion
               .getKeyBlocksList();
           if (keyBlocksList != null && !keyBlocksList.isEmpty()) {

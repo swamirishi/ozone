@@ -101,7 +101,7 @@ public class TestSCMBlockDeletingService {
     service = spy(new SCMBlockDeletingService(
         mockDeletedBlockLog, nodeManager, eventPublisher, scmContext,
         scmServiceManager, (ConfigurationSource) conf, metrics, Clock.system(
-        ZoneOffset.UTC), conf.getObject(ScmConfig.class)));
+        ZoneOffset.UTC), conf.getObject(ScmConfig.class), mock(ReconfigurationHandler.class)));
     when(service.shouldRun()).thenReturn(true);
   }
 
