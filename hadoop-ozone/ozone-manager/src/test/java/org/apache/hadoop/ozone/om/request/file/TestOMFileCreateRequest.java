@@ -20,6 +20,8 @@ package org.apache.hadoop.ozone.om.request.file;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
@@ -335,13 +337,26 @@ public class TestOMFileCreateRequest extends TestOMKeyRequest {
 
   @Test
   public void testPreExecuteWithInvalidKeyPrefix() throws Exception {
-    String[] invalidKeyNames = {
-        OM_SNAPSHOT_INDICATOR + "/" + keyName,
-        OM_SNAPSHOT_INDICATOR + "/a/" + keyName,
-        OM_SNAPSHOT_INDICATOR + "/a/b/" + keyName
+    Map<String, String> invalidKeyScenarios = new HashMap<String, String>() {
+      {
+        put(OM_SNAPSHOT_INDICATOR + "/" + keyName,
+            "Cannot create key under path reserved for snapshot: "
+                + OM_SNAPSHOT_INDICATOR + OM_KEY_PREFIX);
+        put(OM_SNAPSHOT_INDICATOR + "/a/" + keyName,
+            "Cannot create key under path reserved for snapshot: "
+                + OM_SNAPSHOT_INDICATOR + OM_KEY_PREFIX);
+        put(OM_SNAPSHOT_INDICATOR + "/a/b" + keyName,
+            "Cannot create key under path reserved for snapshot: "
+                + OM_SNAPSHOT_INDICATOR + OM_KEY_PREFIX);
+        put(OM_SNAPSHOT_INDICATOR,
+            "Cannot create key with reserved name: " + OM_SNAPSHOT_INDICATOR);
+      }
     };
 
-    for (String invalidKeyName : invalidKeyNames) {
+    for (Map.Entry<String, String> entry : invalidKeyScenarios.entrySet()) {
+      String invalidKeyName = entry.getKey();
+      String expectedErrorMessage = entry.getValue();
+
       OMRequest omRequest = createFileRequest(volumeName, bucketName,
           invalidKeyName, HddsProtos.ReplicationFactor.ONE,
           HddsProtos.ReplicationType.RATIS, false, false);
@@ -352,9 +367,7 @@ public class TestOMFileCreateRequest extends TestOMKeyRequest {
       OMException ex = Assert.assertThrows(OMException.class,
           () -> omFileCreateRequest.preExecute(ozoneManager));
 
-      Assert.assertTrue(ex.getMessage().contains(
-          "Cannot create key under path reserved for snapshot: "
-              + OM_SNAPSHOT_INDICATOR + OM_KEY_PREFIX));
+      Assert.assertTrue(ex.getMessage().contains(expectedErrorMessage));
     }
   }
 
