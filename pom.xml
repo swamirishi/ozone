@@ -232,7 +232,7 @@
 
     <!-- Use netty version known to work with grpc-netty. See table: -->
     <!-- https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
-    <netty.version>4.1.94.Final</netty.version>
+    <netty.version>4.1.100.Final</netty.version>
     <io.grpc.version>1.51.1</io.grpc.version>
 
     <rocksdb.version>7.7.3</rocksdb.version>
