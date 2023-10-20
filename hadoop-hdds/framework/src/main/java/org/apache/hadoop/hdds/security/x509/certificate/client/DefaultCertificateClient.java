@@ -1268,8 +1268,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
         securityConfig.getCertificateLocation(getComponentName())));
   }
 
-  public SCMSecurityProtocolClientSideTranslatorPB getScmSecureClient()
-      throws IOException {
+  public SCMSecurityProtocolClientSideTranslatorPB getScmSecureClient() {
     return scmSecurityClient;
   }
 
@@ -1305,8 +1304,7 @@ public abstract class DefaultCertificateClient implements CertificateClient {
               .setDaemon(true).build());
     }
     this.executorService.scheduleAtFixedRate(
-        new CertificateRenewerService(false, () -> {
-        }),
+        new CertificateRenewerService(false),
         // The Java mills resolution is 1ms, add 1ms to avoid task scheduled
         // ahead of time.
         timeBeforeGracePeriod + 1, interval, TimeUnit.MILLISECONDS);

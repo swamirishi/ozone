@@ -186,9 +186,6 @@ public class TestDefaultCAServer {
         .setKey(keyPair)
         .build();
 
-    // Let us convert this to a string to mimic the common use case.
-    String csrString = CertificateSignRequest.getEncodedString(csr);
-
     CertificateServer testCA = new DefaultCAServer("testCA",
         clusterId, scmId, caStore,
         new DefaultProfile(),
@@ -196,7 +193,8 @@ public class TestDefaultCAServer {
     testCA.init(securityConfig, CAType.ROOT);
 
     Future<CertPath> holder = testCA.requestCertificate(
-        csrString, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, SCM);
+        csr, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, SCM,
+        String.valueOf(System.nanoTime()));
     // Right now our calls are synchronous. Eventually this will have to wait.
     assertTrue(holder.isDone());
     //Test that the cert path returned contains the CA certificate in proper
@@ -239,9 +237,6 @@ public class TestDefaultCAServer {
         .setKey(keyPair)
         .build();
 
-    // Let us convert this to a string to mimic the common use case.
-    String csrString = CertificateSignRequest.getEncodedString(csr);
-
     CertificateServer testCA = new DefaultCAServer("testCA",
         RandomStringUtils.randomAlphabetic(4),
         RandomStringUtils.randomAlphabetic(4), caStore,
@@ -250,7 +245,8 @@ public class TestDefaultCAServer {
     testCA.init(securityConfig, CAType.ROOT);
 
     Future<CertPath> holder = testCA.requestCertificate(
-        csrString, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM);
+        csr, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM,
+        String.valueOf(System.nanoTime()));
     // Right now our calls are synchronous. Eventually this will have to wait.
     assertTrue(holder.isDone());
     assertNotNull(CertificateCodec.firstCertificateFrom(holder.get()));
@@ -279,11 +275,9 @@ public class TestDefaultCAServer {
         .setKey(keyPair)
         .build();
 
-    // Let us convert this to a string to mimic the common use case.
-    String csrString = CertificateSignRequest.getEncodedString(csr);
-
     Future<CertPath> holder = testCA.requestCertificate(
-        csrString, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM);
+        csr, CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM,
+        String.valueOf(System.nanoTime()));
 
     X509Certificate certificate =
         CertificateCodec.firstCertificateFrom(holder.get());
@@ -322,9 +316,6 @@ public class TestDefaultCAServer {
         .setKey(keyPair)
         .build();
 
-    // Let us convert this to a string to mimic the common use case.
-    String csrString = CertificateSignRequest.getEncodedString(csr);
-
     CertificateServer testCA = new DefaultCAServer("testCA",
         RandomStringUtils.randomAlphabetic(4),
         RandomStringUtils.randomAlphabetic(4), caStore,
@@ -336,8 +327,9 @@ public class TestDefaultCAServer {
             "ClusterId in CSR subject are incorrect",
         () -> {
           Future<CertPath> holder =
-              testCA.requestCertificate(csrString,
-                  CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM);
+              testCA.requestCertificate(csr,
+                  CertificateApprover.ApprovalType.TESTING_AUTOMATIC, OM,
+                  String.valueOf(System.nanoTime()));
           holder.get();
         });
   }
@@ -439,7 +431,7 @@ public class TestDefaultCAServer {
       X509CertificateHolder signedCert = approver.sign(securityConfig,
           keyPair.getPrivate(), externalCert,
           java.sql.Date.valueOf(beginDate), java.sql.Date.valueOf(endDate), csr,
-          scmId, clusterId);
+          scmId, clusterId, String.valueOf(System.nanoTime()));
       CertificateFactory certFactory = new CertificateFactory();
       CertificateCodec certificateCodec = new CertificateCodec(securityConfig,
           scmCertificateClient.getComponentName());
@@ -497,7 +489,8 @@ public class TestDefaultCAServer {
           .build();
 
       Future<CertPath> holder = rootCA.requestCertificate(csr,
-          CertificateApprover.ApprovalType.TESTING_AUTOMATIC, SCM);
+          CertificateApprover.ApprovalType.TESTING_AUTOMATIC, SCM,
+          String.valueOf(System.nanoTime()));
       assertTrue(holder.isDone());
       X509Certificate certificate =
           CertificateCodec.firstCertificateFrom(holder.get());
