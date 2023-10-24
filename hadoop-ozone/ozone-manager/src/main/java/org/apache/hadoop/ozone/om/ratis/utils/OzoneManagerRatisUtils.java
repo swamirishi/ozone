@@ -21,6 +21,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.protobuf.ServiceException;
 import java.io.File;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Paths;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -393,6 +394,8 @@ public final class OzoneManagerRatisUtils {
   public static Status exceptionToResponseStatus(Exception exception) {
     if (exception instanceof OMException) {
       return Status.values()[((OMException) exception).getResult().ordinal()];
+    } else if (exception instanceof InvalidPathException) {
+      return Status.INVALID_PATH;
     } else {
       // Doing this here, because when DB error happens we need to return
       // correct error code, so that in applyTransaction we can

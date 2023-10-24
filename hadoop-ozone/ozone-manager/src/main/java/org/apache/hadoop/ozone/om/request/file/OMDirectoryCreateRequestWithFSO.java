@@ -52,6 +52,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
     Map<String, String> auditMap = buildKeyArgsAuditMap(keyArgs);
     OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
     boolean acquiredLock = false;
-    IOException exception = null;
+    Exception exception = null;
     OMClientResponse omClientResponse = null;
     Result result = Result.FAILURE;
     List<OmDirectoryInfo> missingParentInfos;
@@ -188,7 +189,7 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
         omClientResponse =
             new OMDirectoryCreateResponseWithFSO(omResponse.build(), result);
       }
-    } catch (IOException ex) {
+    } catch (IOException | InvalidPathException ex) {
       exception = ex;
       omClientResponse = new OMDirectoryCreateResponseWithFSO(
           createErrorOMResponse(omResponse, exception), result);
@@ -213,7 +214,7 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
   private void logResult(CreateDirectoryRequest createDirectoryRequest,
                          KeyArgs keyArgs, OMMetrics omMetrics, int numKeys,
                          Result result,
-                         IOException exception) {
+                         Exception exception) {
 
     String volumeName = keyArgs.getVolumeName();
     String bucketName = keyArgs.getBucketName();

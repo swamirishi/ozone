@@ -48,7 +48,7 @@ public class S3MultipartUploadAbortRequestWithFSO
   }
 
   @Override
-  protected OMClientResponse getOmClientResponse(IOException exception,
+  protected OMClientResponse getOmClientResponse(Exception exception,
       OMResponse.Builder omResponse) {
 
     return new S3MultipartUploadAbortResponseWithFSO(createErrorOMResponse(
