@@ -25,8 +25,6 @@ import org.apache.ozone.compaction.log.CompactionFileInfo;
 public class CompactionNode {
   // Name of the SST file
   private final String fileName;
-  // The last snapshot created before this node came into existence
-  private final String snapshotId;
   private final long snapshotGeneration;
   private final long totalNumberOfKeys;
   private long cumulativeKeysReverseTraversal;
@@ -37,14 +35,13 @@ public class CompactionNode {
   /**
    * CompactionNode constructor.
    * @param file SST file (filename without extension)
-   * @param ssId snapshotId field. Added here for improved debuggability only
    * @param numKeys Number of keys in the SST
    * @param seqNum Snapshot generation (sequence number)
    */
-  public CompactionNode(String file, String ssId, long numKeys, long seqNum,
+
+  public CompactionNode(String file, long numKeys, long seqNum,
                         String startKey, String endKey, String columnFamily) {
     fileName = file;
-    snapshotId = ssId;
     totalNumberOfKeys = numKeys;
     snapshotGeneration = seqNum;
     cumulativeKeysReverseTraversal = 0L;
@@ -54,7 +51,7 @@ public class CompactionNode {
   }
 
   public CompactionNode(CompactionFileInfo compactionFileInfo) {
-    this(compactionFileInfo.getFileName(), null, -1, -1, compactionFileInfo.getStartKey(),
+    this(compactionFileInfo.getFileName(), -1, -1, compactionFileInfo.getStartKey(),
         compactionFileInfo.getEndKey(), compactionFileInfo.getColumnFamily());
   }
 
@@ -65,10 +62,6 @@ public class CompactionNode {
 
   public String getFileName() {
     return fileName;
-  }
-
-  public String getSnapshotId() {
-    return snapshotId;
   }
 
   public long getSnapshotGeneration() {
