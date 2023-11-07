@@ -85,7 +85,8 @@ public class TestBucketRequest {
 
     when(ozoneManager.resolveBucketLink(any(Pair.class)))
         .thenAnswer(invocation -> new ResolvedBucket(
-            invocation.getArgument(0), invocation.getArgument(0)));
+            invocation.getArgument(0), invocation.getArgument(0),
+            "", BucketLayout.DEFAULT));
   }
 
   @After
