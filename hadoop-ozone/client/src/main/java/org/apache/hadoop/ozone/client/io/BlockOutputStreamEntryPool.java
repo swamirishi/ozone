@@ -431,4 +431,8 @@ public class BlockOutputStreamEntryPool {
   boolean isEmpty() {
     return streamEntries.isEmpty();
   }
+
+  long getDataSize() {
+    return keyArgs.getDataSize();
+  }
 }

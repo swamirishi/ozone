@@ -121,14 +121,9 @@ public class OzoneOutputStream extends ByteArrayStreamOutput {
   }
 
   public OmMultipartCommitUploadPartInfo getCommitUploadPartInfo() {
-    if (outputStream instanceof KeyOutputStream) {
-      return ((KeyOutputStream) outputStream).getCommitUploadPartInfo();
-    } else  if (outputStream instanceof CryptoOutputStream) {
-      OutputStream wrappedStream =
-          ((CryptoOutputStream) outputStream).getWrappedStream();
-      if (wrappedStream instanceof KeyOutputStream) {
-        return ((KeyOutputStream) wrappedStream).getCommitUploadPartInfo();
-      }
+    KeyOutputStream keyOutputStream = getKeyOutputStream();
+    if (keyOutputStream != null) {
+      return keyOutputStream.getCommitUploadPartInfo();
     }
     // Otherwise return null.
     return null;
@@ -136,5 +131,19 @@ public class OzoneOutputStream extends ByteArrayStreamOutput {
 
   public OutputStream getOutputStream() {
     return outputStream;
+  }
+
+  public KeyOutputStream getKeyOutputStream() {
+    if (outputStream instanceof KeyOutputStream) {
+      return ((KeyOutputStream) outputStream);
+    } else  if (outputStream instanceof CryptoOutputStream) {
+      OutputStream wrappedStream =
+          ((CryptoOutputStream) outputStream).getWrappedStream();
+      if (wrappedStream instanceof KeyOutputStream) {
+        return ((KeyOutputStream) wrappedStream);
+      }
+    }
+    // Otherwise return null.
+    return null;
   }
 }
