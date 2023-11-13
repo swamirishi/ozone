@@ -657,7 +657,7 @@ public class OMDBCheckpointServlet extends DBCheckpointServlet {
       snapshotDeletingService.getBootstrapStateLock().lock();
 
       // Then wait for the double buffer to be flushed.
-      om.getOmRatisServer().getOmStateMachine().awaitDoubleBufferFlush();
+      om.awaitDoubleBufferFlush();
       return this;
     }
 
