@@ -143,6 +143,7 @@ enum Type {
   PrintCompactionLogDag = 125;
   AbortExpiredMultiPartUploads = 127;
   SetSnapshotProperty = 128;
+  GetSnapshotInfo = 130;
   QuotaRepair = 133;
   GetQuotaRepairStatus = 135;
   StartQuotaRepair = 136;
@@ -280,6 +281,7 @@ message OMRequest {
 
   optional MultipartUploadsExpiredAbortRequest multipartUploadsExpiredAbortRequest = 126;
   optional SetSnapshotPropertyRequest       SetSnapshotPropertyRequest     = 127;
+  optional SnapshotInfoRequest              SnapshotInfoRequest            = 128;
   optional QuotaRepairRequest               QuotaRepairRequest             = 131;
   optional GetQuotaRepairStatusRequest      GetQuotaRepairStatusRequest    = 133;
   optional StartQuotaRepairRequest          StartQuotaRepairRequest        = 134;
@@ -401,6 +403,7 @@ message OMResponse {
   optional PrintCompactionLogDagResponse     PrintCompactionLogDagResponse = 125;
   optional MultipartUploadsExpiredAbortResponse multipartUploadsExpiredAbortResponse = 127;
   optional SetSnapshotPropertyResponse       SetSnapshotPropertyResponse   = 128;
+  optional SnapshotInfoResponse              SnapshotInfoResponse          = 130;
   optional QuotaRepairResponse            QuotaRepairResponse        = 134;
   optional GetQuotaRepairStatusResponse      GetQuotaRepairStatusResponse   = 136;
   optional StartQuotaRepairResponse          StartQuotaRepairResponse       = 137;
@@ -1843,6 +1846,12 @@ message DeleteSnapshotRequest {
   optional uint64 deletionTime = 4;
 }
 
+message SnapshotInfoRequest {
+  optional string volumeName = 1;
+  optional string bucketName = 2;
+  optional string snapshotName = 3;
+}
+
 message PrintCompactionLogDagRequest {
   optional string fileNamePrefix = 1;
   optional string graphType = 2;
@@ -1956,6 +1965,10 @@ message ListSnapshotDiffJobResponse {
 
 message DeleteSnapshotResponse {
 
+}
+
+message SnapshotInfoResponse {
+  optional SnapshotInfo snapshotInfo = 1;
 }
 
 message PrintCompactionLogDagResponse {

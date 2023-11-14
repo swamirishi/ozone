@@ -120,6 +120,9 @@ import org.eclipse.jetty.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
+
+
 /**
  * Ozone metadata manager interface.
  */
@@ -1327,6 +1330,25 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
 
     List<RepeatedOmKeyInfo> deletedKeys = new ArrayList<>();
     return deletedKeys;
+  }
+
+  @Override
+  public SnapshotInfo getSnapshotInfo(String volumeName, String bucketName,
+                                      String snapshotName) throws IOException {
+    if (Strings.isNullOrEmpty(volumeName)) {
+      throw new OMException("Volume name is required.", VOLUME_NOT_FOUND);
+    }
+
+    if (Strings.isNullOrEmpty(bucketName)) {
+      throw new OMException("Bucket name is required.", BUCKET_NOT_FOUND);
+    }
+
+    if (Strings.isNullOrEmpty(snapshotName)) {
+      throw new OMException("Snapshot name is required.", FILE_NOT_FOUND);
+    }
+
+    return SnapshotUtils.getSnapshotInfo(ozoneManager, volumeName, bucketName,
+        snapshotName);
   }
 
   @Override

@@ -359,6 +359,11 @@ public class OzoneManagerRequestHandler implements RequestHandler {
             getQuotaRepairStatus(request.getGetQuotaRepairStatusRequest());
         responseBuilder.setGetQuotaRepairStatusResponse(quotaRepairStatusRsp);
         break;
+      case GetSnapshotInfo:
+        OzoneManagerProtocolProtos.SnapshotInfoResponse snapshotInfoResponse =
+            getSnapshotInfo(request.getSnapshotInfoRequest());
+        responseBuilder.setSnapshotInfoResponse(snapshotInfoResponse);
+        break;
       case StartQuotaRepair:
         OzoneManagerProtocolProtos.StartQuotaRepairResponse startQuotaRepairRsp =
             startQuotaRepair(request.getStartQuotaRepairRequest());
@@ -1407,6 +1412,17 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     }
     builder.setPayload(ByteString.copyFrom(payloadBytes));
     return builder.build();
+  }
+
+  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
+  private OzoneManagerProtocolProtos.SnapshotInfoResponse getSnapshotInfo(
+      OzoneManagerProtocolProtos.SnapshotInfoRequest request)
+      throws IOException {
+    SnapshotInfo snapshotInfo = impl.getSnapshotInfo(request.getVolumeName(),
+        request.getBucketName(), request.getSnapshotName());
+
+    return OzoneManagerProtocolProtos.SnapshotInfoResponse.newBuilder()
+        .setSnapshotInfo(snapshotInfo.getProtobuf()).build();
   }
 
   @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
