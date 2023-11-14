@@ -390,7 +390,7 @@ public final class OzoneManagerRatisUtils {
    * @param exception
    * @return OzoneManagerProtocolProtos.Status
    */
-  public static Status exceptionToResponseStatus(IOException exception) {
+  public static Status exceptionToResponseStatus(Exception exception) {
     if (exception instanceof OMException) {
       return Status.values()[((OMException) exception).getResult().ordinal()];
     } else {
