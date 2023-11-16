@@ -19,6 +19,7 @@ package org.apache.ozone.rocksdiff;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.GraphBuilder;
 import com.google.common.graph.MutableGraph;
 
@@ -86,17 +87,6 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTI
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_PRUNE_DAEMON_RUN_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_PRUNE_COMPACTION_DAG_DAEMON_RUN_INTERVAL_DEFAULT;
-
-// TODO
-//  8. Handle bootstrapping rocksDB for a new OM follower node
-//      - new node will receive Active object store as well as all existing
-//      rocksDB checkpoints.
-//      - This bootstrapping should also receive the compaction-DAG information
-//  9. Handle rebuilding the DAG for a lagging follower. There are two cases
-//      - receive RATIS transactions to replay. Nothing needs to be done in
-//      these cases.
-//      - Getting the DB sync. This case needs to handle getting the
-//      compaction-DAG information as well.
 
 /**
  * RocksDB checkpoint differ.
@@ -184,6 +174,13 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
   private ColumnFamilyHandle compactionLogTableCFHandle;
   private ManagedRocksDB activeRocksDB;
   private ConcurrentMap<String, CompactionFileInfo> inflightCompactions;
+
+  /**
+   * For snapshot diff calculation we only need to track following column
+   * families. Other column families are irrelevant for snapshot diff.
+   */
+  public static final Set<String> COLUMN_FAMILIES_TO_TRACK_IN_DAG =
+      ImmutableSet.of("keyTable", "directoryTable", "fileTable");
 
   /**
    * This is a package private constructor and should not be used other than
@@ -420,19 +417,42 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     }
   }
 
+  @VisibleForTesting
+  boolean shouldSkipCompaction(byte[] columnFamilyBytes,
+                               List<String> inputFiles,
+                               List<String> outputFiles) {
+    String columnFamily = StringUtils.bytes2String(columnFamilyBytes);
+
+    if (!COLUMN_FAMILIES_TO_TRACK_IN_DAG.contains(columnFamily)) {
+      LOG.debug("Skipping compaction for columnFamily: {}", columnFamily);
+      return true;
+    }
+
+    if (inputFiles.isEmpty()) {
+      LOG.debug("Compaction input files list is empty");
+      return true;
+    }
+
+    if (new HashSet<>(inputFiles).equals(new HashSet<>(outputFiles))) {
+      LOG.info("Skipped the compaction entry. Compaction input files: " +
+          "{} and output files: {} are same.", inputFiles, outputFiles);
+      return true;
+    }
+
+    return false;
+  }
+
   private AbstractEventListener newCompactionBeginListener() {
     return new AbstractEventListener() {
       @Override
       public void onCompactionBegin(RocksDB db,
                                     CompactionJobInfo compactionJobInfo) {
-        if (compactionJobInfo.inputFiles().size() == 0) {
-          LOG.error("Compaction input files list is empty");
+        if (shouldSkipCompaction(compactionJobInfo.columnFamilyName(),
+            compactionJobInfo.inputFiles(),
+            compactionJobInfo.outputFiles())) {
           return;
         }
 
-        // Note the current compaction listener implementation does not
-        // differentiate which column family each SST store. It is tracking
-        // all SST files.
         synchronized (this) {
           if (closed) {
             return;
@@ -448,7 +468,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
         // Create hardlink backups for the SST files that are going
         // to be deleted after this RDB compaction.
         for (String file : compactionJobInfo.inputFiles()) {
-          LOG.debug("Creating hard link for '{}'", file);
           createLink(Paths.get(sstBackupDir, new File(file).getName()),
               Paths.get(file));
         }
@@ -456,23 +475,15 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     };
   }
 
+
   private AbstractEventListener newCompactionCompletedListener() {
     return new AbstractEventListener() {
       @Override
       public void onCompactionCompleted(RocksDB db,
-          CompactionJobInfo compactionJobInfo) {
-
-        if (compactionJobInfo.inputFiles().isEmpty()) {
-          LOG.error("Compaction input files list is empty");
-          return;
-        }
-
-        if (new HashSet<>(compactionJobInfo.inputFiles())
-            .equals(new HashSet<>(compactionJobInfo.outputFiles()))) {
-          LOG.info("Skipped the compaction entry. Compaction input files: " +
-                  "{} and output files: {} are same.",
-              compactionJobInfo.inputFiles(),
-              compactionJobInfo.outputFiles());
+                                        CompactionJobInfo compactionJobInfo) {
+        if (shouldSkipCompaction(compactionJobInfo.columnFamilyName(),
+            compactionJobInfo.inputFiles(),
+            compactionJobInfo.outputFiles())) {
           return;
         }
 
@@ -511,7 +522,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
           }
 
           waitForTarballCreation();
-
 
           // Add the compaction log entry to Compaction log table.
           addToCompactionLogTable(compactionLogEntry);
