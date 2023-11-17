@@ -53,12 +53,12 @@ import org.apache.hadoop.ozone.container.keyvalue.interfaces.BlockManager;
 import org.apache.hadoop.ozone.container.keyvalue.interfaces.ChunkManager;
 import org.apache.hadoop.ozone.container.metadata.DatanodeStoreSchemaTwoImpl;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;
-import org.apache.hadoop.ozone.container.testutils.BlockDeletingServiceTestImpl;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
@@ -76,6 +76,9 @@ import static org.apache.hadoop.ozone.OzoneConsts.BLOCK_COUNT;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_BYTES_USED;
 import static org.apache.hadoop.ozone.OzoneConsts.PENDING_DELETE_BLOCK_COUNT;
 import static org.junit.Assert.assertEquals;
+import static org.apache.hadoop.ozone.container.common.ContainerTestUtils.COMMIT_STAGE;
+import static org.apache.hadoop.ozone.container.common.ContainerTestUtils.WRITE_STAGE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -166,13 +169,13 @@ public class TestSchemaTwoBackwardsCompatibility {
   public void testDBFile() throws IOException {
     // create a container of schema v2
     KeyValueContainer container = createTestContainer();
-    assertEquals(container.getContainerData().getSchemaVersion(),
+    Assertions.assertEquals(container.getContainerData().getSchemaVersion(),
         OzoneConsts.SCHEMA_V2);
 
     // db file should be under the container path
     String containerPath = container.getContainerData().getDbFile()
         .getParentFile().getParentFile().getName();
-    assertEquals(containerPath,
+    Assertions.assertEquals(containerPath,
         Long.toString(container.getContainerData().getContainerID()));
   }
 
@@ -180,7 +183,7 @@ public class TestSchemaTwoBackwardsCompatibility {
   public void testBlockIteration() throws IOException {
     // create a container of schema v2
     KeyValueContainer container = createTestContainer();
-    assertEquals(container.getContainerData().getSchemaVersion(),
+    Assertions.assertEquals(container.getContainerData().getSchemaVersion(),
         OzoneConsts.SCHEMA_V2);
 
     // turn on schema v3 first, then do operations
@@ -195,7 +198,7 @@ public class TestSchemaTwoBackwardsCompatibility {
           BlockData blockData = iter.nextBlock();
           int chunkCount = 0;
           for (ContainerProtos.ChunkInfo chunkInfo : blockData.getChunks()) {
-            assertEquals(chunkInfo.getLen(), CHUNK_LENGTH);
+            Assertions.assertEquals(chunkInfo.getLen(), CHUNK_LENGTH);
             chunkCount++;
           }
           assertEquals(chunkCount, CHUNKS_PER_BLOCK);
@@ -210,13 +213,13 @@ public class TestSchemaTwoBackwardsCompatibility {
   public void testReadMetadata() throws IOException {
     // create a container of schema v2
     KeyValueContainer container = createTestContainer();
-    assertEquals(container.getContainerData().getSchemaVersion(),
+    Assertions.assertEquals(container.getContainerData().getSchemaVersion(),
         OzoneConsts.SCHEMA_V2);
     KeyValueContainerData cData = container.getContainerData();
-    assertEquals(cData.getBlockCount(), BLOCKS_PER_CONTAINER);
-    assertEquals(cData.getNumPendingDeletionBlocks(),
+    Assertions.assertEquals(cData.getBlockCount(), BLOCKS_PER_CONTAINER);
+    Assertions.assertEquals(cData.getNumPendingDeletionBlocks(),
         DELETE_TXNS_PER_CONTAINER * BLOCKS_PER_TXN);
-    assertEquals(cData.getBytesUsed(),
+    Assertions.assertEquals(cData.getBytesUsed(),
         CHUNK_LENGTH * CHUNKS_PER_BLOCK * BLOCKS_PER_CONTAINER);
 
     // turn on schema v3 first, then do operations
@@ -224,11 +227,11 @@ public class TestSchemaTwoBackwardsCompatibility {
 
     try (DBHandle db = BlockUtils.getDB(cData, conf)) {
       Table<String, Long> metadatatable = db.getStore().getMetadataTable();
-      assertEquals((long)metadatatable.get(BLOCK_COUNT),
+      Assertions.assertEquals((long)metadatatable.get(BLOCK_COUNT),
           BLOCKS_PER_CONTAINER);
-      assertEquals((long)metadatatable.get(PENDING_DELETE_BLOCK_COUNT),
+      Assertions.assertEquals((long)metadatatable.get(PENDING_DELETE_BLOCK_COUNT),
           DELETE_TXNS_PER_CONTAINER * BLOCKS_PER_TXN);
-      assertEquals((long)metadatatable.get(CONTAINER_BYTES_USED),
+      Assertions.assertEquals((long)metadatatable.get(CONTAINER_BYTES_USED),
           CHUNK_LENGTH * CHUNKS_PER_BLOCK * BLOCKS_PER_CONTAINER);
     }
   }
@@ -242,7 +245,7 @@ public class TestSchemaTwoBackwardsCompatibility {
 
     // create a container of schema v2
     KeyValueContainer container = createTestContainer();
-    assertEquals(container.getContainerData().getSchemaVersion(),
+    Assertions.assertEquals(container.getContainerData().getSchemaVersion(),
         OzoneConsts.SCHEMA_V2);
     // close it
     container.close();
@@ -269,16 +272,16 @@ public class TestSchemaTwoBackwardsCompatibility {
     long expectedKeyCount = BLOCKS_PER_CONTAINER -
         DELETE_TXNS_PER_CONTAINER * BLOCKS_PER_TXN;
     long expectedBytesUsed = blockSize * expectedKeyCount;
-    assertEquals(cData.getBlockCount(), expectedKeyCount);
-    assertEquals(cData.getNumPendingDeletionBlocks(), 0);
-    assertEquals(cData.getBytesUsed(), expectedBytesUsed);
+    Assertions.assertEquals(cData.getBlockCount(), expectedKeyCount);
+    Assertions.assertEquals(cData.getNumPendingDeletionBlocks(), 0);
+    Assertions.assertEquals(cData.getBytesUsed(), expectedBytesUsed);
 
     // check db metadata after deletion
     try (DBHandle db = BlockUtils.getDB(cData, conf)) {
       Table<String, Long> metadatatable = db.getStore().getMetadataTable();
-      assertEquals((long)metadatatable.get(BLOCK_COUNT), expectedKeyCount);
-      assertEquals((long)metadatatable.get(PENDING_DELETE_BLOCK_COUNT), 0);
-      assertEquals((long)metadatatable.get(CONTAINER_BYTES_USED),
+      Assertions.assertEquals((long)metadatatable.get(BLOCK_COUNT), expectedKeyCount);
+      Assertions.assertEquals((long)metadatatable.get(PENDING_DELETE_BLOCK_COUNT), 0);
+      Assertions.assertEquals((long)metadatatable.get(CONTAINER_BYTES_USED),
           expectedBytesUsed);
     }
   }
