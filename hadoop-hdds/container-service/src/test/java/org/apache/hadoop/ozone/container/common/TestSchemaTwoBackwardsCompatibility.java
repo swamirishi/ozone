@@ -119,14 +119,6 @@ public class TestSchemaTwoBackwardsCompatibility {
   private static final byte[] SAMPLE_DATA =
       randomAlphanumeric(1024).getBytes(UTF_8);
 
-  private static final DispatcherContext WRITE_STAGE =
-      new DispatcherContext.Builder()
-          .setStage(DispatcherContext.WriteChunkStage.WRITE_DATA).build();
-
-  private static final DispatcherContext COMMIT_STAGE =
-      new DispatcherContext.Builder()
-          .setStage(DispatcherContext.WriteChunkStage.COMMIT_DATA).build();
-
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
