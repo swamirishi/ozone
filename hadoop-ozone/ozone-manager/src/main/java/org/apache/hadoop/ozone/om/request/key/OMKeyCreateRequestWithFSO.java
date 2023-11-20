@@ -96,8 +96,9 @@ public class OMKeyCreateRequestWithFSO extends OMKeyCreateRequest {
     List<OmDirectoryInfo> missingParentInfos;
     int numKeysCreated = 0;
     try {
-      acquireLock = omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-              volumeName, bucketName);
+      mergeOmLockDetails(omMetadataManager.getLock()
+          .acquireWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      acquireLock = getOmLockDetails().isLockAcquired();
       validateBucketAndVolume(omMetadataManager, volumeName, bucketName);
 
       final long volumeId = omMetadataManager.getVolumeTable()
@@ -216,8 +217,11 @@ public class OMKeyCreateRequestWithFSO extends OMKeyCreateRequest {
               createErrorOMResponse(omResponse, exception), getBucketLayout());
     } finally {
       if (acquireLock) {
-        omMetadataManager.getLock().releaseWriteLock(BUCKET_LOCK, volumeName,
-                bucketName);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

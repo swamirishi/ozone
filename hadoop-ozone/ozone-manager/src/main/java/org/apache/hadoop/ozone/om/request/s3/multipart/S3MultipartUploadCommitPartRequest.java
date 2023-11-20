@@ -137,8 +137,9 @@ public class S3MultipartUploadCommitPartRequest extends OMKeyRequest {
     try {
       long clientID = multipartCommitUploadPartRequest.getClientID();
 
-      acquiredLock = omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-          volumeName, bucketName);
+      mergeOmLockDetails(omMetadataManager.getLock()
+          .acquireWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      acquiredLock = getOmLockDetails().isLockAcquired();
 
       validateBucketAndVolume(omMetadataManager, volumeName, bucketName);
 
@@ -252,8 +253,11 @@ public class S3MultipartUploadCommitPartRequest extends OMKeyRequest {
               createErrorOMResponse(omResponse, exception), copyBucketInfo);
     } finally {
       if (acquiredLock) {
-        omMetadataManager.getLock().releaseWriteLock(BUCKET_LOCK,
-            volumeName, bucketName);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

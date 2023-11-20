@@ -108,7 +108,7 @@ public class OMQuotaRepairRequest extends OMClientRequest {
       long transactionLogIndex, Map<Pair<String, String>, OmBucketInfo> bucketMap) throws IOException {
     // acquire lock.
     boolean acquiredBucketLock = omMetadataManager.getLock().acquireWriteLock(
-            BUCKET_LOCK, bucketCountInfo.getVolName(), bucketCountInfo.getBucketName());
+            BUCKET_LOCK, bucketCountInfo.getVolName(), bucketCountInfo.getBucketName()).isLockAcquired();
     try {
       String bucketKey = omMetadataManager.getBucketKey(bucketCountInfo.getVolName(),
           bucketCountInfo.getBucketName());
@@ -155,7 +155,7 @@ public class OMQuotaRepairRequest extends OMClientRequest {
           continue;
         }
         boolean acquiredVolumeLock = metadataManager.getLock().acquireWriteLock(
-            VOLUME_LOCK, omVolumeArgs.getVolume());
+            VOLUME_LOCK, omVolumeArgs.getVolume()).isLockAcquired();
         try {
           boolean isQuotaReset = false;
           if (omVolumeArgs.getQuotaInBytes() == OLD_QUOTA_DEFAULT) {

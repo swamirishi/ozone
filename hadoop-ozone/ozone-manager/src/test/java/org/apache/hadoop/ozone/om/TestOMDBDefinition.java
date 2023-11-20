@@ -46,7 +46,7 @@ public class TestOMDBDefinition {
   public void testDBDefinition() throws IOException {
     OzoneConfiguration configuration = new OzoneConfiguration();
     File metaDir = folder.getRoot();
-    OMDBDefinition dbDef = OMDBDefinition.get();
+    OMDBDefinition dbDef = new OMDBDefinition();
 
     // Get list of tables from DB Definitions
     final Collection<DBColumnFamilyDefinition<?, ?>> columnFamilyDefinitions = dbDef.getColumnFamilies();

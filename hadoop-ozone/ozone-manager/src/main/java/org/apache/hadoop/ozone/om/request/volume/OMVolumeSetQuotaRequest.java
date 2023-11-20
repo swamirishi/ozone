@@ -123,8 +123,9 @@ public class OMVolumeSetQuotaRequest extends OMVolumeRequest {
             null, null);
       }
 
-      acquireVolumeLock = omMetadataManager.getLock().acquireWriteLock(
-          VOLUME_LOCK, volume);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          VOLUME_LOCK, volume));
+      acquireVolumeLock = getOmLockDetails().isLockAcquired();
 
       OmVolumeArgs omVolumeArgs = getVolumeInfo(omMetadataManager, volume);
       if (checkQuotaBytesValid(omMetadataManager,
@@ -162,7 +163,11 @@ public class OMVolumeSetQuotaRequest extends OMVolumeRequest {
           createErrorOMResponse(omResponse, exception));
     } finally {
       if (acquireVolumeLock) {
-        omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK, volume);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(VOLUME_LOCK, volume));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

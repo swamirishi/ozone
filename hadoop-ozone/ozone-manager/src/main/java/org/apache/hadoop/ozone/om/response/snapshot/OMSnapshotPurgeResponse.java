@@ -123,7 +123,7 @@ public class OMSnapshotPurgeResponse extends OMClientResponse {
     // directory can run in parallel along with this operation.
     boolean acquiredSnapshotLock = omMetadataManager.getLock()
         .acquireWriteLock(SNAPSHOT_LOCK, snapshotInfo.getVolumeName(), snapshotInfo.getBucketName(),
-            snapshotInfo.getName());
+            snapshotInfo.getName()).isLockAcquired();
     if (acquiredSnapshotLock) {
       Path snapshotDirPath = OmSnapshotManager.getSnapshotPath(omMetadataManager, snapshotInfo);
       try {

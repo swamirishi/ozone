@@ -37,6 +37,7 @@ import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.OzonePrefixPathImpl;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.ozone.om.lock.OMLockDetails;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
@@ -76,6 +77,8 @@ public abstract class OMClientRequest implements RequestAuditor {
 
   private UserGroupInformation userGroupInformation;
   private InetAddress inetAddress;
+  private final ThreadLocal<OMLockDetails> omLockDetails =
+      ThreadLocal.withInitial(OMLockDetails::new);
   private final OMAuditLogger.Builder auditBuilder = OMAuditLogger.newBuilder();
 
   public OMAuditLogger.Builder getAuditBuilder() {
@@ -95,6 +98,7 @@ public abstract class OMClientRequest implements RequestAuditor {
   public OMClientRequest(OMRequest omRequest) {
     Preconditions.checkNotNull(omRequest);
     this.omRequest = omRequest;
+    this.omLockDetails.get().clear();
   }
   /**
    * Perform pre-execute steps on a OMRequest.
@@ -571,5 +575,13 @@ public abstract class OMClientRequest implements RequestAuditor {
     } else {
       throw new OMException("Invalid KeyPath " + path, INVALID_KEY_NAME);
     }
+  }
+
+  public OMLockDetails getOmLockDetails() {
+    return omLockDetails.get();
+  }
+
+  public void mergeOmLockDetails(OMLockDetails details) {
+    omLockDetails.get().merge(details);
   }
 }

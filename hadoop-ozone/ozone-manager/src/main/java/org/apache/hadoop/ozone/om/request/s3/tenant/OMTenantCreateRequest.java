@@ -257,8 +257,9 @@ public class OMTenantCreateRequest extends OMVolumeRequest {
             tenantId, null, null);
       }
 
-      acquiredVolumeLock = omMetadataManager.getLock().acquireWriteLock(
-          VOLUME_LOCK, volumeName);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          VOLUME_LOCK, volumeName));
+      acquiredVolumeLock = getOmLockDetails().isLockAcquired();
 
       boolean skipVolumeCreation = false;
       // Check volume existence
@@ -274,8 +275,9 @@ public class OMTenantCreateRequest extends OMVolumeRequest {
         }
       }
 
-      acquiredUserLock = omMetadataManager.getLock().acquireWriteLock(
-          USER_LOCK, owner);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          USER_LOCK, owner));
+      acquiredUserLock = getOmLockDetails().isLockAcquired();
 
       PersistedUserVolumeInfo volumeList = null;
       if (!skipVolumeCreation) {
@@ -355,13 +357,19 @@ public class OMTenantCreateRequest extends OMVolumeRequest {
           createErrorOMResponse(omResponse, exception));
     } finally {
       if (acquiredUserLock) {
-        omMetadataManager.getLock().releaseWriteLock(USER_LOCK, owner);
+        mergeOmLockDetails(
+            omMetadataManager.getLock().releaseWriteLock(USER_LOCK, owner));
       }
       if (acquiredVolumeLock) {
-        omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK, volumeName);
+        mergeOmLockDetails(
+            omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK,
+                volumeName));
       }
       // Release authorizer write lock
       multiTenantManager.getAuthorizerLock().unlockWriteInOMRequest();
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
+      }
     }
 
     // Perform audit logging

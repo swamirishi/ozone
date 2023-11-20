@@ -152,13 +152,15 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
     try {
       // Lock bucket so it doesn't
       //  get deleted while creating snapshot
-      acquiredBucketLock =
+      mergeOmLockDetails(
           omMetadataManager.getLock().acquireReadLock(BUCKET_LOCK,
-              volumeName, bucketName);
+              volumeName, bucketName));
+      acquiredBucketLock = getOmLockDetails().isLockAcquired();
 
-      acquiredSnapshotLock =
+      mergeOmLockDetails(
           omMetadataManager.getLock().acquireWriteLock(SNAPSHOT_LOCK,
-              volumeName, bucketName, snapshotName);
+              volumeName, bucketName, snapshotName));
+      acquiredSnapshotLock = getOmLockDetails().isLockAcquired();
 
       // Check if snapshot already exists
       if (omMetadataManager.getSnapshotInfoTable().isExist(key)) {
@@ -201,12 +203,17 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
           createErrorOMResponse(omResponse, exception));
     } finally {
       if (acquiredSnapshotLock) {
-        omMetadataManager.getLock().releaseWriteLock(SNAPSHOT_LOCK, volumeName,
-            bucketName, snapshotName);
+        mergeOmLockDetails(
+            omMetadataManager.getLock().releaseWriteLock(SNAPSHOT_LOCK,
+                volumeName, bucketName, snapshotName));
       }
       if (acquiredBucketLock) {
-        omMetadataManager.getLock().releaseReadLock(BUCKET_LOCK, volumeName,
-            bucketName);
+        mergeOmLockDetails(
+            omMetadataManager.getLock().releaseReadLock(BUCKET_LOCK, volumeName,
+                bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

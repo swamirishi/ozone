@@ -89,8 +89,9 @@ public abstract class OMVolumeAclRequest extends OMVolumeRequest {
             OzoneObj.StoreType.OZONE, IAccessAuthorizer.ACLType.WRITE_ACL,
             volume, null, null);
       }
-      lockAcquired = omMetadataManager.getLock().acquireWriteLock(
-          VOLUME_LOCK, volume);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          VOLUME_LOCK, volume));
+      lockAcquired = getOmLockDetails().isLockAcquired();
       OmVolumeArgs omVolumeArgs = getVolumeInfo(omMetadataManager, volume);
 
       // result is false upon add existing acl or remove non-existing acl
@@ -134,7 +135,11 @@ public abstract class OMVolumeAclRequest extends OMVolumeRequest {
       omClientResponse = onFailure(omResponse, exception);
     } finally {
       if (lockAcquired) {
-        omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK, volume);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(VOLUME_LOCK, volume));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

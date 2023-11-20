@@ -121,9 +121,9 @@ public class OMKeyCommitRequestWithFSO extends OMKeyCommitRequest {
       List<OmKeyLocationInfo>
           locationInfoList = getOmKeyLocationInfos(ozoneManager, commitKeyArgs);
 
-      bucketLockAcquired =
-              omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-                      volumeName, bucketName);
+      mergeOmLockDetails(omMetadataManager.getLock()
+          .acquireWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      bucketLockAcquired = getOmLockDetails().isLockAcquired();
 
       validateBucketAndVolume(omMetadataManager, volumeName, bucketName);
 
@@ -269,8 +269,11 @@ public class OMKeyCommitRequestWithFSO extends OMKeyCommitRequest {
               omResponse, exception), getBucketLayout());
     } finally {
       if (bucketLockAcquired) {
-        omMetadataManager.getLock().releaseWriteLock(BUCKET_LOCK, volumeName,
-                bucketName);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

@@ -46,6 +46,7 @@ import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
+import org.apache.hadoop.ozone.om.lock.OMLockDetails;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,9 +138,10 @@ public class SstFilteringService extends BackgroundService
       // Acquiring read lock to avoid race condition with the snapshot directory deletion occurring
       // in OmSnapshotPurgeResponse. Any operation apart from delete can run in parallel along with this operation.
       //TODO. Revisit other SNAPSHOT_LOCK and see if we can change write locks to read locks to further optimize it.
-      boolean acquiredSnapshotLock = ozoneManager.getMetadataManager().getLock()
+      OMLockDetails omLockDetails = ozoneManager.getMetadataManager().getLock()
           .acquireReadLock(SNAPSHOT_LOCK, snapshotInfo.getVolumeName(), snapshotInfo.getBucketName(),
               snapshotInfo.getName());
+      boolean acquiredSnapshotLock = omLockDetails.isLockAcquired();
       if (acquiredSnapshotLock) {
         String snapshotDir = OmSnapshotManager.getSnapshotPath(ozoneManager.getConfiguration(), snapshotInfo);
         try {

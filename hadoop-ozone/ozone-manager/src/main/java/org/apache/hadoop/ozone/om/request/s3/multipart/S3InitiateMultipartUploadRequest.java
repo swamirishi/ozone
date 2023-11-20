@@ -139,9 +139,10 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
         getOmRequest());
     OMClientResponse omClientResponse = null;
     try {
-      acquiredBucketLock =
-          omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-              volumeName, bucketName);
+      mergeOmLockDetails(
+          omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK, volumeName,
+              bucketName));
+      acquiredBucketLock = getOmLockDetails().isLockAcquired();
 
       validateBucketAndVolume(omMetadataManager, volumeName, bucketName);
 
@@ -229,8 +230,11 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
           createErrorOMResponse(omResponse, exception), getBucketLayout());
     } finally {
       if (acquiredBucketLock) {
-        omMetadataManager.getLock().releaseWriteLock(BUCKET_LOCK,
-            volumeName, bucketName);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
     logResult(ozoneManager, multipartInfoInitiateRequest, auditMap, volumeName,

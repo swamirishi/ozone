@@ -132,8 +132,9 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
       }
 
       // acquire lock.
-      acquiredBucketLock =  omMetadataManager.getLock().acquireWriteLock(
-          BUCKET_LOCK, volumeName, bucketName);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          BUCKET_LOCK, volumeName, bucketName));
+      acquiredBucketLock = getOmLockDetails().isLockAcquired();
 
       String bucketKey = omMetadataManager.getBucketKey(volumeName, bucketName);
       OmBucketInfo dbBucketInfo =
@@ -211,8 +212,11 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
           createErrorOMResponse(omResponse, exception));
     } finally {
       if (acquiredBucketLock) {
-        omMetadataManager.getLock().releaseWriteLock(BUCKET_LOCK, volumeName,
-            bucketName);
+        mergeOmLockDetails(omMetadataManager.getLock()
+            .releaseWriteLock(BUCKET_LOCK, volumeName, bucketName));
+      }
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
       }
     }
 

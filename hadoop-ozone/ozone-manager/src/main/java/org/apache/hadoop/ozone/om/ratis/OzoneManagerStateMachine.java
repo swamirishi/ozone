@@ -41,6 +41,8 @@ import org.apache.hadoop.ozone.om.ratis.metrics.OzoneManagerStateMachineMetrics;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.response.DummyOMClientResponse;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
+import org.apache.hadoop.ozone.om.lock.OMLockDetails;
+import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
     .OMRequest;
@@ -562,8 +564,15 @@ public class OzoneManagerStateMachine extends BaseStateMachine {
    */
   private OMResponse runCommand(OMRequest request, TermIndex termIndex) {
     try {
-      return handler.handleWriteRequest(request,
-          termIndex).getOMResponse();
+      OMClientResponse omClientResponse = handler.handleWriteRequest(request, termIndex);
+      OMLockDetails omLockDetails = omClientResponse.getOmLockDetails();
+      OMResponse omResponse = omClientResponse.getOMResponse();
+      if (omLockDetails != null) {
+        return omResponse.toBuilder()
+            .setOmLockDetails(omLockDetails.toProtobufBuilder()).build();
+      } else {
+        return omResponse;
+      }
     } catch (IOException e) {
       LOG.warn("Failed to write, Exception occurred ", e);
       return createErrorResponse(request, e, termIndex);

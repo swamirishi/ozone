@@ -147,8 +147,9 @@ public class OMTenantDeleteRequest extends OMVolumeRequest {
       decVolumeRefCount = volumeName.length() > 0;
 
       // Acquire the volume lock
-      acquiredVolumeLock = omMetadataManager.getLock().acquireWriteLock(
-          VOLUME_LOCK, volumeName);
+      mergeOmLockDetails(omMetadataManager.getLock().acquireWriteLock(
+          VOLUME_LOCK, volumeName));
+      acquiredVolumeLock = getOmLockDetails().isLockAcquired();
 
       // Check if there are any accessIds in the tenant
       if (!ozoneManager.getMultiTenantManager().isTenantEmpty(tenantId)) {
@@ -212,10 +213,15 @@ public class OMTenantDeleteRequest extends OMVolumeRequest {
           createErrorOMResponse(omResponse, exception));
     } finally {
       if (acquiredVolumeLock) {
-        omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK, volumeName);
+        mergeOmLockDetails(
+            omMetadataManager.getLock().releaseWriteLock(VOLUME_LOCK,
+                volumeName));
       }
       // Release authorizer write lock
       multiTenantManager.getAuthorizerLock().unlockWriteInOMRequest();
+      if (omClientResponse != null) {
+        omClientResponse.setOmLockDetails(getOmLockDetails());
+      }
     }
 
     // Perform audit logging
