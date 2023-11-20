@@ -189,7 +189,8 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
       // Check if this is the Leader OM. If not leader, no need to execute this
       // task.
       if (shouldRun()) {
-        getRunCount().incrementAndGet();
+        final long run = getRunCount().incrementAndGet();
+        LOG.debug("Running KeyDeletingService {}", run);
         isRunningOnAOS.set(true);
         int delCount = 0;
         try {
