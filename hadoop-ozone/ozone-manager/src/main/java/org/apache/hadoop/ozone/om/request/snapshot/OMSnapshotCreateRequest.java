@@ -50,6 +50,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.util.UUID;
 
 import static org.apache.hadoop.hdds.HddsUtils.fromProtobuf;
@@ -168,7 +169,7 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
           .setSnapshotInfo(snapshotInfo.getProtobuf()));
       omClientResponse = new OMSnapshotCreateResponse(
           omResponse.build(), snapshotInfo);
-    } catch (IOException | IllegalStateException ex) {
+    } catch (IOException | InvalidPathException ex) {
       exception = ex;
       omClientResponse = new OMSnapshotCreateResponse(
           createErrorOMResponse(omResponse, exception));
@@ -244,7 +245,7 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
         omMetadataManager.getSnapshotInfoTable()
             .addCacheEntry(new CacheKey<>(snapshotInfo.getTableKey()),
                 CacheValue.get(transactionLogIndex, snapshotInfo));
-      } catch (Exception exception) {
+      } catch (IOException exception) {
         // Remove snapshot from the SnapshotChainManager in case of any failure.
         // It is possible that createSnapshot request fails after snapshot gets
         // added to snapshot chain manager because couldn't add it to cache/DB.
@@ -277,7 +278,7 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
   ) {
     try {
       snapshotChainManager.deleteSnapshot(info);
-    } catch (IllegalStateException exception) {
+    } catch (IOException exception) {
       LOG.error("Failed to remove snapshot: {} from SnapshotChainManager.",
           info, exception);
     }
