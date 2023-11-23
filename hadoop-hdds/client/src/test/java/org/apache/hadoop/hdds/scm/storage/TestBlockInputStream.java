@@ -99,8 +99,8 @@ public class TestBlockInputStream {
     createChunkList(5);
     OzoneClientConfig clientConfig = conf.getObject(OzoneClientConfig.class);
     clientConfig.setChecksumVerify(false);
-
-    blockStream = new DummyBlockInputStream(blockID, blockSize, null, null,
+    Pipeline pipeline = MockPipeline.createSingleNodePipeline();
+    blockStream = new DummyBlockInputStream(blockID, blockSize, pipeline, null,
         null, refreshFunction, chunks, chunkDataMap, clientConfig);
   }
 
@@ -437,8 +437,7 @@ public class TestBlockInputStream {
         pipeline, null, clientFactory, refreshFunction,
         clientConfig) {
       @Override
-      protected List<ChunkInfo> getChunkInfos() throws IOException {
-        acquireClient();
+      protected List<ChunkInfo> getChunkInfoListUsingClient() {
         return chunks;
       }
 

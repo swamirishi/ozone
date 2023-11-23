@@ -74,7 +74,7 @@ final class DummyBlockInputStreamWithRetry
   }
 
   @Override
-  protected List<ChunkInfo> getChunkInfos() throws IOException {
+  protected List<ChunkInfo> getChunkInfoList() throws IOException {
     if (getChunkInfoCount == 0) {
       getChunkInfoCount++;
       if (ioException != null) {
@@ -83,7 +83,7 @@ final class DummyBlockInputStreamWithRetry
       throw new StorageContainerException("Exception encountered",
           CONTAINER_NOT_FOUND);
     } else {
-      return super.getChunkInfos();
+      return super.getChunkInfoList();
     }
   }
 }

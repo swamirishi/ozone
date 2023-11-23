@@ -22,22 +22,32 @@ import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ChecksumType;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ChunkInfo;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandRequestProto;
+import org.apache.hadoop.hdds.scm.ByteStringConversion;
 import org.apache.hadoop.hdds.scm.XceiverClientFactory;
 import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.pipeline.MockPipeline;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.ozone.common.Checksum;
 
+import org.apache.hadoop.ozone.common.ChunkBuffer;
+import org.apache.hadoop.security.token.Token;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 
+
+import static org.apache.hadoop.hdds.scm.protocolPB.ContainerCommandResponseBuilders.getReadChunkResponse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,9 +61,11 @@ public class TestChunkInputStream {
   private static final int BYTES_PER_CHECKSUM = 20;
   private static final String CHUNK_NAME = "dummyChunk";
   private static final Random RANDOM = new Random();
+  private static final AtomicLong CONTAINER_ID = new AtomicLong();
 
   private Checksum checksum;
   private DummyChunkInputStream chunkStream;
+  private BlockID blockID;
   private ChunkInfo chunkInfo;
   private byte[] chunkData;
 
@@ -63,6 +75,8 @@ public class TestChunkInputStream {
 
     chunkData = generateRandomData(CHUNK_SIZE);
 
+    blockID = new BlockID(CONTAINER_ID.incrementAndGet(), 0);
+
     chunkInfo = ChunkInfo.newBuilder()
         .setChunkName(CHUNK_NAME)
         .setOffset(0)
@@ -71,7 +85,7 @@ public class TestChunkInputStream {
             chunkData, 0, CHUNK_SIZE).getProtoBufMessage())
         .build();
 
-    chunkStream = new DummyChunkInputStream(chunkInfo, null, null, true,
+    chunkStream = new DummyChunkInputStream(chunkInfo, blockID, null, true,
         chunkData, null);
   }
 
@@ -158,7 +172,7 @@ public class TestChunkInputStream {
     seekAndVerify(25);
     Assert.assertEquals(25, chunkStream.getChunkPosition());
 
-    // Read from the seeked position.
+    // Read from the sought position.
     // Reading from index 25 to 54 should result in the ChunkInputStream
     // copying chunk data from index 20 to 59 into the buffers (checksum
     // boundaries).
@@ -228,33 +242,46 @@ public class TestChunkInputStream {
     // GIVEN
     Pipeline pipeline = MockPipeline.createSingleNodePipeline();
     Pipeline newPipeline = MockPipeline.createSingleNodePipeline();
-    XceiverClientFactory clientFactory = mock(XceiverClientFactory.class);
-    XceiverClientSpi client = mock(XceiverClientSpi.class);
-    when(clientFactory.acquireClientForReadData(pipeline))
-        .thenReturn(client);
+
+    Token<?> token = mock(Token.class);
+    when(token.encodeToUrlString())
+        .thenReturn("oldToken");
+    Token<?> newToken = mock(Token.class);
+    when(newToken.encodeToUrlString())
+        .thenReturn("newToken");
 
     AtomicReference<Pipeline> pipelineRef = new AtomicReference<>(pipeline);
+    AtomicReference<Token<?>> tokenRef = new AtomicReference<>(token);
 
-    ChunkInputStream subject = new ChunkInputStream(chunkInfo, null,
-        clientFactory, pipelineRef::get, false, null) {
-      @Override
-      protected ByteBuffer[] readChunk(ChunkInfo readChunkInfo) {
-        return ByteString.copyFrom(chunkData).asReadOnlyByteBufferList()
-            .toArray(new ByteBuffer[0]);
-      }
-    };
+    XceiverClientFactory clientFactory = mock(XceiverClientFactory.class);
+    XceiverClientSpi client = mock(XceiverClientSpi.class);
+    when(clientFactory.acquireClientForReadData(ArgumentMatchers.any()))
+        .thenReturn(client);
+    ArgumentCaptor<ContainerCommandRequestProto> requestCaptor =
+        ArgumentCaptor.forClass(ContainerCommandRequestProto.class);
+    when(client.getPipeline())
+        .thenAnswer(invocation -> pipelineRef.get());
+    when(client.sendCommand(requestCaptor.capture(), ArgumentMatchers.any()))
+        .thenAnswer(invocation ->
+            getReadChunkResponse(
+                requestCaptor.getValue(),
+                ChunkBuffer.wrap(ByteBuffer.wrap(chunkData)),
+                ByteStringConversion::safeWrap));
 
-    try {
+    try (ChunkInputStream subject = new ChunkInputStream(chunkInfo, blockID,
+        clientFactory, pipelineRef::get, false, tokenRef::get)) {
       // WHEN
       subject.unbuffer();
       pipelineRef.set(newPipeline);
-      int b = subject.read();
+      tokenRef.set(newToken);
+      byte[] buffer = new byte[CHUNK_SIZE];
+      int read = subject.read(buffer);
 
       // THEN
-      Assert.assertNotEquals(-1, b);
+      Assert.assertEquals(CHUNK_SIZE, read);
+      Assert.assertArrayEquals(chunkData, buffer);
       verify(clientFactory).acquireClientForReadData(newPipeline);
-    } finally {
-      subject.close();
+      verify(newToken).encodeToUrlString();
     }
   }
 }
