@@ -953,7 +953,8 @@ public class TestLegacyReplicationManager {
       final ContainerReplica replica5 = getReplicas(
           id, UNHEALTHY, 1000L, replica4.getOriginDatanodeId(),
           randomDatanodeDetails());
-      replica5.getDatanodeDetails().setPersistedOpState(DECOMMISSIONING);
+      nodeManager.register(replica5.getDatanodeDetails(),
+          new NodeStatus(DECOMMISSIONING, HEALTHY));
       DatanodeDetails deadNode = randomDatanodeDetails();
       nodeManager.register(deadNode, NodeStatus.inServiceDead());
       final ContainerReplica replica6 = getReplicas(
@@ -1018,6 +1019,8 @@ public class TestLegacyReplicationManager {
       DatanodeDetails decommissioning =
           MockDatanodeDetails.randomDatanodeDetails();
       decommissioning.setPersistedOpState(DECOMMISSIONING);
+      nodeManager.register(decommissioning,
+          new NodeStatus(DECOMMISSIONING, HEALTHY));
       final ContainerReplica replica4 = getReplicas(
           id, UNHEALTHY, sequenceID, decommissioning.getUuid(),
           decommissioning);
