@@ -86,6 +86,7 @@ import java.util.stream.Collectors;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT_DEFAULT;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_PIPELINE_ALLOCATED_TIMEOUT;
+import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_PIPELINE_DESTROY_TIMEOUT;
 import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.ALLOCATED;
 import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.OPEN;
 import static org.apache.hadoop.test.MetricsAsserts.getLongCounter;
@@ -347,7 +348,9 @@ public class TestPipelineManagerImpl {
       }
 
       // Destroy pipeline
-      pipelineManager.closePipeline(pipeline, false);
+      pipelineManager.closePipeline(pipeline.getId());
+      pipelineManager.deletePipeline(pipeline.getId());
+
       try {
         pipelineManager.getPipeline(pipeline.getId());
         fail("Pipeline should not have been retrieved");
@@ -399,7 +402,8 @@ public class TestPipelineManagerImpl {
           pipelineManager.getPipeline(pipeline.getId()).isOpen());
 
       // close the pipeline
-      pipelineManager.closePipeline(pipeline, false);
+      pipelineManager.closePipeline(pipeline.getId());
+      pipelineManager.deletePipeline(pipeline.getId());
 
       // pipeline report for destroyed pipeline should be ignored
       nodes.subList(0, 2).forEach(dn -> sendPipelineReport(dn, pipeline,
@@ -520,6 +524,8 @@ public class TestPipelineManagerImpl {
     // Allocated pipelines should not be scrubbed for 50 seconds.
     conf.setTimeDuration(
         OZONE_SCM_PIPELINE_ALLOCATED_TIMEOUT, 50, TimeUnit.SECONDS);
+    conf.setTimeDuration(
+        OZONE_SCM_PIPELINE_DESTROY_TIMEOUT, 50, TimeUnit.SECONDS);
 
     PipelineManagerImpl pipelineManager = createPipelineManager(true);
     Pipeline allocatedPipeline = pipelineManager
@@ -559,8 +565,9 @@ public class TestPipelineManagerImpl {
             .getInstance(ReplicationFactor.THREE),
             Pipeline.PipelineState.ALLOCATED).contains(allocatedPipeline));
 
-    // The closedPipeline should be scrubbed, as they are scrubbed immediately
-    Assertions.assertFalse(pipelineManager
+    // The closedPipeline should not be scrubbed as the interval has not
+    // yet passed.
+    Assertions.assertTrue(pipelineManager
         .getPipelines(RatisReplicationConfig
                 .getInstance(ReplicationFactor.THREE),
             Pipeline.PipelineState.CLOSED).contains(closedPipeline));
@@ -574,6 +581,12 @@ public class TestPipelineManagerImpl {
         .getPipelines(RatisReplicationConfig
                 .getInstance(ReplicationFactor.THREE),
             Pipeline.PipelineState.ALLOCATED).contains(allocatedPipeline));
+
+    // The closedPipeline should now be scrubbed as the interval has passed
+    Assertions.assertFalse(pipelineManager
+        .getPipelines(RatisReplicationConfig
+                .getInstance(ReplicationFactor.THREE),
+            Pipeline.PipelineState.CLOSED).contains(closedPipeline));
 
     pipelineManager.close();
   }
@@ -748,11 +761,11 @@ public class TestPipelineManagerImpl {
             addContainer(containerInfo.getProtobuf());
     //Add Container to PipelineStateMap
     pipelineManager.addContainerToPipeline(pipelineID, containerID);
-    pipelineManager.closePipeline(pipeline, false);
+    pipelineManager.closePipeline(pipelineID);
     String containerExpectedOutput = "Container " + containerID +
             " closed for pipeline=" + pipelineID;
     String pipelineExpectedOutput =
-        "Pipeline " + pipeline + " moved to CLOSED state";
+        "Pipeline " + pipelineID + " moved to CLOSED state";
     String logOutput = logCapturer.getOutput();
     assertTrue(logOutput.contains(containerExpectedOutput));
     assertTrue(logOutput.contains(pipelineExpectedOutput));
@@ -853,9 +866,9 @@ public class TestPipelineManagerImpl {
 
     pipelineManager.closeStalePipelines(datanodeDetails);
     verify(pipelineManager, times(1))
-            .closePipeline(stalePipelines.get(0), false);
+            .closePipeline(stalePipelines.get(0).getId());
     verify(pipelineManager, times(1))
-            .closePipeline(stalePipelines.get(1), false);
+            .closePipeline(stalePipelines.get(1).getId());
   }
 
   @Test
