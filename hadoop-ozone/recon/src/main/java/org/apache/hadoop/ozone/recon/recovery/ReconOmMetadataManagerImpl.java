@@ -31,6 +31,7 @@ import javax.inject.Singleton;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.db.RDBStore;
+import org.apache.hadoop.hdds.utils.db.cache.TableCache;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
@@ -99,7 +100,7 @@ public class ReconOmMetadataManagerImpl extends OmMetadataManagerImpl
       LOG.error("Unable to initialize Recon OM DB snapshot store.", ioEx);
     }
     if (getStore() != null) {
-      initializeOmTables(true);
+      initializeOmTables(TableCache.CacheType.FULL_CACHE, true);
       omTablesInitialized = true;
     }
   }
