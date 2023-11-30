@@ -85,8 +85,8 @@ import static org.apache.hadoop.hdds.scm.container.replication.ReplicationTestUt
 import static org.apache.hadoop.hdds.scm.container.replication.ReplicationTestUtil.createReplicas;
 import static org.apache.hadoop.hdds.scm.container.replication.ReplicationTestUtil.createReplicasWithSameOrigin;
 import static org.apache.hadoop.hdds.scm.container.replication.ReplicationTestUtil.getNoNodesTestPlacementPolicy;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -334,6 +334,8 @@ public class TestReplicationManager {
   @Test
   public void testQuasiClosedContainerWithExcessUnhealthyReplica()
       throws IOException, NodeNotFoundException {
+    Mockito.when(nodeManager.getNodeStatus(any(DatanodeDetails.class)))
+        .thenReturn(NodeStatus.inServiceHealthy());
     RatisReplicationConfig ratisRepConfig =
         RatisReplicationConfig.getInstance(THREE);
     ContainerInfo container = createContainerInfo(ratisRepConfig, 1,
@@ -360,8 +362,6 @@ public class TestReplicationManager {
     RatisOverReplicationHandler handler = new RatisOverReplicationHandler(
         ratisPlacementPolicy, replicationManager);
 
-    Mockito.when(nodeManager.getNodeStatus(any(DatanodeDetails.class)))
-        .thenReturn(NodeStatus.inServiceHealthy());
     handler.processAndSendCommands(replicas, Collections.emptyList(),
             repQueue.dequeueOverReplicatedContainer(), 2);
     Assert.assertTrue(commandsSent.iterator().hasNext());
@@ -373,8 +373,54 @@ public class TestReplicationManager {
   }
 
   @Test
+  public void testClosedContainerWithOverReplicatedAllUnhealthy()
+      throws ContainerNotFoundException {
+    RatisReplicationConfig ratisRepConfig =
+        RatisReplicationConfig.getInstance(THREE);
+    ContainerInfo container = createContainerInfo(ratisRepConfig, 1,
+        HddsProtos.LifeCycleState.CLOSED);
+    Set<ContainerReplica> replicas =
+        createReplicas(container.containerID(),
+            ContainerReplicaProto.State.UNHEALTHY, 0, 0, 0, 0);
+    storeContainerAndReplicas(container, replicas);
+
+    replicationManager.processContainer(container, repQueue, repReport);
+    assertEquals(0, repReport.getStat(
+        ReplicationManagerReport.HealthState.UNDER_REPLICATED));
+    assertEquals(1, repReport.getStat(
+        ReplicationManagerReport.HealthState.OVER_REPLICATED));
+    assertEquals(0, repQueue.underReplicatedQueueSize());
+    assertEquals(1, repQueue.overReplicatedQueueSize());
+  }
+
+  @Test
+  public void testClosedContainerWithExcessUnhealthy()
+      throws ContainerNotFoundException {
+    RatisReplicationConfig ratisRepConfig =
+        RatisReplicationConfig.getInstance(THREE);
+    ContainerInfo container = createContainerInfo(ratisRepConfig, 1,
+        HddsProtos.LifeCycleState.CLOSED);
+    Set<ContainerReplica> replicas =
+        createReplicas(container.containerID(),
+            ContainerReplicaProto.State.CLOSED, 0, 0, 0);
+    ContainerReplica unhealthyReplica =
+        createContainerReplica(container.containerID(), 0, IN_SERVICE,
+            ContainerReplicaProto.State.UNHEALTHY);
+    replicas.add(unhealthyReplica);
+    storeContainerAndReplicas(container, replicas);
+
+    replicationManager.processContainer(container, repQueue, repReport);
+    assertEquals(0, repReport.getStat(
+        ReplicationManagerReport.HealthState.UNDER_REPLICATED));
+    assertEquals(1, repReport.getStat(
+        ReplicationManagerReport.HealthState.OVER_REPLICATED));
+    assertEquals(0, repQueue.underReplicatedQueueSize());
+    assertEquals(1, repQueue.overReplicatedQueueSize());
+  }
+
+  @Test
   public void testQuasiClosedContainerWithUnhealthyReplicaOnUniqueOrigin()
-      throws IOException, NodeNotFoundException {
+      throws IOException {
     RatisReplicationConfig ratisRepConfig =
         RatisReplicationConfig.getInstance(THREE);
     ContainerInfo container = createContainerInfo(ratisRepConfig, 1,
@@ -391,25 +437,10 @@ public class TestReplicationManager {
     replicationManager.processContainer(container, repQueue, repReport);
     assertEquals(0, repReport.getStat(
         ReplicationManagerReport.HealthState.UNDER_REPLICATED));
-    assertEquals(1, repReport.getStat(
+    assertEquals(0, repReport.getStat(
         ReplicationManagerReport.HealthState.OVER_REPLICATED));
     assertEquals(0, repQueue.underReplicatedQueueSize());
-    assertEquals(1, repQueue.overReplicatedQueueSize());
-
-    RatisOverReplicationHandler handler = new RatisOverReplicationHandler(
-        ratisPlacementPolicy, replicationManager);
-
-    Mockito.when(nodeManager.getNodeStatus(any(DatanodeDetails.class)))
-        .thenReturn(NodeStatus.inServiceHealthy());
-    handler.processAndSendCommands(replicas, Collections.emptyList(),
-        repQueue.dequeueOverReplicatedContainer(), 2);
-    Assert.assertTrue(commandsSent.iterator().hasNext());
-
-    // unhealthy replica can't be deleted because it has a unique origin DN
-    Assert.assertNotEquals(unhealthy.getDatanodeDetails().getUuid(),
-        commandsSent.iterator().next().getKey());
-    assertEquals(SCMCommandProto.Type.deleteContainerCommand,
-        commandsSent.iterator().next().getValue().getType());
+    assertEquals(0, repQueue.overReplicatedQueueSize());
   }
 
   /**
