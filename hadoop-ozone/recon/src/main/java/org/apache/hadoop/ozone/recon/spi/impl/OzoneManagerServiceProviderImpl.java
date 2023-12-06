@@ -474,8 +474,10 @@ public class OzoneManagerServiceProviderImpl
         latestSequenceNumberOfOM - getCurrentOMDBSequenceNumber();
     metrics.setSequenceNumberLag(lag);
     LOG.info("Number of updates received from OM : {}, " +
-            "SequenceNumber diff: {}, SequenceNumber Lag from OM {}.",
-        numUpdates, getCurrentOMDBSequenceNumber() - fromSequenceNumber, lag);
+            "SequenceNumber diff: {}, SequenceNumber Lag from OM {}, " +
+            "isDBUpdateSuccess: {}", numUpdates, getCurrentOMDBSequenceNumber()
+            - fromSequenceNumber, lag,
+        null != dbUpdates && dbUpdates.isDBUpdateSuccess());
     return null != dbUpdates && dbUpdates.isDBUpdateSuccess();
   }
 
@@ -565,6 +567,10 @@ public class OzoneManagerServiceProviderImpl
 
   public OzoneManagerSyncMetrics getMetrics() {
     return metrics;
+  }
+
+  public static Logger getLogger() {
+    return LOG;
   }
 }
 
