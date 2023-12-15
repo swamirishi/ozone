@@ -76,6 +76,10 @@ public abstract class NodeDetails {
     return nodeId;
   }
 
+  public String threadNamePrefix() {
+    return HddsUtils.threadNamePrefix(nodeId);
+  }
+
   public InetSocketAddress getRpcAddress() {
     if (rpcAddress == null) {
       rpcAddress = NetUtils.createSocketAddr(hostAddress, rpcPort);

@@ -355,6 +355,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   private GrpcOzoneManagerServer omS3gGrpcServer;
   private final InetSocketAddress omRpcAddress;
   private final String omId;
+  private final String threadPrefix;
   private ServiceInfoProvider serviceInfo;
 
   private OMMetadataManager metadataManager;
@@ -519,6 +520,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
           omStorage.getOmId(), omNodeDetails.getRpcAddress(),
           omNodeDetails.getRatisPort());
     }
+    this.threadPrefix = omNodeDetails.threadNamePrefix();
 
     loginOMUserIfSecurityEnabled(conf);
     setInstanceVariablesFromConf();
@@ -725,6 +727,11 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
    */
   public static S3Authentication getS3Auth() {
     return S3_AUTH.get();
+  }
+
+  /** Returns the ThreadName prefix for the current OM. */
+  public String getThreadNamePrefix() {
+    return threadPrefix;
   }
 
   /**
