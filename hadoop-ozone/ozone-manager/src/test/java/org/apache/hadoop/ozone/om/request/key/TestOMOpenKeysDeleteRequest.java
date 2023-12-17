@@ -246,8 +246,7 @@ public class TestOMOpenKeysDeleteRequest extends TestOMKeyRequest {
         new OMOpenKeysDeleteRequest(omRequest, getBucketLayout());
 
     OMClientResponse omClientResponse =
-        openKeyDeleteRequest.validateAndUpdateCache(ozoneManager,
-            transactionId, ozoneManagerDoubleBufferHelper);
+        openKeyDeleteRequest.validateAndUpdateCache(ozoneManager, transactionId);
 
     Assert.assertEquals(Status.OK,
         omClientResponse.getOMResponse().getStatus());
@@ -323,8 +322,7 @@ public class TestOMOpenKeysDeleteRequest extends TestOMKeyRequest {
         new OMOpenKeysDeleteRequest(omRequest, getBucketLayout());
 
     OMClientResponse omClientResponse =
-        openKeyDeleteRequest.validateAndUpdateCache(ozoneManager,
-            100L, ozoneManagerDoubleBufferHelper);
+        openKeyDeleteRequest.validateAndUpdateCache(ozoneManager, 100L);
 
     Assert.assertEquals(Status.OK,
         omClientResponse.getOMResponse().getStatus());

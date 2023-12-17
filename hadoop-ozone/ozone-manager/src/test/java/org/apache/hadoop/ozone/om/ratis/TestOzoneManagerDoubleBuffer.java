@@ -290,7 +290,6 @@ class TestOzoneManagerDoubleBuffer {
         flusher::get);
   }
 
-
   // Return a future that waits for the flush.
   private Future<Boolean> awaitFlush(ExecutorService executorService) {
     return executorService.submit(() -> {

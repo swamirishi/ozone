@@ -78,8 +78,7 @@ public class TestOMBucketRemoveAclRequest extends TestBucketRequest {
         new OMBucketAddAclRequest(addAclRequest);
     omBucketAddAclRequest.preExecute(ozoneManager);
     OMClientResponse omClientAddAclResponse = omBucketAddAclRequest
-        .validateAndUpdateCache(ozoneManager, 1,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 1);
     OMResponse omAddAclResponse = omClientAddAclResponse.getOMResponse();
     Assert.assertNotNull(omAddAclResponse.getAddAclResponse());
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
@@ -99,8 +98,7 @@ public class TestOMBucketRemoveAclRequest extends TestBucketRequest {
         new OMBucketRemoveAclRequest(removeAclRequest);
     omBucketRemoveAclRequest.preExecute(ozoneManager);
     OMClientResponse omClientRemoveAclResponse = omBucketRemoveAclRequest
-        .validateAndUpdateCache(ozoneManager, 2,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 2);
     OMResponse omRemoveAclResponse = omClientRemoveAclResponse.getOMResponse();
     Assert.assertNotNull(omRemoveAclResponse.getRemoveAclResponse());
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
@@ -125,8 +123,7 @@ public class TestOMBucketRemoveAclRequest extends TestBucketRequest {
     omBucketRemoveAclRequest.preExecute(ozoneManager);
 
     OMClientResponse omClientResponse = omBucketRemoveAclRequest
-        .validateAndUpdateCache(ozoneManager, 1,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 1);
     OMResponse omResponse = omClientResponse.getOMResponse();
 
     Assert.assertNotNull(omResponse.getRemoveAclResponse());

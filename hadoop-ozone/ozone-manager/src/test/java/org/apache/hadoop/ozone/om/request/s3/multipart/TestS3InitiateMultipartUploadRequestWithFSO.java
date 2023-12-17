@@ -67,9 +67,7 @@ public class TestS3InitiateMultipartUploadRequestWithFSO
         getS3InitiateMultipartUploadReq(modifiedRequest);
 
     OMClientResponse omClientResponse =
-            s3InitiateMultipartUploadReqFSO.validateAndUpdateCache(
-                    ozoneManager, 100L,
-                    ozoneManagerDoubleBufferHelper);
+        s3InitiateMultipartUploadReqFSO.validateAndUpdateCache(ozoneManager, 100L);
 
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
             omClientResponse.getOMResponse().getStatus());

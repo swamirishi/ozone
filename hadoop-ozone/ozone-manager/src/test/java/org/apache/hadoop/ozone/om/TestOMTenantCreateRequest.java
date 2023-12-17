@@ -23,7 +23,6 @@ import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.AuditMessage;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.multitenant.AuthorizerLock;
-import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerDoubleBufferHelper;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.request.s3.tenant.OMTenantCreateRequest;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
@@ -59,11 +58,6 @@ public class TestOMTenantCreateRequest {
   private OMMetrics omMetrics;
   private OMMetadataManager omMetadataManager;
   private AuditLogger auditLogger;
-  // Just setting ozoneManagerDoubleBuffer which does nothing.
-  private OzoneManagerDoubleBufferHelper ozoneManagerDoubleBufferHelper =
-      ((response, transactionIndex) -> {
-        return null;
-      });
 
   @Before
   public void setup() throws Exception {
@@ -123,8 +117,7 @@ public class TestOMTenantCreateRequest {
 
     long txLogIndex = 1L;
     OMClientResponse omClientResponse =
-        omTenantCreateRequest.validateAndUpdateCache(ozoneManager, txLogIndex,
-            ozoneManagerDoubleBufferHelper);
+        omTenantCreateRequest.validateAndUpdateCache(ozoneManager, txLogIndex);
     OMResponse omResponse = omClientResponse.getOMResponse();
 
     Assert.assertNotNull(omResponse.getCreateTenantResponse());
@@ -183,8 +176,7 @@ public class TestOMTenantCreateRequest {
         new OMTenantCreateRequest(modReqPostPreExecute);
     // OMResponse should have status VOLUME_ALREADY_EXISTS in this crafted case
     OMClientResponse modOMClientResponse =
-        modTenantCreateRequest.validateAndUpdateCache(ozoneManager, 2L,
-            ozoneManagerDoubleBufferHelper);
+        modTenantCreateRequest.validateAndUpdateCache(ozoneManager, 2L);
     Assert.assertEquals(Status.VOLUME_ALREADY_EXISTS,
         modOMClientResponse.getOMResponse().getStatus());
     Assert.assertEquals("Volume already exists",
@@ -192,8 +184,7 @@ public class TestOMTenantCreateRequest {
 
     // validateAndUpdateCache with forceCreationWhenVolumeExists = true
     OMClientResponse omClientResponse =
-        omTenantCreateRequest2.validateAndUpdateCache(ozoneManager, 2L,
-            ozoneManagerDoubleBufferHelper);
+        omTenantCreateRequest2.validateAndUpdateCache(ozoneManager, 2L);
     OMResponse omResponse = omClientResponse.getOMResponse();
 
     Assert.assertNotNull(omResponse.getCreateTenantResponse());
@@ -248,8 +239,7 @@ public class TestOMTenantCreateRequest {
     omTenantCreateRequest = new OMTenantCreateRequest(modifiedRequest);
     long txLogIndex = 1;
     OMClientResponse omClientResponse =
-        omTenantCreateRequest.validateAndUpdateCache(ozoneManager, txLogIndex,
-            ozoneManagerDoubleBufferHelper);
+        omTenantCreateRequest.validateAndUpdateCache(ozoneManager, txLogIndex);
     OMResponse omResponse = omClientResponse.getOMResponse();
 
     Assert.assertNotNull(omResponse.getCreateTenantResponse());

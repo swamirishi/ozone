@@ -64,8 +64,7 @@ public class TestOMBucketDeleteRequest extends TestBucketRequest {
     OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucketName,
         omMetadataManager);
 
-    omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, 1,
-        ozoneManagerDoubleBufferHelper);
+    omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, 1);
 
     Assert.assertNull(omMetadataManager.getBucketTable().get(
         omMetadataManager.getBucketKey(volumeName, bucketName)));
@@ -84,8 +83,7 @@ public class TestOMBucketDeleteRequest extends TestBucketRequest {
 
 
     OMClientResponse omClientResponse =
-        omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, 1,
-            ozoneManagerDoubleBufferHelper);
+        omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, 1);
 
     Assert.assertNull(omMetadataManager.getBucketTable().get(
         omMetadataManager.getBucketKey(volumeName, bucketName)));

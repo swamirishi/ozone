@@ -151,6 +151,7 @@ import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PartInfo;
 
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalizer.StatusAndMessages;
+import org.apache.hadoop.util.Preconditions;
 import org.apache.hadoop.util.ProtobufUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -371,13 +372,16 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   public OMClientResponse handleWriteRequest(OMRequest omRequest,
       long transactionLogIndex) throws IOException {
     injectPause();
-    OMClientRequest omClientRequest = null;
-    OMClientResponse omClientResponse = null;
-    omClientRequest =
+    OMClientRequest omClientRequest =
         OzoneManagerRatisUtils.createClientRequest(omRequest, impl);
-    omClientResponse = omClientRequest
-        .validateAndUpdateCache(getOzoneManager(), transactionLogIndex,
-            ozoneManagerDoubleBuffer::add);
+    OMClientResponse omClientResponse =
+        omClientRequest.validateAndUpdateCache(getOzoneManager(), transactionLogIndex);
+    Preconditions.checkNotNull(omClientResponse,
+        "omClientResponse returned by validateAndUpdateCache cannot be null");
+    if (omRequest.getCmdType() != Type.Prepare) {
+      omClientResponse.setFlushFuture(
+          ozoneManagerDoubleBuffer.add(omClientResponse, transactionLogIndex));
+    }
     return omClientResponse;
   }
 

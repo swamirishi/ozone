@@ -74,8 +74,7 @@ public class TestOMKeyAclRequest extends TestOMKeyRequest {
 
     // Execute original request
     OMClientResponse omClientResponse = omKeyAddAclRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 100L);
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
         omClientResponse.getOMResponse().getStatus());
 
@@ -101,8 +100,7 @@ public class TestOMKeyAclRequest extends TestOMKeyRequest {
         getOmKeyAddAclRequest(addAclRequest);
     omKeyAddAclRequest.preExecute(ozoneManager);
     OMClientResponse omClientAddAclResponse = omKeyAddAclRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 100L);
     OMResponse omAddAclResponse = omClientAddAclResponse.getOMResponse();
     Assert.assertNotNull(omAddAclResponse.getAddAclResponse());
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
@@ -131,8 +129,7 @@ public class TestOMKeyAclRequest extends TestOMKeyRequest {
     Assert.assertTrue(newModTime > originModTime);
 
     OMClientResponse omClientRemoveAclResponse = omKeyRemoveAclRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 100L);
     OMResponse omRemoveAclResponse = omClientRemoveAclResponse.getOMResponse();
     Assert.assertNotNull(omRemoveAclResponse.getRemoveAclResponse());
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,
@@ -173,8 +170,7 @@ public class TestOMKeyAclRequest extends TestOMKeyRequest {
     Assert.assertTrue(newModTime > originModTime);
 
     OMClientResponse omClientResponse = omKeySetAclRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
-            ozoneManagerDoubleBufferHelper);
+        .validateAndUpdateCache(ozoneManager, 100L);
     OMResponse omSetAclResponse = omClientResponse.getOMResponse();
     Assert.assertNotNull(omSetAclResponse.getSetAclResponse());
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.OK,

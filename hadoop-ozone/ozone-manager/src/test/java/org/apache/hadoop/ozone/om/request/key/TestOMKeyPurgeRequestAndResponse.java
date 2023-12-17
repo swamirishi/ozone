@@ -131,8 +131,7 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
 
     // validateAndUpdateCache OMSnapshotCreateResponse.
     OMSnapshotCreateResponse omClientResponse = (OMSnapshotCreateResponse)
-        omSnapshotCreateRequest.validateAndUpdateCache(ozoneManager, 1L,
-            ozoneManagerDoubleBufferHelper);
+        omSnapshotCreateRequest.validateAndUpdateCache(ozoneManager, 1L);
     // Add to batch and commit to DB.
     omClientResponse.addToDBBatch(omMetadataManager, batchOperation);
     omMetadataManager.getStore().commitBatchOperation(batchOperation);
@@ -176,8 +175,7 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
     OMKeyPurgeRequest omKeyPurgeRequest =
         new OMKeyPurgeRequest(preExecutedRequest);
 
-    omKeyPurgeRequest.validateAndUpdateCache(ozoneManager, 100L,
-        ozoneManagerDoubleBufferHelper);
+    omKeyPurgeRequest.validateAndUpdateCache(ozoneManager, 100L);
 
     OMResponse omResponse = OMResponse.newBuilder()
         .setPurgeKeysResponse(PurgeKeysResponse.getDefaultInstance())
@@ -243,8 +241,7 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
     OMKeyPurgeRequest omKeyPurgeRequest =
         new OMKeyPurgeRequest(preExecutedRequest);
 
-    omKeyPurgeRequest.validateAndUpdateCache(ozoneManager, 100L,
-        ozoneManagerDoubleBufferHelper);
+    omKeyPurgeRequest.validateAndUpdateCache(ozoneManager, 100L);
 
     OMResponse omResponse = OMResponse.newBuilder()
         .setPurgeKeysResponse(PurgeKeysResponse.getDefaultInstance())
