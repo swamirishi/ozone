@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.scm.command;
 
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.hdds.HddsIdFactory;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.SCMCommandProto;
@@ -32,6 +33,7 @@ import org.apache.hadoop.hdds.server.events.IdentifiableEventPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -55,32 +57,43 @@ public class CommandStatusReportHandler implements
     }
 
     // Route command status to its watchers.
+    List<CommandStatus> deleteBlocksCommandStatus = new ArrayList<>();
     cmdStatusList.forEach(cmdStatus -> {
       if (LOGGER.isTraceEnabled()) {
         LOGGER.trace("Emitting command status for id:{} type: {}", cmdStatus
             .getCmdId(), cmdStatus.getType());
       }
       if (cmdStatus.getType() == SCMCommandProto.Type.deleteBlocksCommand) {
-        publisher.fireEvent(SCMEvents.DELETE_BLOCK_STATUS,
-            new DeleteBlockStatus(cmdStatus, report.getDatanodeDetails()));
+        deleteBlocksCommandStatus.add(cmdStatus);
       } else {
         LOGGER.debug("CommandStatus of type:{} not handled in " +
             "CommandStatusReportHandler.", cmdStatus.getType());
       }
     });
+
+    /**
+     * The purpose of aggregating all CommandStatus to commit is to reduce the
+     * Thread switching. When the Datanode queue has a large number of commands
+     * , there will have many {@link CommandStatus#Status#PENDING} status
+     * CommandStatus in report
+     */
+    if (!deleteBlocksCommandStatus.isEmpty()) {
+      publisher.fireEvent(SCMEvents.DELETE_BLOCK_STATUS, new DeleteBlockStatus(
+          deleteBlocksCommandStatus, report.getDatanodeDetails()));
+    }
   }
 
   /**
    * Wrapper event for CommandStatus.
    */
   public static class CommandStatusEvent implements IdentifiableEventPayload {
-    private CommandStatus cmdStatus;
+    private final List<CommandStatus> cmdStatus;
 
-    CommandStatusEvent(CommandStatus cmdStatus) {
+    CommandStatusEvent(List<CommandStatus> cmdStatus) {
       this.cmdStatus = cmdStatus;
     }
 
-    public CommandStatus getCmdStatus() {
+    public List<CommandStatus> getCmdStatus() {
       return cmdStatus;
     }
 
@@ -91,7 +104,7 @@ public class CommandStatusReportHandler implements
 
     @Override
     public long getId() {
-      return cmdStatus.getCmdId();
+      return HddsIdFactory.getLongId();
     }
   }
 
@@ -100,7 +113,9 @@ public class CommandStatusReportHandler implements
    */
   public static class DeleteBlockStatus extends CommandStatusEvent {
     private final DatanodeDetails datanodeDetails;
-    public DeleteBlockStatus(CommandStatus cmdStatus, DatanodeDetails datanodeDetails) {
+
+    public DeleteBlockStatus(List<CommandStatus> cmdStatus,
+        DatanodeDetails datanodeDetails) {
       super(cmdStatus);
       this.datanodeDetails = datanodeDetails;
     }
