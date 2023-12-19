@@ -23,6 +23,7 @@ import java.nio.file.InvalidPathException;
 import java.util.Map;
 
 import org.apache.ratis.server.protocol.TermIndex;
+import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
@@ -77,8 +78,9 @@ public class OMKeyDeleteRequest extends OMKeyRequest {
     Preconditions.checkNotNull(deleteKeyRequest);
 
     OzoneManagerProtocolProtos.KeyArgs keyArgs = deleteKeyRequest.getKeyArgs();
-
     String keyPath = keyArgs.getKeyName();
+
+    OmUtils.verifyKeyNameWithSnapshotReservedWordForDeletion(keyPath);
     keyPath = validateAndNormalizeKey(ozoneManager.getEnableFileSystemPaths(),
         keyPath, getBucketLayout());
 
