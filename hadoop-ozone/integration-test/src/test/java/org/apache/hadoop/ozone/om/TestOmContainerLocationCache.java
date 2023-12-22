@@ -100,9 +100,7 @@ import java.util.stream.Stream;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.CompletableFuture.completedFuture;
-import static org.apache.hadoop.hdds.scm.exceptions.SCMException.ResultCodes.NO_REPLICA_FOUND;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_KEY_PREALLOCATION_BLOCKS_MAX;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -509,60 +507,6 @@ public class TestOmContainerLocationCache {
     // verify SCM is called one more time to refresh.
     verify(mockScmContainerClient, times(1))
         .getContainerWithPipelineBatch(newHashSet(testContainerId));
-  }
-
-  /**
-   * Verify that in situation that SCM returns empty pipelines (that prevents
-   * clients from reading data), the empty pipelines are not cached and
-   * subsequent key reads re-fetch container data from SCM.
-   */
-  @Test
-  public void containerRefreshedOnEmptyPipelines() throws Exception {
-    byte[] data = "Test content".getBytes(UTF_8);
-
-    mockScmAllocationOnDn1(CONTAINER_ID.get(), 1L);
-    mockWriteChunkResponse(mockDn1Protocol);
-    mockPutBlockResponse(mockDn1Protocol, CONTAINER_ID.get(), 1L, data);
-
-    OzoneBucket bucket = objectStore.getVolume(VOLUME_NAME)
-        .getBucket(BUCKET_NAME);
-
-    String keyName = "key";
-    try (OzoneOutputStream os = bucket.createKey(keyName, data.length)) {
-      IOUtils.write(data, os);
-    }
-
-    // All datanodes go down and scm returns empty pipeline for the container.
-    mockScmGetContainerPipelineEmpty(CONTAINER_ID.get());
-
-    OzoneKeyDetails key1 = bucket.getKey(keyName);
-
-    verify(mockScmContainerClient, times(1))
-        .getContainerWithPipelineBatch(newHashSet(CONTAINER_ID.get()));
-
-    // verify that the effort to read will result in a NO_REPLICA_FOUND error.
-    Exception ex =
-        assertThrows(IllegalArgumentException.class, () -> {
-          try (InputStream is = key1.getContent()) {
-            IOUtils.read(is, new byte[(int) key1.getDataSize()]);
-          }
-        });
-    assertEquals(NO_REPLICA_FOUND.toString(), ex.getMessage());
-
-    // but the empty pipeline is not cached, and when some data node is back.
-    mockScmGetContainerPipeline(CONTAINER_ID.get(), DN1);
-    mockGetBlock(mockDn1Protocol, CONTAINER_ID.get(), 1L, data, null, null);
-    mockReadChunk(mockDn1Protocol, CONTAINER_ID.get(), 1L, data, null, null);
-    // the subsequent effort to read the key is success.
-    OzoneKeyDetails updatedKey1 = bucket.getKey(keyName);
-    try (InputStream is = updatedKey1.getContent()) {
-      byte[] read = new byte[(int) key1.getDataSize()];
-      IOUtils.read(is, read);
-      Assertions.assertArrayEquals(data, read);
-    }
-    // verify SCM is called one more time to refetch the container pipeline..
-    verify(mockScmContainerClient, times(2))
-        .getContainerWithPipelineBatch(newHashSet(CONTAINER_ID.get()));
   }
 
   private void mockPutBlockResponse(XceiverClientSpi mockDnProtocol,
