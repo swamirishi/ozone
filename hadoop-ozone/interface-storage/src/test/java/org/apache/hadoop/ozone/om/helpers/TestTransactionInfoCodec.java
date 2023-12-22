@@ -40,10 +40,7 @@ public class TestTransactionInfoCodec
 
   @Test
   public void toAndFromPersistedFormat() throws Exception {
-    TransactionInfo transactionInfo =
-        new TransactionInfo.Builder().setTransactionIndex(100)
-            .setCurrentTerm(11).build();
-
+    final TransactionInfo transactionInfo = TransactionInfo.valueOf(11, 100);
     final Codec<TransactionInfo> codec = getCodec();
     TransactionInfo convertedTransactionInfo =
         codec.fromPersistedFormat(codec.toPersistedFormat(transactionInfo));
@@ -58,7 +55,7 @@ public class TestTransactionInfoCodec
       fail("testInvalidProtocolBuffer failed");
     } catch (IllegalArgumentException e) {
       GenericTestUtils.assertExceptionContains(
-          "Incorrect TransactionInfo value", e);
+          "Unexpected split length", e);
     }
   }
 }
