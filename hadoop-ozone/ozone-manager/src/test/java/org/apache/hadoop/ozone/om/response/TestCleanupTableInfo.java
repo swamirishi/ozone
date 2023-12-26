@@ -150,6 +150,7 @@ public class TestCleanupTableInfo {
     Set<Class<? extends OMClientResponse>> subTypes = responseClasses();
     // OmKeyResponse is an abstract class that does not need CleanupTable.
     subTypes.remove(OmKeyResponse.class);
+    subTypes.remove(DummyOMClientResponse.class);
     subTypes.forEach(aClass -> {
       Assert.assertTrue(aClass + " does not have annotation of" +
               " CleanupTableInfo",
