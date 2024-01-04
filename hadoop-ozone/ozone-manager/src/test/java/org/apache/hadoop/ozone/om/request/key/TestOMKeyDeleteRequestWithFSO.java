@@ -30,19 +30,40 @@ import org.apache.hadoop.ozone.security.acl.OzonePrefixPath;
 import org.apache.hadoop.util.Time;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
  * Tests OmKeyDelete request with prefix layout.
  */
+@RunWith(Parameterized.class)
 public class TestOMKeyDeleteRequestWithFSO extends TestOMKeyDeleteRequest {
   private static final String INTERMEDIATE_DIR = "c/d/";
   private static final String PARENT_DIR = "c/d/e";
   private static final String FILE_NAME = "file1";
   private static final String FILE_KEY = PARENT_DIR + "/" + FILE_NAME;
+
+  public TestOMKeyDeleteRequestWithFSO(String testKeyName1, String testKeyName2, String expectedExceptionMessage) {
+    super(testKeyName1, testKeyName2, expectedExceptionMessage);
+  }
+
+  @Parameterized.Parameters
+  public static Collection<Object[]> data() {
+    return Arrays.asList(new Object[][] {
+        {"keyName", ".snapshot", "Cannot delete key with reserved name: .snapshot"},
+        {"a/b/keyName", ".snapshot/snapName", "Cannot delete key under path reserved for snapshot: .snapshot/"},
+        {"a/.snapshot/keyName", ".snapshot/snapName/keyName",
+            "Cannot delete key under path reserved for snapshot: .snapshot/" },
+        {"a.snapshot/b/keyName", null, null }
+    });
+  }
 
   @Override
   protected OMKeyDeleteRequest getOmKeyDeleteRequest(
@@ -96,6 +117,17 @@ public class TestOMKeyDeleteRequestWithFSO extends TestOMKeyDeleteRequest {
             parentId, 100, Time.now());
     omKeyInfo.setKeyName(key);
     return omKeyInfo.getPath();
+  }
+
+  @Test
+  public void testPreExecute() throws Exception {
+    keyName = "keyName";
+    OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucketName, omMetadataManager, getBucketLayout());
+    String ozoneKey = addKeyToTable();
+    OmKeyInfo omKeyInfo = omMetadataManager.getKeyTable(getBucketLayout()).get(ozoneKey);
+    Assertions.assertNotNull(omKeyInfo);
+
+    doPreExecute(createDeleteKeyRequest());
   }
 
   @Test

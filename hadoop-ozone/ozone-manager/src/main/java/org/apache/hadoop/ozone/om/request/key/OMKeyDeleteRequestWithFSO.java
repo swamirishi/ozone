@@ -96,13 +96,6 @@ public class OMKeyDeleteRequestWithFSO extends OMKeyDeleteRequest {
     Result result = null;
     OmBucketInfo omBucketInfo = null;
     try {
-      keyArgs = resolveBucketLink(ozoneManager, keyArgs, auditMap);
-      volumeName = keyArgs.getVolumeName();
-      bucketName = keyArgs.getBucketName();
-
-      checkACLsWithFSO(ozoneManager, volumeName, bucketName, keyName,
-          IAccessAuthorizer.ACLType.DELETE);
-
       acquiredLock = omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
           volumeName, bucketName);
 
@@ -205,5 +198,14 @@ public class OMKeyDeleteRequestWithFSO extends OMKeyDeleteRequest {
     }
 
     return omClientResponse;
+  }
+
+  @Override
+  protected OzoneManagerProtocolProtos.KeyArgs resolveBucketAndCheckAcls(
+      OzoneManager ozoneManager,
+      OzoneManagerProtocolProtos.KeyArgs.Builder newKeyArgs)
+      throws IOException {
+    return resolveBucketAndCheckKeyAclsWithFSO(newKeyArgs.build(),
+        ozoneManager, IAccessAuthorizer.ACLType.DELETE);
   }
 }

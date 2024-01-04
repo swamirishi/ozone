@@ -194,9 +194,6 @@ public class TestOzoneClientMultipartUploadWithFSO {
 
     Assert.assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     Assert.assertNotNull(multipartInfo.getUploadID());
 
     // Call initiate multipart upload for the same key again, this should
@@ -204,9 +201,6 @@ public class TestOzoneClientMultipartUploadWithFSO {
     multipartInfo = bucket.initiateMultipartUpload(keyName);
 
     Assert.assertNotNull(multipartInfo);
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     Assert.assertNotEquals(multipartInfo.getUploadID(), uploadID);
     Assert.assertNotNull(multipartInfo.getUploadID());
   }
@@ -890,9 +884,6 @@ public class TestOzoneClientMultipartUploadWithFSO {
 
     Assert.assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(kName, multipartInfo.getKeyName());
     Assert.assertNotNull(multipartInfo.getUploadID());
 
     return uploadID;
@@ -922,11 +913,6 @@ public class TestOzoneClientMultipartUploadWithFSO {
             .completeMultipartUpload(kName, uploadID, partsMap);
 
     Assert.assertNotNull(omMultipartUploadCompleteInfo);
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getBucket(), oBucket
-            .getName());
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getVolume(), oBucket
-            .getVolumeName());
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getKey(), kName);
     Assert.assertNotNull(omMultipartUploadCompleteInfo.getHash());
   }
 

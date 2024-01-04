@@ -99,6 +99,13 @@ public class OMRecoverLeaseRequest extends OMKeyRequest {
         validateAndNormalizeKey(ozoneManager.getEnableFileSystemPaths(),
             keyPath, getBucketLayout());
 
+    // check ACL
+    checkKeyAcls(ozoneManager,
+        recoverLeaseRequest.getVolumeName(),
+        recoverLeaseRequest.getBucketName(),
+        recoverLeaseRequest.getKeyName(),
+        IAccessAuthorizer.ACLType.WRITE, OzoneObj.ResourceType.KEY);
+
     return request.toBuilder()
         .setRecoverLeaseRequest(
             recoverLeaseRequest.toBuilder()
@@ -128,10 +135,6 @@ public class OMRecoverLeaseRequest extends OMKeyRequest {
 
     boolean acquiredLock = false;
     try {
-      // check ACL
-      checkKeyAcls(ozoneManager, volumeName, bucketName, keyName,
-          IAccessAuthorizer.ACLType.WRITE, OzoneObj.ResourceType.KEY);
-
       // acquire lock
       acquiredLock = omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
           volumeName, bucketName);

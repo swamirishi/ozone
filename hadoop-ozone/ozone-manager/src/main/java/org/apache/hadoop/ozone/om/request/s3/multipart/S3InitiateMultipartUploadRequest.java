@@ -48,8 +48,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.protocolPB.OMPBHelper;
-import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
-import org.apache.hadoop.ozone.security.acl.OzoneObj;
+import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
@@ -80,7 +79,7 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
   @Override
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
     MultipartInfoInitiateRequest multipartInfoInitiateRequest =
-        getOmRequest().getInitiateMultiPartUploadRequest();
+        super.preExecute(ozoneManager).getInitiateMultiPartUploadRequest();
     Preconditions.checkNotNull(multipartInfoInitiateRequest);
 
     KeyArgs keyArgs = multipartInfoInitiateRequest.getKeyArgs();
@@ -97,10 +96,12 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
 
     generateRequiredEncryptionInfo(keyArgs, newKeyArgs, ozoneManager);
 
+    KeyArgs resolvedArgs = resolveBucketAndCheckKeyAcls(newKeyArgs.build(),
+        ozoneManager, ACLType.CREATE);
     return getOmRequest().toBuilder()
         .setUserInfo(getUserInfo())
         .setInitiateMultiPartUploadRequest(
-            multipartInfoInitiateRequest.toBuilder().setKeyArgs(newKeyArgs))
+            multipartInfoInitiateRequest.toBuilder().setKeyArgs(resolvedArgs))
         .build();
   }
 
@@ -138,14 +139,6 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
         getOmRequest());
     OMClientResponse omClientResponse = null;
     try {
-      keyArgs = resolveBucketLink(ozoneManager, keyArgs, auditMap);
-      volumeName = keyArgs.getVolumeName();
-      bucketName = keyArgs.getBucketName();
-
-      // check Acl
-      checkKeyAcls(ozoneManager, volumeName, bucketName, keyName,
-          IAccessAuthorizer.ACLType.CREATE, OzoneObj.ResourceType.KEY);
-
       acquiredBucketLock =
           omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
               volumeName, bucketName);

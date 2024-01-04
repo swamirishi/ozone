@@ -100,9 +100,6 @@ public class S3InitiateMultipartUploadRequestWithFSO
         getOmRequest());
     OMClientResponse omClientResponse = null;
     try {
-      keyArgs = resolveBucketLink(ozoneManager, keyArgs, auditMap);
-      volumeName = keyArgs.getVolumeName();
-      bucketName = keyArgs.getBucketName();
 
       // TODO to support S3 ACL later.
       acquiredBucketLock =

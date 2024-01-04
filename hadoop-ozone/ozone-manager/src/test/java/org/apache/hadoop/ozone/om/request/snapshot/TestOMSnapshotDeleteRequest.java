@@ -96,6 +96,9 @@ public class TestOMSnapshotDeleteRequest {
         folder.getAbsolutePath());
     omMetadataManager = new OmMetadataManagerImpl(ozoneConfiguration,
         ozoneManager);
+    when(ozoneManager.resolveBucketLink(any(Pair.class), any(OMClientRequest.class)))
+        .thenAnswer(i -> new ResolvedBucket(i.getArgument(0),
+            i.getArgument(0), "dummyBucketOwner", BucketLayout.FILE_SYSTEM_OPTIMIZED));
     when(ozoneManager.getMetrics()).thenReturn(omMetrics);
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
     when(ozoneManager.isRatisEnabled()).thenReturn(true);

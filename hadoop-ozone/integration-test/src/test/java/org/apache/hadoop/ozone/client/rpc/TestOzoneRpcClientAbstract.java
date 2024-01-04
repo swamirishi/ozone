@@ -1566,9 +1566,6 @@ public abstract class TestOzoneRpcClientAbstract {
 
     assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotNull(multipartInfo.getUploadID());
 
     OzoneOutputStream ozoneOutputStream = bucket.createMultipartKey(keyName,
@@ -2679,9 +2676,6 @@ public abstract class TestOzoneRpcClientAbstract {
         replicationConfig);
 
     assertNotNull(multipartInfo);
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotEquals(multipartInfo.getUploadID(), uploadID);
     assertNotNull(multipartInfo.getUploadID());
   }
@@ -2702,9 +2696,6 @@ public abstract class TestOzoneRpcClientAbstract {
 
     assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotNull(multipartInfo.getUploadID());
 
     // Call initiate multipart upload for the same key again, this should
@@ -2712,9 +2703,6 @@ public abstract class TestOzoneRpcClientAbstract {
     multipartInfo = bucket.initiateMultipartUpload(keyName);
 
     assertNotNull(multipartInfo);
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotEquals(multipartInfo.getUploadID(), uploadID);
     assertNotNull(multipartInfo.getUploadID());
   }
@@ -2737,9 +2725,6 @@ public abstract class TestOzoneRpcClientAbstract {
 
     assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotNull(multipartInfo.getUploadID());
 
     OzoneOutputStream ozoneOutputStream = bucket.createMultipartKey(keyName,
@@ -2774,9 +2759,6 @@ public abstract class TestOzoneRpcClientAbstract {
 
     assertNotNull(multipartInfo);
     String uploadID = multipartInfo.getUploadID();
-    Assert.assertEquals(volumeName, multipartInfo.getVolumeName());
-    Assert.assertEquals(bucketName, multipartInfo.getBucketName());
-    Assert.assertEquals(keyName, multipartInfo.getKeyName());
     assertNotNull(multipartInfo.getUploadID());
 
     OzoneOutputStream ozoneOutputStream = bucket.createMultipartKey(keyName,
@@ -3869,13 +3851,9 @@ public abstract class TestOzoneRpcClientAbstract {
     OmMultipartUploadCompleteInfo omMultipartUploadCompleteInfo = bucket
         .completeMultipartUpload(keyName, uploadID, partsMap);
 
-    Assert.assertNotNull(omMultipartUploadCompleteInfo);
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getBucket(), bucket
-        .getName());
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getVolume(), bucket
-        .getVolumeName());
-    Assert.assertEquals(omMultipartUploadCompleteInfo.getKey(), keyName);
-    Assert.assertNotNull(omMultipartUploadCompleteInfo.getHash());
+    assertNotNull(omMultipartUploadCompleteInfo);
+    assertEquals(omMultipartUploadCompleteInfo.getKey(), keyName);
+    assertNotNull(omMultipartUploadCompleteInfo.getHash());
   }
 
   private void createTestKey(OzoneBucket bucket, String keyName,

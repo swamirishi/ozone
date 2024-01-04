@@ -64,7 +64,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRespo
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
-import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.hdds.utils.UniqueId;
 
@@ -87,7 +86,8 @@ public class OMKeyCreateRequest extends OMKeyRequest {
 
   @Override
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
-    CreateKeyRequest createKeyRequest = getOmRequest().getCreateKeyRequest();
+    CreateKeyRequest createKeyRequest = super.preExecute(ozoneManager)
+        .getCreateKeyRequest();
     Preconditions.checkNotNull(createKeyRequest);
 
     KeyArgs keyArgs = createKeyRequest.getKeyArgs();
@@ -171,8 +171,11 @@ public class OMKeyCreateRequest extends OMKeyRequest {
       generateRequiredEncryptionInfo(keyArgs, newKeyArgs, ozoneManager);
     }
 
+    KeyArgs resolvedKeyArgs =
+        resolveBucketAndCheckKeyAcls(newKeyArgs.build(), ozoneManager,
+            IAccessAuthorizer.ACLType.CREATE);
     newCreateKeyRequest =
-        createKeyRequest.toBuilder().setKeyArgs(newKeyArgs)
+        createKeyRequest.toBuilder().setKeyArgs(resolvedKeyArgs)
             .setClientID(UniqueId.next());
 
     return getOmRequest().toBuilder()
@@ -211,13 +214,6 @@ public class OMKeyCreateRequest extends OMKeyRequest {
     List<OmKeyInfo> missingParentInfos = null;
     int numMissingParents = 0;
     try {
-      keyArgs = resolveBucketLink(ozoneManager, keyArgs, auditMap);
-      volumeName = keyArgs.getVolumeName();
-      bucketName = keyArgs.getBucketName();
-
-      // check Acl
-      checkKeyAcls(ozoneManager, volumeName, bucketName, keyName,
-          IAccessAuthorizer.ACLType.CREATE, OzoneObj.ResourceType.KEY);
 
       acquireLock = ozoneLockStrategy.acquireWriteLock(omMetadataManager,
           volumeName, bucketName, keyName);

@@ -102,8 +102,8 @@ public class TestOMKeyRenameRequestWithFSO extends TestOMKeyRenameRequest {
   @Test
   public void testValidateAndUpdateCacheWithEmptyToKey() throws Exception {
     String emptyToKeyName = "";
-    OMRequest omRequest = doPreExecute(createRenameKeyRequest(volumeName,
-        bucketName, fromKeyName, emptyToKeyName));
+    OMRequest omRequest = createRenameKeyRequest(volumeName,
+        bucketName, fromKeyName, emptyToKeyName);
     Assert.assertEquals(omRequest.getRenameKeyRequest().getToKeyName(), "");
   }
 
@@ -118,14 +118,13 @@ public class TestOMKeyRenameRequestWithFSO extends TestOMKeyRenameRequest {
 
   @Test
   public void testPreExecuteWithUnNormalizedPath() throws Exception {
+    addKeyToTable(fromKeyInfo);
     String toKeyName =
         "///root" + OzoneConsts.OZONE_URI_DELIMITER +
             OzoneConsts.OZONE_URI_DELIMITER +
             UUID.randomUUID();
     String fromKeyName =
-        "///root/sub-dir" + OzoneConsts.OZONE_URI_DELIMITER +
-            OzoneConsts.OZONE_URI_DELIMITER +
-            UUID.randomUUID();
+        "///" + fromKeyInfo.getKeyName();
     OMRequest modifiedOmRequest =
         doPreExecute(createRenameKeyRequest(toKeyName, fromKeyName));
     String normalizedSrcName =
