@@ -581,6 +581,35 @@ public class TestRatisUnderReplicationHandler {
   }
 
   /**
+   * A QUASI_CLOSED container may have UNHEALTHY replicas with the correct sequence ID which have unique
+   * origin Datanodes. If any of these UNHEALTHY replicas is being taken offline, then it needs to be replicated to
+   * another DN for decommission to progress. This test asserts that a replicate command is sent for one such replica.
+   */
+  @Test
+  public void testUnderReplicationWithVulnerableReplicasOnUniqueOrigins() throws IOException {
+    final long sequenceID = 20;
+    container = ReplicationTestUtil.createContainerInfo(RATIS_REPLICATION_CONFIG, 1,
+        HddsProtos.LifeCycleState.QUASI_CLOSED, sequenceID);
+
+    final Set<ContainerReplica> replicas = new HashSet<>(4);
+    for (int i = 0; i < 3; i++) {
+      replicas.add(createContainerReplica(container.containerID(), 0, IN_SERVICE, State.QUASI_CLOSED,
+          sequenceID));
+    }
+
+    // create an UNHEALTHY replica with a unique origin
+    final ContainerReplica unhealthyReplica = createContainerReplica(container.containerID(), 0,
+        DECOMMISSIONING, State.UNHEALTHY, sequenceID);
+    replicas.add(unhealthyReplica);
+    UnderReplicatedHealthResult result = getUnderReplicatedHealthResult();
+    Mockito.when(result.hasVulnerableUnhealthy()).thenReturn(true);
+
+    final Set<Pair<DatanodeDetails, SCMCommand<?>>> commands = testProcessing(replicas, Collections.emptyList(),
+        result, 2, 1);
+    Assertions.assertEquals(unhealthyReplica.getDatanodeDetails(), commands.iterator().next().getKey());
+  }
+
+  /**
    * In the push replication model, a replicate command is sent to the DN hosting the replica, and that DN is
    * expected to "push" the replica to another DN. If the DN hosting the replica has too many commands already, an
    * exception is thrown. This test asserts that other vulnerable UNHEALTHY replicas are still handled when an
