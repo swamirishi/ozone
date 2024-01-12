@@ -40,9 +40,9 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
-import static org.apache.hadoop.test.MetricsAsserts.assertCounter;
-import static org.apache.hadoop.test.MetricsAsserts.getLongCounter;
-import static org.apache.hadoop.test.MetricsAsserts.getMetrics;
+import static org.apache.ozone.test.MetricsAsserts.assertCounter;
+import static org.apache.ozone.test.MetricsAsserts.getLongCounter;
+import static org.apache.ozone.test.MetricsAsserts.getMetrics;
 
 /**
  * Test cases to verify the metrics exposed by SCMPipelineManager.
