@@ -177,12 +177,11 @@ public class TestRootedOzoneFileSystem {
 
   @Parameterized.AfterParam
   public static void teardownParam() {
-    IOUtils.closeQuietly(client);
+    IOUtils.closeQuietly(fs, userOfs, client);
     // Tear down the cluster after EACH set of parameters
     if (cluster != null) {
       cluster.shutdown();
     }
-    IOUtils.closeQuietly(fs);
   }
 
   @Before

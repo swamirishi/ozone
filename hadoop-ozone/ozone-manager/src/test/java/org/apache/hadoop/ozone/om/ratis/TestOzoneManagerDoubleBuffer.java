@@ -105,14 +105,11 @@ class TestOzoneManagerDoubleBuffer {
     AuditLogger auditLogger = mock(AuditLogger.class);
     when(ozoneManager.getAuditLogger()).thenReturn(auditLogger);
     Mockito.doNothing().when(auditLogger).logWrite(any(AuditMessage.class));
-    OzoneManagerRatisSnapshot ozoneManagerRatisSnapshot = index -> {
-    };
 
     flushNotifier = new OzoneManagerDoubleBuffer.FlushNotifier();
     spyFlushNotifier = spy(flushNotifier);
     doubleBuffer = new OzoneManagerDoubleBuffer.Builder()
         .setOmMetadataManager(omMetadataManager)
-        .setOzoneManagerRatisSnapShot(ozoneManagerRatisSnapshot)
         .setmaxUnFlushedTransactionCount(1000)
         .enableRatis(true)
         .setFlushNotifier(spyFlushNotifier)

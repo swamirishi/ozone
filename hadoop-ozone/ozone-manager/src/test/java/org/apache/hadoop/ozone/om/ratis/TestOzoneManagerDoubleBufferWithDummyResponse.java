@@ -63,7 +63,6 @@ public class TestOzoneManagerDoubleBufferWithDummyResponse {
   private OMMetadataManager omMetadataManager;
   private OzoneManagerDoubleBuffer doubleBuffer;
   private final AtomicLong trxId = new AtomicLong(0);
-  private long lastAppliedIndex;
   private long term = 1L;
 
   @Rule
@@ -76,12 +75,8 @@ public class TestOzoneManagerDoubleBufferWithDummyResponse {
         folder.newFolder().getAbsolutePath());
     omMetadataManager =
         new OmMetadataManagerImpl(configuration, null);
-    OzoneManagerRatisSnapshot ozoneManagerRatisSnapshot = index -> {
-      lastAppliedIndex = index.get(index.size() - 1);
-    };
     doubleBuffer = new OzoneManagerDoubleBuffer.Builder()
         .setOmMetadataManager(omMetadataManager)
-        .setOzoneManagerRatisSnapShot(ozoneManagerRatisSnapshot)
         .setmaxUnFlushedTransactionCount(10000)
         .enableRatis(true)
         .build();
@@ -133,15 +128,12 @@ public class TestOzoneManagerDoubleBufferWithDummyResponse {
         OzoneManagerDoubleBufferMetrics.create();
     assertEquals(metrics, metricsCopy);
 
-    // Check lastAppliedIndex is updated correctly or not.
-    assertEquals(bucketCount, lastAppliedIndex);
-
-
     TransactionInfo transactionInfo =
         omMetadataManager.getTransactionInfoTable().get(TRANSACTION_INFO_KEY);
+    // Check lastAppliedIndex is updated correctly or not.
     assertNotNull(transactionInfo);
 
-    Assert.assertEquals(lastAppliedIndex,
+    Assert.assertEquals(bucketCount,
         transactionInfo.getTransactionIndex());
     Assert.assertEquals(term, transactionInfo.getTerm());
   }
