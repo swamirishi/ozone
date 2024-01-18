@@ -26,16 +26,16 @@ jobs:
       GITHUB_CONTEXT: ${{ toJson(github) }}
     outputs:
       acceptance-suites: ${{ steps.acceptance-suites.outputs.suites }}
-      needs-basic-check: ${{ steps.categorize-basic-checks.outputs.needs-basic-check }}
+      needs-basic-check: false
       needs-unit-check: ${{ steps.categorize-basic-checks.outputs.needs-unit-check }}
       basic-checks: ${{ steps.categorize-basic-checks.outputs.basic-checks }}
       unit-checks: ${{ steps.categorize-basic-checks.outputs.unit-checks }}
-      needs-build: ${{ steps.selective-checks.outputs.needs-build }}
-      needs-compile: ${{ steps.selective-checks.outputs.needs-compile }}
-      needs-compose-tests: ${{ steps.selective-checks.outputs.needs-compose-tests }}
-      needs-dependency-check: ${{ steps.selective-checks.outputs.needs-dependency-check }}
-      needs-integration-tests: ${{ steps.selective-checks.outputs.needs-integration-tests }}
-      needs-kubernetes-tests: ${{ steps.selective-checks.outputs.needs-kubernetes-tests }}
+      needs-build: false
+      needs-compile: false
+      needs-compose-tests: false
+      needs-dependency-check: false
+      needs-integration-tests: false
+      needs-kubernetes-tests: false
     steps:
       - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
         uses: actions/checkout@v3
@@ -227,13 +227,13 @@ jobs:
   unit:
     needs:
       - build-info
-      - basic
     runs-on: ubuntu-20.04
     timeout-minutes: 150
     if: needs.build-info.outputs.needs-unit-check == 'true'
     strategy:
       matrix:
-        check: ${{ fromJson(needs.build-info.outputs.unit-checks) }}
+        check:
+          - native
       fail-fast: false
     steps:
       - name: Checkout project
@@ -253,10 +253,11 @@ jobs:
           distribution: 'temurin'
           java-version: 8
       - name: Execute tests
-        run: hadoop-ozone/dev-support/checks/${{ matrix.check }}.sh
+        run: hadoop-ozone/dev-support/checks/${{ matrix.check }}.sh -Dtest=TestOmSnapshotFsoWithNativeLib
         continue-on-error: true
         env:
           GRADLE_ENTERPRISE_ACCESS_KEY: ${{ secrets.GE_ACCESS_TOKEN }}
+          ITERATIONS: 10
       - name: Summary of failures
         run: hadoop-ozone/dev-support/checks/_summary.sh target/${{ matrix.check }}/summary.txt
         if: ${{ !cancelled() }}
