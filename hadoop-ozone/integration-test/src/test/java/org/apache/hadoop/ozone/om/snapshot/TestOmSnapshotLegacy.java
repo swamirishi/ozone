@@ -29,6 +29,6 @@ import static org.apache.hadoop.ozone.om.helpers.BucketLayout.LEGACY;
 public class TestOmSnapshotLegacy extends TestOmSnapshot {
 
   public TestOmSnapshotLegacy() throws Exception {
-    super(LEGACY, false, false, false);
+    super(LEGACY, false, false, true);
   }
 }
