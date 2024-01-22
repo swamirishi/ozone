@@ -204,12 +204,10 @@ public abstract class TestOmSnapshot {
     conf.set(OZONE_DEFAULT_BUCKET_LAYOUT, bucketLayout.name());
     conf.setBoolean(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF, forceFullSnapshotDiff);
     conf.setBoolean(OZONE_OM_SNAPSHOT_DIFF_DISABLE_NATIVE_LIBS, disableNativeDiff);
-    if (!disableNativeDiff) {
-      RocksDBConfiguration rocksDBConfig = conf.getObject(RocksDBConfiguration.class);
-      rocksDBConfig.setRocksdbLoggingEnabled(true);
-      rocksDBConfig.setRocksdbLogLevel("DEBUG");
-      conf.setFromObject(rocksDBConfig);
-    }
+    RocksDBConfiguration rocksDBConfig = conf.getObject(RocksDBConfiguration.class);
+    rocksDBConfig.setRocksdbLoggingEnabled(true);
+    rocksDBConfig.setRocksdbLogLevel("DEBUG");
+    conf.setFromObject(rocksDBConfig);
     conf.setBoolean(OZONE_OM_ENABLE_FILESYSTEM_PATHS, enabledFileSystemPaths);
     conf.set(OZONE_DEFAULT_BUCKET_LAYOUT, bucketLayout.name());
     conf.setBoolean(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF, forceFullSnapshotDiff);
