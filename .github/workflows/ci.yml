@@ -265,7 +265,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ${{ matrix.check }}
-          path: target/${{ matrix.check }}
+          path: hadoop-ozone/integration-test/target
         continue-on-error: true
   dependency:
     needs:
