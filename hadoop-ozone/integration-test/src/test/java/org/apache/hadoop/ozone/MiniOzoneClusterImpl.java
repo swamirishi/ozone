@@ -451,7 +451,7 @@ public class MiniOzoneClusterImpl implements MiniOzoneCluster {
       IOUtils.closeQuietly(clients);
       final File baseDir = new File(getBaseDir());
       stop();
-      FileUtils.deleteDirectory(baseDir);
+//      FileUtils.deleteDirectory(baseDir);
       ContainerCache.getInstance(conf).shutdownCache();
       DefaultMetricsSystem.shutdown();
       ManagedRocksObjectMetrics.INSTANCE.assertNoLeaks();
