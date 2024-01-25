@@ -211,6 +211,7 @@ public class RDBStore implements DBStore {
 
   @Override
   public void compactDB() throws IOException {
+    LOG.info("Compacting DB swami debug");
     try (ManagedCompactRangeOptions options =
              new ManagedCompactRangeOptions()) {
       db.compactDB(options);
