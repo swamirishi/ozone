@@ -216,7 +216,7 @@ public abstract class TestOmSnapshot {
     conf.setBoolean(OMConfigKeys.OZONE_FILESYSTEM_SNAPSHOT_ENABLED_KEY, true);
 
     cluster = MiniOzoneCluster.newBuilder(conf)
-        .setClusterId(clusterId)
+        .setClusterId("f99e4e6a-8c92-4731-bff5-95778ca7717c")
         .setScmId(scmId)
         .setNumOfOzoneManagers(3)
         .setOmLayoutVersion(OMLayoutFeature.
