@@ -1383,12 +1383,17 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
    * those are not needed to generate snapshot diff. These files are basically
    * non-leaf nodes of the DAG.
    */
-  public synchronized void pruneSstFiles() {
+  public void pruneSstFiles() {
     Set<String> nonLeafSstFiles;
-    nonLeafSstFiles = forwardCompactionDAG.nodes().stream()
-        .filter(node -> !forwardCompactionDAG.successors(node).isEmpty())
-        .map(node -> node.getFileName())
-        .collect(Collectors.toSet());
+    // This is synchronized because compaction thread can update the compactionDAG and can be in situation
+    // when nodes are added to the graph, but arcs are still in progress.
+    // Hence, the lock is taken.
+    synchronized (this) {
+      nonLeafSstFiles = forwardCompactionDAG.nodes().stream()
+          .filter(node -> !forwardCompactionDAG.successors(node).isEmpty())
+          .map(node -> node.getFileName())
+          .collect(Collectors.toSet());
+    }
 
     if (CollectionUtils.isNotEmpty(nonLeafSstFiles)) {
       LOG.info("Removing SST files: {} as part of SST file pruning.",
@@ -1406,8 +1411,13 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     tarballRequestCount.incrementAndGet();
   }
 
-  public void decrementTarballRequestCount() {
-    tarballRequestCount.decrementAndGet();
+  public void decrementTarballRequestCountAndNotify() {
+    // Synchronized block is used to ensure that lock is on the same instance notifyAll is being called.
+    synchronized (this) {
+      tarballRequestCount.decrementAndGet();
+      // Notify compaction threads to continue.
+      notifyAll();
+    }
   }
 
   @VisibleForTesting
@@ -1461,8 +1471,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
      *                for cache.
      */
     public static void invalidateCacheEntry(String cacheKey) {
-      IOUtils.closeQuietly(INSTANCE_MAP.get(cacheKey));
-      INSTANCE_MAP.remove(cacheKey);
+      IOUtils.close(LOG, INSTANCE_MAP.remove(cacheKey));
     }
   }
 
