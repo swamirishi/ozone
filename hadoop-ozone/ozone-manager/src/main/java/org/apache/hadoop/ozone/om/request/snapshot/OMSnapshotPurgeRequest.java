@@ -86,21 +86,6 @@ public class OMSnapshotPurgeRequest extends OMClientRequest {
     try {
       List<String> snapshotDbKeys = snapshotPurgeRequest
           .getSnapshotDBKeysList();
-      List<String> snapInfosToUpdate = snapshotPurgeRequest
-          .getUpdatedSnapshotDBKeyList();
-
-      // Snapshots that are already deepCleaned by the KeyDeletingService
-      // can be marked as deepCleaned.
-      for (String snapTableKey : snapInfosToUpdate) {
-        SnapshotInfo snapInfo = getUpdatedSnapshotInfo(snapTableKey, omMetadataManager);
-        if (snapInfo == null) {
-          // Snapshot may have been purged in the previous iteration of SnapshotDeletingService.
-          LOG.warn("The snapshot {} is not longer in snapshot table, It maybe removed in the previous " +
-              "Snapshot purge request.", snapTableKey);
-          continue;
-        }
-        updateSnapshotInfoAndCache(snapInfo, omMetadataManager, trxnLogIndex, false);
-      }
 
       // Each snapshot purge operation does three things:
       //  1. Update the deep clean flag for the next active snapshot (So that it can be

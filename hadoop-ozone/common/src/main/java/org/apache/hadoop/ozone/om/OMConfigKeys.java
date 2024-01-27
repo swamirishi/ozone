@@ -628,7 +628,7 @@ public final class OMConfigKeys {
       = "ozone.om.compaction.service.columnfamilies";
   public static final String OZONE_OM_COMPACTION_SERVICE_COLUMNFAMILIES_DEFAULT =
       "keyTable,fileTable,directoryTable,deletedTable,deletedDirectoryTable,multipartInfoTable";
-  
+
   public static final boolean OZONE_OM_UPGRADE_QUOTA_RECALCULATE_ENABLE_DEFAULT
       = true;
 }
