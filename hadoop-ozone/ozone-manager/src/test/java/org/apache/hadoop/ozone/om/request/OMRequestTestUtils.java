@@ -59,6 +59,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartUpload;
+import org.apache.hadoop.ozone.om.helpers.OmPrefixInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
@@ -1573,4 +1574,55 @@ public final class OMRequestTestUtils {
         .thenReturn(validator);
     doCallRealMethod().when(ozoneManager).validateReplicationConfig(any());
   }
+
+  /**
+   * Add key entry to PrefixTable.
+   * @throws Exception
+   */
+  public static void addPrefixToTable(String volumeName, String bucketName, String prefixName, long trxnLogIndex,
+      OMMetadataManager omMetadataManager) throws Exception {
+
+    OmPrefixInfo omPrefixInfo = createOmPrefixInfo(volumeName, bucketName,
+        prefixName, trxnLogIndex);
+
+    addPrefixToTable(false, omPrefixInfo, trxnLogIndex,
+        omMetadataManager);
+  }
+
+  /**
+   * Add key entry to PrefixTable.
+   * @throws Exception
+   */
+  public static void addPrefixToTable(boolean addToCache, OmPrefixInfo omPrefixInfo, long trxnLogIndex,
+      OMMetadataManager omMetadataManager) throws Exception {
+    String prefixName = omPrefixInfo.getName();
+
+    if (addToCache) {
+      omMetadataManager.getPrefixTable()
+          .addCacheEntry(new CacheKey<>(omPrefixInfo.getName()),
+              CacheValue.get(trxnLogIndex, omPrefixInfo));
+    }
+    omMetadataManager.getPrefixTable().put(prefixName, omPrefixInfo);
+  }
+
+  /**
+   * Create OmPrefixInfo.
+   */
+  public static OmPrefixInfo createOmPrefixInfo(String volumeName, String bucketName, String prefixName,
+        long trxnLogIndex) {
+    OzoneObjInfo prefixObj = OzoneObjInfo.Builder
+        .newBuilder()
+        .setVolumeName(volumeName)
+        .setBucketName(bucketName)
+        .setPrefixName(prefixName)
+        .setResType(ResourceType.PREFIX)
+        .setStoreType(OzoneObj.StoreType.OZONE)
+        .build();
+    return OmPrefixInfo.newBuilder()
+        .setName(prefixObj.getPath())
+        .setObjectID(System.currentTimeMillis())
+        .setUpdateID(trxnLogIndex)
+        .build();
+  }
+
 }
