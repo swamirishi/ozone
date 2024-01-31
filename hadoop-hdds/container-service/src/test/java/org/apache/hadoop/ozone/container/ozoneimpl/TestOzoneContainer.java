@@ -180,6 +180,7 @@ public class TestOzoneContainer {
     OzoneContainer ozoneContainer = new
         OzoneContainer(datanodeDetails, conf, context);
 
+    ozoneContainer.buildContainerSet();
     ContainerSet containerset = ozoneContainer.getContainerSet();
     assertEquals(numTestContainers, containerset.containerCount());
 
