@@ -623,7 +623,7 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
     Assertions.assertNotNull(keyInsightInfoResp);
     Assertions.assertEquals(2,
         keyInsightInfoResp.getDeletedDirInfoList().size());
-    Assertions.assertEquals("/sampleVol/bucketOne/dir_one",
+    Assertions.assertEquals("dir_one",
         keyInsightInfoResp.getDeletedDirInfoList().get(0).getKey());
   }
 
@@ -655,7 +655,7 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
     Assertions.assertNotNull(keyInsightInfoResp);
     Assertions.assertEquals(2,
         keyInsightInfoResp.getDeletedDirInfoList().size());
-    Assertions.assertEquals("/sampleVol/bucketOne/dir_three",
+    Assertions.assertEquals("dir_three",
         keyInsightInfoResp.getDeletedDirInfoList().get(0).getKey());
     Assertions.assertEquals("/sampleVol/bucketOne/dir_two",
         keyInsightInfoResp.getLastKey());
@@ -688,7 +688,9 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
     Assertions.assertNotNull(keyInsightInfoResp);
     Assertions.assertEquals(3,
         keyInsightInfoResp.getDeletedDirInfoList().size());
-    Assertions.assertEquals("/sampleVol/bucketOne/dir_one",
+    Assertions.assertEquals("sampleVol/bucketOne/dir_one", keyInsightInfoResp
+        .getDeletedDirInfoList().get(0).getPath());
+    Assertions.assertEquals("dir_one",
         keyInsightInfoResp.getDeletedDirInfoList().get(0).getKey());
     Assertions.assertEquals("/sampleVol/bucketOne/dir_two",
         keyInsightInfoResp.getLastKey());
