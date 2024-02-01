@@ -583,7 +583,6 @@ public class KeyValueHandler extends Handler {
     try {
       BlockID blockID = BlockID.getFromProtobuf(
           request.getGetBlock().getBlockID());
-      checkContainerIsHealthy(kvContainer, blockID, Type.GetBlock);
       responseData = blockManager.getBlock(kvContainer, blockID)
           .getProtoBufMessage();
       final long numBytes = responseData.getSerializedSize();
@@ -618,8 +617,6 @@ public class KeyValueHandler extends Handler {
     try {
       BlockID blockID = BlockID
           .getFromProtobuf(request.getGetCommittedBlockLength().getBlockID());
-      checkContainerIsHealthy(kvContainer, blockID,
-          Type.GetCommittedBlockLength);
       BlockUtils.verifyBCSId(kvContainer, blockID);
       blockLength = blockManager.getCommittedBlockLength(kvContainer, blockID);
     } catch (StorageContainerException ex) {
@@ -706,7 +703,6 @@ public class KeyValueHandler extends Handler {
           .getChunkData());
       Preconditions.checkNotNull(chunkInfo);
 
-      checkContainerIsHealthy(kvContainer, blockID, Type.ReadChunk);
       BlockUtils.verifyBCSId(kvContainer, blockID);
       if (dispatcherContext == null) {
         dispatcherContext = DispatcherContext.getHandleReadChunk();
@@ -742,25 +738,6 @@ public class KeyValueHandler extends Handler {
     Preconditions.checkNotNull(data, "Chunk data is null");
 
     return getReadChunkResponse(request, data, byteBufferToByteString);
-  }
-
-  /**
-   * Throw an exception if the container is unhealthy.
-   *
-   * @throws StorageContainerException if the container is unhealthy.
-   */
-  @VisibleForTesting
-  void checkContainerIsHealthy(KeyValueContainer kvContainer, BlockID blockID,
-      Type cmd) {
-    kvContainer.readLock();
-    try {
-      if (kvContainer.getContainerData().getState() == State.UNHEALTHY) {
-        LOG.warn("{} request {} for UNHEALTHY container {} replica", cmd,
-            blockID, kvContainer.getContainerData().getContainerID());
-      }
-    } finally {
-      kvContainer.readUnlock();
-    }
   }
 
   /**
@@ -927,7 +904,6 @@ public class KeyValueHandler extends Handler {
     try {
       BlockID blockID = BlockID.getFromProtobuf(getSmallFileReq.getBlock()
           .getBlockID());
-      checkContainerIsHealthy(kvContainer, blockID, Type.GetSmallFile);
       BlockData responseData = blockManager.getBlock(kvContainer, blockID);
 
       ContainerProtos.ChunkInfo chunkInfoProto = null;
