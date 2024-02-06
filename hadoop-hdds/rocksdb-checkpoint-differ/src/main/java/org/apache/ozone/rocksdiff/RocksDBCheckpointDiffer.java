@@ -186,7 +186,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
   private int pruneSSTFileBatchSize;
   private ColumnFamilyHandle snapshotInfoTableCFHandle;
   private final AtomicInteger tarballRequestCount;
-  private final String dagPruningServiceName = "CompactionDagPruningService";
+  private static final String DAG_PRUNING_SERVICE_NAME = "CompactionDagPruningService";
   private AtomicBoolean suspended;
 
   private ColumnFamilyHandle compactionLogTableCFHandle;
@@ -259,7 +259,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     }
 
     if (pruneCompactionDagDaemonRunIntervalInMs > 0) {
-      this.scheduler = new Scheduler(dagPruningServiceName,
+      this.scheduler = new Scheduler(DAG_PRUNING_SERVICE_NAME,
           true, 1);
 
       this.scheduler.scheduleWithFixedDelay(
@@ -344,7 +344,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
         if (!closed) {
           closed = true;
           if (scheduler != null) {
-            LOG.info("Shutting down {}.", dagPruningServiceName);
+            LOG.info("Shutting down {}.", DAG_PRUNING_SERVICE_NAME);
             scheduler.close();
           }
         }

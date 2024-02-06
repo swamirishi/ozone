@@ -19,38 +19,35 @@
 package org.apache.hadoop.ozone.om.protocolPB;
 
 import static org.apache.hadoop.ozone.ClientVersion.CURRENT_VERSION;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_GRPC_MAXIMUM_RESPONSE_LENGTH;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_GRPC_MAXIMUM_RESPONSE_LENGTH_DEFAULT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
 
+import com.google.protobuf.ServiceException;
+import io.grpc.ManagedChannel;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.testing.GrpcCleanupRule;
-import io.grpc.ManagedChannel;
-
+import java.io.IOException;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.om.exceptions.OMNotLeaderException;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerServiceGrpc;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServiceListRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerServiceGrpc;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.ratis.protocol.RaftPeerId;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.io.IOException;
-
-import com.google.protobuf.ServiceException;
-import org.apache.ratis.protocol.RaftPeerId;
-
-import static org.junit.Assert.fail;
-import static org.apache.hadoop.ozone.om.OMConfigKeys
-    .OZONE_OM_GRPC_MAXIMUM_RESPONSE_LENGTH;
 
 /**
  * Tests for GrpcOmTransport client.
@@ -62,15 +59,15 @@ public class TestS3GrpcOmTransport {
   private static final Logger LOG =
       LoggerFactory.getLogger(TestS3GrpcOmTransport.class);
 
-  private final String leaderOMNodeId = "TestOM";
+  private static final String LEADER_OM_NODE_ID = "TestOM";
 
   private final OMResponse omResponse = OMResponse.newBuilder()
-                  .setSuccess(true)
-                  .setStatus(org.apache.hadoop.ozone.protocol
-                      .proto.OzoneManagerProtocolProtos.Status.OK)
-                  .setLeaderOMNodeId(leaderOMNodeId)
-                  .setCmdType(Type.AllocateBlock)
-                  .build();
+      .setSuccess(true)
+      .setStatus(org.apache.hadoop.ozone.protocol
+          .proto.OzoneManagerProtocolProtos.Status.OK)
+      .setLeaderOMNodeId(LEADER_OM_NODE_ID)
+      .setCmdType(Type.AllocateBlock)
+      .build();
 
   private boolean doFailover = false;
 
@@ -167,9 +164,9 @@ public class TestS3GrpcOmTransport {
     client.startClient(channel);
 
     final OMResponse resp = client.submitRequest(omRequest);
-    Assert.assertEquals(resp.getStatus(), org.apache.hadoop.ozone.protocol
+    assertEquals(resp.getStatus(), org.apache.hadoop.ozone.protocol
         .proto.OzoneManagerProtocolProtos.Status.OK);
-    Assert.assertEquals(resp.getLeaderOMNodeId(), leaderOMNodeId);
+    assertEquals(resp.getLeaderOMNodeId(), LEADER_OM_NODE_ID);
   }
 
   @Test
@@ -191,9 +188,9 @@ public class TestS3GrpcOmTransport {
     // failover is performed and request is internally retried
     // second invocation request to server succeeds
     final OMResponse resp = client.submitRequest(omRequest);
-    Assert.assertEquals(resp.getStatus(), org.apache.hadoop.ozone.protocol
+    assertEquals(resp.getStatus(), org.apache.hadoop.ozone.protocol
         .proto.OzoneManagerProtocolProtos.Status.OK);
-    Assert.assertEquals(resp.getLeaderOMNodeId(), leaderOMNodeId);
+    assertEquals(resp.getLeaderOMNodeId(), LEADER_OM_NODE_ID);
   }
 
   @Test
