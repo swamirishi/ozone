@@ -22,7 +22,6 @@ import com.google.common.cache.CacheLoader;
 import org.apache.hadoop.hdds.utils.Scheduler;
 import org.apache.hadoop.ozone.om.IOmMetadataReader;
 import org.apache.hadoop.ozone.om.OmSnapshot;
-import org.apache.hadoop.ozone.om.OmSnapshotManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
-import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE;
 
 /**
  * Thread-safe custom unbounded LRU cache to manage open snapshot DB instances.
@@ -46,9 +44,8 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   // Key:   DB snapshot table key
   // Value: OmSnapshot instance, each holds a DB instance handle inside
   // TODO: [SNAPSHOT] Consider wrapping SoftReference<> around IOmMetadataReader
-  private final ConcurrentHashMap<String, ReferenceCounted<IOmMetadataReader, SnapshotCache>> dbMap;
+  private final ConcurrentHashMap<String, ReferenceCounted<OmSnapshot>> dbMap;
 
-  private final OmSnapshotManager omSnapshotManager;
   private final CacheLoader<String, OmSnapshot> cacheLoader;
   // Soft-limit of the total number of snapshot DB instances allowed to be
   // opened on the OM.
@@ -59,11 +56,9 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
       "SnapshotCacheCleanupService";
 
   public SnapshotCache(
-      OmSnapshotManager omSnapshotManager,
       CacheLoader<String, OmSnapshot> cacheLoader,
       int cacheSizeLimit, long cleanupInterval) {
     this.dbMap = new ConcurrentHashMap<>();
-    this.omSnapshotManager = omSnapshotManager;
     this.cacheLoader = cacheLoader;
     this.cacheSizeLimit = cacheSizeLimit;
     this.pendingEvictionQueue = ConcurrentHashMap.newKeySet();
@@ -78,7 +73,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   }
 
   @VisibleForTesting
-  ConcurrentHashMap<String, ReferenceCounted<IOmMetadataReader, SnapshotCache>> getDbMap() {
+  ConcurrentHashMap<String, ReferenceCounted<OmSnapshot>> getDbMap() {
     return dbMap;
   }
 
@@ -99,7 +94,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
         LOG.warn("Key: '{}' does not exist in cache.", k);
       } else {
         try {
-          ((OmSnapshot) v.get()).close();
+          v.get().close();
         } catch (IOException e) {
           throw new IllegalStateException("Failed to close snapshot: " + key, e);
         }
@@ -136,43 +131,46 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
     GARBAGE_COLLECTION_WRITE
   }
 
-  public ReferenceCounted<IOmMetadataReader, SnapshotCache> get(String key) throws IOException {
-    return get(key, false);
-  }
-
   /**
    * Get or load OmSnapshot. Shall be close()d after use.
    * TODO: [SNAPSHOT] Can add reason enum to param list later.
    * @param key snapshot table key
    * @return an OmSnapshot instance, or null on error
    */
-  public ReferenceCounted<IOmMetadataReader, SnapshotCache> get(String key, boolean skipActiveCheck)
+  public ReferenceCounted<OmSnapshot> get(String key)
       throws IOException {
+    // Warn if actual cache size exceeds the soft limit already.
+    if (size() > cacheSizeLimit) {
+      LOG.warn("Snapshot cache size ({}) exceeds configured soft-limit ({}).",
+          size(), cacheSizeLimit);
+    }
     // Atomic operation to initialize the OmSnapshot instance (once) if the key
     // does not exist, and increment the reference count on the instance.
-    ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot = dbMap.compute(key, (k, v) -> {
-      if (v == null) {
-        try {
-          v = new ReferenceCounted<>(cacheLoader.load(k), false, this);
-        } catch (OMException omEx) {
-          // Return null if the snapshot is no longer active
-          if (!omEx.getResult().equals(FILE_NOT_FOUND)) {
-            throw new IllegalStateException(omEx);
+    ReferenceCounted<OmSnapshot> rcOmSnapshot =
+        dbMap.compute(key, (k, v) -> {
+          if (v == null) {
+            LOG.info("Loading snapshot. Table key: {}", k);
+            try {
+              v = new ReferenceCounted<>(cacheLoader.load(k), false, this);
+            } catch (OMException omEx) {
+              // Return null if the snapshot is no longer active
+              if (!omEx.getResult().equals(FILE_NOT_FOUND)) {
+                throw new IllegalStateException(omEx);
+              }
+            } catch (IOException ioEx) {
+              // Failed to load snapshot DB
+              throw new IllegalStateException(ioEx);
+            } catch (Exception ex) {
+              // Unexpected and unknown exception thrown from CacheLoader#load
+              throw new IllegalStateException(ex);
+            }
           }
-        } catch (IOException ioEx) {
-          // Failed to load snapshot DB
-          throw new IllegalStateException(ioEx);
-        } catch (Exception ex) {
-          // Unexpected and unknown exception thrown from CacheLoader#load
-          throw new IllegalStateException(ex);
-        }
-      }
-      if (v != null) {
-        // When RC OmSnapshot is successfully loaded
-        v.incrementRefCount();
-      }
-      return v;
-    });
+          if (v != null) {
+            // When RC OmSnapshot is successfully loaded
+            v.incrementRefCount();
+          }
+          return v;
+        });
 
     if (rcOmSnapshot == null) {
       // The only exception that would fall through the loader logic above
@@ -181,18 +179,6 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
           + "or the snapshot is no longer active",
           OMException.ResultCodes.FILE_NOT_FOUND);
     }
-
-    // If the snapshot is already loaded in cache, the check inside the loader
-    // above is ignored. But we would still want to reject all get()s except
-    // when called from SDT (and some) if the snapshot is not active anymore.
-    if (!skipActiveCheck && !omSnapshotManager.isSnapshotStatus(key, SNAPSHOT_ACTIVE)) {
-      // Ref count was incremented. Need to decrement on exception here.
-      rcOmSnapshot.decrementRefCount();
-      throw new OMException("Unable to load snapshot. " +
-          "Snapshot with table key '" + key + "' is no longer active",
-          FILE_NOT_FOUND);
-    }
-
     return rcOmSnapshot;
   }
 
@@ -242,7 +228,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
             LOG.debug("Closing SnapshotId {}. It is not being referenced anymore.", k);
             // Close the instance, which also closes its DB handle.
             try {
-              ((OmSnapshot) v.get()).close();
+              v.get().close();
             } catch (IOException ex) {
               throw new IllegalStateException("Error while closing snapshot DB.", ex);
             }

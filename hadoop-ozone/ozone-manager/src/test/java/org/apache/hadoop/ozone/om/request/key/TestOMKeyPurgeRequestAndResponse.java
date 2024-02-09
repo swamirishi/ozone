@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.hadoop.ozone.om.IOmMetadataReader;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
@@ -48,6 +47,11 @@ import org.junit.jupiter.api.Assertions;
 
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPrefix;
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.when;
 
 /**
@@ -213,13 +217,12 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
           deletedKey));
     }
 
-    ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot =
-        ozoneManager.getOmSnapshotManager().checkForSnapshot(
+    ReferenceCounted<OmSnapshot> rcOmSnapshot =
+        ozoneManager.getOmSnapshotManager().getSnapshot(
             snapInfo.getVolumeName(),
             snapInfo.getBucketName(),
-            getSnapshotPrefix(snapInfo.getName()),
-            true);
-    OmSnapshot omSnapshot = (OmSnapshot) rcOmSnapshot.get();
+            snapInfo.getName());
+    OmSnapshot omSnapshot = rcOmSnapshot.get();
 
     // The keys should be present in the snapshot's deletedTable
     for (String deletedKey : deletedKeyNames) {

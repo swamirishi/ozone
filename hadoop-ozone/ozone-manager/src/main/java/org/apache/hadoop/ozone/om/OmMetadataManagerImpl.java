@@ -106,13 +106,31 @@ import org.apache.hadoop.ozone.om.lock.OzoneManagerLock;
 import org.apache.hadoop.ozone.om.protocolPB.OzoneManagerProtocolClientSideTranslatorPB;
 import org.apache.hadoop.ozone.om.request.util.OMMultipartUploadUtils;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
-import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ExpiredMultipartUploadInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ExpiredMultipartUploadsBucket;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
 import org.apache.hadoop.ozone.security.OzoneTokenIdentifier;
 import org.apache.hadoop.ozone.storage.proto.OzoneManagerStorageProtos.PersistedUserVolumeInfo;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import org.apache.commons.lang3.StringUtils;
+import static org.apache.hadoop.ozone.OzoneConsts.DB_TRANSIENT_MARKER;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_FS_SNAPSHOT_MAX_LIMIT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_FS_SNAPSHOT_MAX_LIMIT_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT_DEFAULT;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.BUCKET_NOT_FOUND;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.VOLUME_NOT_FOUND;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_CHECKPOINT_DIR;
+import static org.apache.hadoop.ozone.om.service.SnapshotDeletingService.isBlockLocationInfoSame;
+import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.checkSnapshotDirExist;
+
 import org.apache.hadoop.util.Time;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
 import org.apache.ratis.util.ExitUtils;
@@ -1557,10 +1575,10 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
               SnapshotUtils.getLatestSnapshotInfo(bucketInfo.getVolumeName(),
               bucketInfo.getBucketName(), ozoneManager, snapshotChainManager);
           // Get the latest snapshot in snapshot path.
-          try (ReferenceCounted<IOmMetadataReader, SnapshotCache>
+          try (ReferenceCounted<OmSnapshot>
               rcLatestSnapshot = previousSnapshotInfo != null ?
-              omSnapshotManager.checkForSnapshot(previousSnapshotInfo.getVolumeName(),
-              previousSnapshotInfo.getBucketName(), getSnapshotPrefix(previousSnapshotInfo.getName()), true) : null) {
+              omSnapshotManager.getSnapshot(previousSnapshotInfo.getVolumeName(),
+              previousSnapshotInfo.getBucketName(), previousSnapshotInfo.getName()) : null) {
 
             // Multiple keys with the same path can be queued in one DB entry
             RepeatedOmKeyInfo infoList = kv.getValue();
@@ -1576,13 +1594,12 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
 
               if (rcLatestSnapshot != null) {
                 Table<String, OmKeyInfo> prevKeyTable =
-                    ((OmSnapshot) rcLatestSnapshot.get())
+                    rcLatestSnapshot.get()
                         .getMetadataManager()
                         .getKeyTable(bucketInfo.getBucketLayout());
 
                 Table<String, RepeatedOmKeyInfo> prevDeletedTable =
-                    ((OmSnapshot) rcLatestSnapshot.get())
-                        .getMetadataManager().getDeletedTable();
+                    rcLatestSnapshot.get().getMetadataManager().getDeletedTable();
                 String prevKeyTableDBKey = getSnapshotRenamedTable()
                     .get(dbRenameKey);
                 String prevDelTableDBKey = getOzoneKey(info.getVolumeName(),

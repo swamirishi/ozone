@@ -71,7 +71,6 @@ import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.BUCKET_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.VOLUME_TABLE;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.OM_HARDLINK_FILE;
 import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.getINode;
-import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPrefix;
 import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.truncateFileName;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
@@ -194,9 +193,9 @@ public class TestOmSnapshotManager {
 
     // retrieve it and setup store mock
     OmSnapshotManager omSnapshotManager = om.getOmSnapshotManager();
-    OmSnapshot firstSnapshot = (OmSnapshot) omSnapshotManager
-        .checkForSnapshot(first.getVolumeName(),
-        first.getBucketName(), getSnapshotPrefix(first.getName()), false).get();
+    OmSnapshot firstSnapshot = omSnapshotManager
+        .getActiveSnapshot(first.getVolumeName(), first.getBucketName(), first.getName())
+        .get();
     DBStore firstSnapshotStore = mock(DBStore.class);
     HddsWhiteboxTestUtils.setInternalState(
         firstSnapshot.getMetadataManager(), "store", firstSnapshotStore);
@@ -212,13 +211,12 @@ public class TestOmSnapshotManager {
 
     // read in second snapshot to evict first
     omSnapshotManager
-        .checkForSnapshot(second.getVolumeName(),
-        second.getBucketName(), getSnapshotPrefix(second.getName()), false);
+        .getActiveSnapshot(second.getVolumeName(), second.getBucketName(), second.getName());
 
     // As a workaround, invalidate all cache entries in order to trigger
     // instances close in this test case, since JVM GC most likely would not
     // have triggered and closed the instances yet at this point.
-    omSnapshotManager.getSnapshotCache().invalidateAll();
+    omSnapshotManager.invalidateCache();
 
     // confirm store was closed
     verify(firstSnapshotStore, timeout(3000).times(1)).close();
@@ -345,12 +343,12 @@ public class TestOmSnapshotManager {
     ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager()
         .addSnapshot(s1);
     OMException ome = Assert.assertThrows(OMException.class,
-        () -> om.getOmSnapshotManager().getSnapshotCache().get(s1.getName()));
+        () -> om.getOmSnapshotManager().getSnapshot(s1.getVolumeName(), s1.getBucketName(), s1.getName()));
     Assert.assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
     // not present in snapshot chain too
     SnapshotInfo s2 = createSnapshotInfo("vol", "buck");
     ome = Assert.assertThrows(OMException.class,
-        () -> om.getOmSnapshotManager().getSnapshotCache().get(s2.getName()));
+        () -> om.getOmSnapshotManager().getSnapshot(s2.getVolumeName(), s2.getBucketName(), s2.getName()));
     Assert.assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
   }
   /*

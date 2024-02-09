@@ -279,10 +279,10 @@ public final class OmSnapshotManager implements AutoCloseable {
         .getTimeDuration(OZONE_OM_SNAPSHOT_CACHE_CLEANUP_SERVICE_RUN_INTERVAL,
             OZONE_OM_SNAPSHOT_CACHE_CLEANUP_SERVICE_RUN_INTERVAL_DEFAULT,
             TimeUnit.MILLISECONDS);
-    this.snapshotCache = new SnapshotCache(this, loader, softCacheSize, cacheCleanupServiceInterval);
+    this.snapshotCache = new SnapshotCache(loader, softCacheSize, cacheCleanupServiceInterval);
 
     this.snapshotDiffManager = new SnapshotDiffManager(snapshotDiffDb, differ,
-        ozoneManager, snapshotCache, snapDiffJobCf, snapDiffReportCf,
+        ozoneManager, snapDiffJobCf, snapDiffReportCf,
         columnFamilyOptions, codecRegistry);
 
     diffCleanupServiceInterval = ozoneManager.getConfiguration()
@@ -405,11 +405,32 @@ public final class OmSnapshotManager implements AutoCloseable {
   }
 
   /**
-   * Get snapshot instance LRU cache.
-   * @return LoadingCache
+   * Get snapshot instance LRU cache size.
+   * @return cache size.
    */
-  public SnapshotCache getSnapshotCache() {
-    return snapshotCache;
+  @VisibleForTesting
+  public int getSnapshotCacheSize() {
+    return snapshotCache == null ? 0 : snapshotCache.size();
+  }
+
+  /**
+   * Immediately invalidate all entries and close their DB instances in cache.
+   */
+  public void invalidateCache() {
+    if (snapshotCache != null) {
+      snapshotCache.invalidateAll();
+    }
+  }
+
+  /**
+   * Immediately invalidate an entry.
+   *
+   * @param key DB snapshot table key
+   */
+  public void invalidateCacheEntry(String key) throws IOException {
+    if (snapshotCache != null) {
+      snapshotCache.invalidate(key);
+    }
   }
 
   /**
@@ -579,11 +600,11 @@ public final class OmSnapshotManager implements AutoCloseable {
   }
 
   // Get OmSnapshot if the keyName has ".snapshot" key indicator
-  public ReferenceCounted<IOmMetadataReader, SnapshotCache> checkForSnapshot(
+  @SuppressWarnings("unchecked")
+  public ReferenceCounted<IOmMetadataReader> getActiveFsMetadataOrSnapshot(
       String volumeName,
       String bucketName,
-      String keyName,
-      boolean skipActiveCheck) throws IOException {
+      String keyName) throws IOException {
     if (keyName == null || !ozoneManager.isFilesystemSnapshotEnabled()) {
       return ozoneManager.getOmMetadataReader();
     }
@@ -592,35 +613,61 @@ public final class OmSnapshotManager implements AutoCloseable {
     String[] keyParts = keyName.split(OM_KEY_PREFIX);
     if (isSnapshotKey(keyParts)) {
       String snapshotName = keyParts[1];
-      // Updating the volumeName & bucketName in case the bucket is a linked bucket. We need to do this before a
-      // permission check, since linked bucket permissions and source bucket permissions could be different.
-      ResolvedBucket resolvedBucket = ozoneManager.resolveBucketLink(Pair.of(volumeName,
-          bucketName), false, false);
-      volumeName = resolvedBucket.realVolume();
-      bucketName = resolvedBucket.realBucket();
-      if (snapshotName == null || snapshotName.isEmpty()) {
-        // don't allow snapshot indicator without snapshot name
-        throw new OMException(INVALID_KEY_NAME);
-      }
-      String snapshotTableKey = SnapshotInfo.getTableKey(volumeName,
-          bucketName, snapshotName);
 
-      // Block FS API reads when snapshot is not active.
-      if (!skipActiveCheck) {
-        checkSnapshotActive(ozoneManager, snapshotTableKey);
-      }
-
-      // Warn if actual cache size exceeds the soft limit already.
-      if (snapshotCache.size() > softCacheSize) {
-        LOG.warn("Snapshot cache size ({}) exceeds configured soft-limit ({}).",
-            snapshotCache.size(), softCacheSize);
-      }
-
-      // retrieve the snapshot from the cache
-      return snapshotCache.get(snapshotTableKey, skipActiveCheck);
+      return (ReferenceCounted<IOmMetadataReader>) (ReferenceCounted<?>)
+          getActiveSnapshot(volumeName, bucketName, snapshotName);
     } else {
       return ozoneManager.getOmMetadataReader();
     }
+  }
+
+  public ReferenceCounted<OmSnapshot> getActiveSnapshot(
+      String volumeName,
+      String bucketName,
+      String snapshotName) throws IOException {
+    return getSnapshot(volumeName, bucketName, snapshotName, false);
+  }
+
+  public ReferenceCounted<OmSnapshot> getSnapshot(
+      String volumeName,
+      String bucketName,
+      String snapshotName) throws IOException {
+    return getSnapshot(volumeName, bucketName, snapshotName, true);
+  }
+
+  private ReferenceCounted<OmSnapshot> getSnapshot(
+      String volumeName,
+      String bucketName,
+      String snapshotName,
+      boolean skipActiveCheck) throws IOException {
+
+    // Updating the volumeName & bucketName in case the bucket is a linked bucket. We need to do this before a
+    // permission check, since linked bucket permissions and source bucket permissions could be different.
+    ResolvedBucket resolvedBucket = ozoneManager.resolveBucketLink(Pair.of(volumeName,
+        bucketName), false, false);
+    volumeName = resolvedBucket.realVolume();
+    bucketName = resolvedBucket.realBucket();
+    if (snapshotName == null || snapshotName.isEmpty()) {
+      // don't allow snapshot indicator without snapshot name
+      throw new OMException(INVALID_KEY_NAME);
+    }
+    String snapshotTableKey = SnapshotInfo.getTableKey(volumeName,
+        bucketName, snapshotName);
+
+    return getSnapshot(snapshotTableKey, skipActiveCheck);
+  }
+
+  private ReferenceCounted<OmSnapshot> getSnapshot(
+      String snapshotTableKey,
+      boolean skipActiveCheck) throws IOException {
+
+    // Block FS API reads when snapshot is not active.
+    if (!skipActiveCheck) {
+      checkSnapshotActive(ozoneManager, snapshotTableKey);
+    }
+
+    // retrieve the snapshot from the cache
+    return snapshotCache.get(snapshotTableKey);
   }
 
   /**
@@ -918,9 +965,9 @@ public final class OmSnapshotManager implements AutoCloseable {
     if (snapshotDiffManager != null) {
       snapshotDiffManager.close();
     }
-    if (snapshotCache != null) {
-      snapshotCache.invalidateAll();
-    }
+
+    invalidateCache();
+
     if (snapshotDiffCleanupService != null) {
       snapshotDiffCleanupService.shutdown();
     }

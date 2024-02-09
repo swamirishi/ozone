@@ -237,7 +237,7 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
       OzoneManager ozoneManager, String volumeName, String bucketName)
       throws IOException {
     final boolean nativeAuthorizerEnabled;
-    try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcMetadataReader =
+    try (ReferenceCounted<IOmMetadataReader> rcMetadataReader =
         ozoneManager.getOmMetadataReader()) {
       OmMetadataReader mdReader = (OmMetadataReader) rcMetadataReader.get();
       nativeAuthorizerEnabled = mdReader.isNativeAuthorizerEnabled();

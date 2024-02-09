@@ -449,7 +449,7 @@ public abstract class OMKeyRequest extends OMClientRequest {
       String volume, String bucket, String key,
       IAccessAuthorizer.ACLType aclType, long clientId) throws IOException {
     final boolean nativeAuthorizerEnabled;
-    try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcMetadataReader =
+    try (ReferenceCounted<IOmMetadataReader> rcMetadataReader =
         ozoneManager.getOmMetadataReader()) {
       OmMetadataReader mdReader = (OmMetadataReader) rcMetadataReader.get();
       nativeAuthorizerEnabled = mdReader.isNativeAuthorizerEnabled();

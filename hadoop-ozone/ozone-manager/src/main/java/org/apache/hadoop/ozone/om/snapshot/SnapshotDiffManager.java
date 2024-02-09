@@ -37,9 +37,8 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_THR
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_THREAD_POOL_SIZE_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF_DEFAULT;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DIRECTORY_TABLE;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.DELIMITER;
-import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.DIRECTORY_TABLE;
-import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.getTableKey;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.checkSnapshotActive;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.dropColumnFamilyHandle;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.getColumnFamilyToKeyPrefixMap;
@@ -92,7 +91,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
-
 import org.apache.commons.io.file.PathUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.StringUtils;
@@ -107,7 +105,6 @@ import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffReportEntry;
 import org.apache.hadoop.ozone.OFSPath;
 import org.apache.hadoop.ozone.OzoneConsts;
-import org.apache.hadoop.ozone.om.IOmMetadataReader;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
@@ -155,7 +152,6 @@ public class SnapshotDiffManager implements AutoCloseable {
   private final ManagedRocksDB db;
   private final RocksDBCheckpointDiffer differ;
   private final OzoneManager ozoneManager;
-  private final SnapshotCache snapshotCache;
   private final CodecRegistry codecRegistry;
   private final ManagedColumnFamilyOptions familyOptions;
   // TODO: [SNAPSHOT] Use different wait time based of job status.
@@ -202,7 +198,6 @@ public class SnapshotDiffManager implements AutoCloseable {
   public SnapshotDiffManager(ManagedRocksDB db,
                              RocksDBCheckpointDiffer differ,
                              OzoneManager ozoneManager,
-                             SnapshotCache snapshotCache,
                              ColumnFamilyHandle snapDiffJobCfh,
                              ColumnFamilyHandle snapDiffReportCfh,
                              ManagedColumnFamilyOptions familyOptions,
@@ -210,7 +205,6 @@ public class SnapshotDiffManager implements AutoCloseable {
     this.db = db;
     this.differ = differ;
     this.ozoneManager = ozoneManager;
-    this.snapshotCache = snapshotCache;
     this.familyOptions = familyOptions;
     this.codecRegistry = codecRegistry;
     this.defaultWaitTime = ozoneManager.getConfiguration().getTimeDuration(
@@ -817,8 +811,8 @@ public class SnapshotDiffManager implements AutoCloseable {
     // job by RocksDBCheckpointDiffer#pruneOlderSnapshotsWithCompactionHistory.
     Path path = Paths.get(sstBackupDirForSnapDiffJobs + "/" + jobId);
 
-    ReferenceCounted<IOmMetadataReader, SnapshotCache> rcFromSnapshot = null;
-    ReferenceCounted<IOmMetadataReader, SnapshotCache> rcToSnapshot = null;
+    ReferenceCounted<OmSnapshot> rcFromSnapshot = null;
+    ReferenceCounted<OmSnapshot> rcToSnapshot = null;
 
     try {
       if (!areDiffJobAndSnapshotsActive(volumeName, bucketName,
@@ -826,14 +820,15 @@ public class SnapshotDiffManager implements AutoCloseable {
         return;
       }
 
-      String fsKey = getTableKey(volumeName, bucketName, fromSnapshotName);
-      String tsKey = getTableKey(volumeName, bucketName, toSnapshotName);
+      rcFromSnapshot =
+          ozoneManager.getOmSnapshotManager()
+              .getActiveSnapshot(volumeName, bucketName, fromSnapshotName);
+      rcToSnapshot =
+          ozoneManager.getOmSnapshotManager()
+              .getActiveSnapshot(volumeName, bucketName, toSnapshotName);
 
-      rcFromSnapshot = snapshotCache.get(fsKey);
-      rcToSnapshot = snapshotCache.get(tsKey);
-
-      OmSnapshot fromSnapshot = (OmSnapshot) rcFromSnapshot.get();
-      OmSnapshot toSnapshot = (OmSnapshot) rcToSnapshot.get();
+      OmSnapshot fromSnapshot = rcFromSnapshot.get();
+      OmSnapshot toSnapshot = rcToSnapshot.get();
       SnapshotInfo fsInfo = getSnapshotInfo(ozoneManager,
           volumeName, bucketName, fromSnapshotName);
       SnapshotInfo tsInfo = getSnapshotInfo(ozoneManager,
@@ -1073,8 +1068,7 @@ public class SnapshotDiffManager implements AutoCloseable {
       return;
     }
     String tablePrefix = getTablePrefix(tablePrefixes, fsTable.getName());
-    boolean isDirectoryTable =
-        fsTable.getName().equals(DIRECTORY_TABLE.getName());
+    boolean isDirectoryTable = fsTable.getName().equals(DIRECTORY_TABLE);
     ManagedSstFileReader sstFileReader = new ManagedSstFileReader(deltaFiles);
     validateEstimatedKeyChangesAreInLimits(sstFileReader);
     long totalEstimatedKeysToProcess = sstFileReader.getEstimatedTotalKeys();
@@ -1639,9 +1633,9 @@ public class SnapshotDiffManager implements AutoCloseable {
     // the key Prefix would be volumeId/bucketId and
     // in case of non-fso - volumeName/bucketName
     if (tableName.equals(
-        OmMetadataManagerImpl.DIRECTORY_TABLE) || tableName.equals(
+        DIRECTORY_TABLE) || tableName.equals(
         OmMetadataManagerImpl.FILE_TABLE)) {
-      return tablePrefixes.get(OmMetadataManagerImpl.DIRECTORY_TABLE);
+      return tablePrefixes.get(DIRECTORY_TABLE);
     }
     return tablePrefixes.get(OmMetadataManagerImpl.KEY_TABLE);
   }
