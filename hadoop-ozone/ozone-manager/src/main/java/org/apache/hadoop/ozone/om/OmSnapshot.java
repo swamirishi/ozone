@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.om;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.util.UUID;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneAcl;
@@ -68,6 +69,7 @@ public class OmSnapshot implements IOmMetadataReader, Closeable {
   private final String volumeName;
   private final String bucketName;
   private final String snapshotName;
+  private final UUID snapshotID;
   // To access snapshot checkpoint DB metadata
   private final OMMetadataManager omMetadataManager;
   private final KeyManager keyManager;
@@ -77,13 +79,15 @@ public class OmSnapshot implements IOmMetadataReader, Closeable {
                     OzoneManager ozoneManager,
                     String volumeName,
                     String bucketName,
-                    String snapshotName) {
+                    String snapshotName,
+                    UUID snapshotID) {
     omMetadataReader = new OmMetadataReader(keyManager, prefixManager,
         ozoneManager, LOG, AUDIT,
         OmSnapshotMetrics.getInstance(), false);
     this.snapshotName = snapshotName;
     this.bucketName = bucketName;
     this.volumeName = volumeName;
+    this.snapshotID = snapshotID;
     this.keyManager = keyManager;
     this.omMetadataManager = keyManager.getMetadataManager();
   }
@@ -254,6 +258,10 @@ public class OmSnapshot implements IOmMetadataReader, Closeable {
 
   public String getName() {
     return snapshotName;
+  }
+
+  public UUID getSnapshotID() {
+    return snapshotID;
   }
 
   @Override

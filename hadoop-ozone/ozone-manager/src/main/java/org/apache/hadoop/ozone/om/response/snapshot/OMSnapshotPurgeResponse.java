@@ -92,7 +92,7 @@ public class OMSnapshotPurgeResponse extends OMClientResponse {
 
       // Remove and close snapshot's RocksDB instance from SnapshotCache.
       ((OmMetadataManagerImpl) omMetadataManager).getOzoneManager().getOmSnapshotManager()
-          .invalidateCacheEntry(snapshotInfo.getTableKey());
+          .invalidateCacheEntry(snapshotInfo.getSnapshotId());
       // Remove the snapshot from snapshotId to snapshotTableKey map.
       ((OmMetadataManagerImpl) omMetadataManager).getSnapshotChainManager()
           .removeFromSnapshotIdToTable(snapshotInfo.getSnapshotId());

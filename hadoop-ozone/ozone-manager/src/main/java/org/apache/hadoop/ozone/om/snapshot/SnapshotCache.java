@@ -17,21 +17,20 @@
  */
 package org.apache.hadoop.ozone.om.snapshot;
 
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheLoader;
+import java.io.IOException;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hdds.utils.Scheduler;
-import org.apache.hadoop.ozone.om.IOmMetadataReader;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-
-import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
 
 /**
  * Thread-safe custom unbounded LRU cache to manage open snapshot DB instances.
@@ -41,22 +40,23 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   static final Logger LOG = LoggerFactory.getLogger(SnapshotCache.class);
 
   // Snapshot cache internal hash map.
-  // Key:   DB snapshot table key
+  // Key:   SnapshotId
   // Value: OmSnapshot instance, each holds a DB instance handle inside
   // TODO: [SNAPSHOT] Consider wrapping SoftReference<> around IOmMetadataReader
-  private final ConcurrentHashMap<String, ReferenceCounted<OmSnapshot>> dbMap;
+  private final ConcurrentHashMap<UUID, ReferenceCounted<OmSnapshot>> dbMap;
 
-  private final CacheLoader<String, OmSnapshot> cacheLoader;
+  private final CacheLoader<UUID, OmSnapshot> cacheLoader;
+
   // Soft-limit of the total number of snapshot DB instances allowed to be
   // opened on the OM.
   private final int cacheSizeLimit;
-  private final Set<String> pendingEvictionQueue;
+  private final Set<UUID> pendingEvictionQueue;
   private final Scheduler scheduler;
   private static final String SNAPSHOT_CACHE_CLEANUP_SERVICE =
       "SnapshotCacheCleanupService";
 
   public SnapshotCache(
-      CacheLoader<String, OmSnapshot> cacheLoader,
+      CacheLoader<UUID, OmSnapshot> cacheLoader,
       int cacheSizeLimit, long cleanupInterval) {
     this.dbMap = new ConcurrentHashMap<>();
     this.cacheLoader = cacheLoader;
@@ -73,7 +73,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   }
 
   @VisibleForTesting
-  ConcurrentHashMap<String, ReferenceCounted<OmSnapshot>> getDbMap() {
+  ConcurrentHashMap<UUID, ReferenceCounted<OmSnapshot>> getDbMap() {
     return dbMap;
   }
 
@@ -86,17 +86,17 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
 
   /**
    * Immediately invalidate an entry.
-   * @param key DB snapshot table key
+   * @param key SnapshotId
    */
-  public void invalidate(String key) {
+  public void invalidate(UUID key) {
     dbMap.compute(key, (k, v) -> {
       if (v == null) {
-        LOG.warn("Key: '{}' does not exist in cache.", k);
+        LOG.warn("SnapshotId: '{}' does not exist in snapshot cache.", k);
       } else {
         try {
           v.get().close();
         } catch (IOException e) {
-          throw new IllegalStateException("Failed to close snapshot: " + key, e);
+          throw new IllegalStateException("Failed to close snapshotId: " + key, e);
         }
       }
       return null;
@@ -107,7 +107,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
    * Immediately invalidate all entries and close their DB instances in cache.
    */
   public void invalidateAll() {
-    for (String key : dbMap.keySet()) {
+    for (UUID key : dbMap.keySet()) {
       invalidate(key);
     }
   }
@@ -126,7 +126,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
    */
   public enum Reason {
     FS_API_READ,
-    SNAPDIFF_READ,
+    SNAP_DIFF_READ,
     DEEP_CLEAN_WRITE,
     GARBAGE_COLLECTION_WRITE
   }
@@ -134,11 +134,10 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   /**
    * Get or load OmSnapshot. Shall be close()d after use.
    * TODO: [SNAPSHOT] Can add reason enum to param list later.
-   * @param key snapshot table key
+   * @param key SnapshotId
    * @return an OmSnapshot instance, or null on error
    */
-  public ReferenceCounted<OmSnapshot> get(String key)
-      throws IOException {
+  public ReferenceCounted<OmSnapshot> get(UUID key) throws IOException {
     // Warn if actual cache size exceeds the soft limit already.
     if (size() > cacheSizeLimit) {
       LOG.warn("Snapshot cache size ({}) exceeds configured soft-limit ({}).",
@@ -149,9 +148,9 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
     ReferenceCounted<OmSnapshot> rcOmSnapshot =
         dbMap.compute(key, (k, v) -> {
           if (v == null) {
-            LOG.info("Loading snapshot. Table key: {}", k);
+            LOG.info("Loading SnapshotId: '{}'", k);
             try {
-              v = new ReferenceCounted<>(cacheLoader.load(k), false, this);
+              v = new ReferenceCounted<>(cacheLoader.load(key), false, this);
             } catch (OMException omEx) {
               // Return null if the snapshot is no longer active
               if (!omEx.getResult().equals(FILE_NOT_FOUND)) {
@@ -175,8 +174,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
     if (rcOmSnapshot == null) {
       // The only exception that would fall through the loader logic above
       // is OMException with FILE_NOT_FOUND.
-      throw new OMException("Snapshot table key '" + key + "' not found, "
-          + "or the snapshot is no longer active",
+      throw new OMException("SnapshotId: '" + key + "' not found, or the snapshot is no longer active.",
           OMException.ResultCodes.FILE_NOT_FOUND);
     }
     return rcOmSnapshot;
@@ -184,26 +182,17 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
 
   /**
    * Release the reference count on the OmSnapshot instance.
-   * @param key snapshot table key
+   * @param key SnapshotId
    */
-  public void release(String key) {
+  public void release(UUID key) {
     dbMap.compute(key, (k, v) -> {
       if (v == null) {
-        throw new IllegalArgumentException("Key '" + key + "' does not exist in cache.");
+        throw new IllegalArgumentException("SnapshotId '" + key + "' does not exist in cache.");
       } else {
         v.decrementRefCount();
       }
       return v;
     });
-  }
-
-  /**
-   * Alternatively, can release with OmSnapshot instance directly.
-   * @param omSnapshot OmSnapshot
-   */
-  public void release(OmSnapshot omSnapshot) {
-    final String snapshotTableKey = omSnapshot.getSnapshotTableKey();
-    release(snapshotTableKey);
   }
 
   /**
@@ -213,7 +202,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   @VisibleForTesting
   void cleanup() {
     if (dbMap.size() > cacheSizeLimit) {
-      for (String key : pendingEvictionQueue) {
+      for (UUID key : pendingEvictionQueue) {
         dbMap.compute(key, (k, v) -> {
           pendingEvictionQueue.remove(k);
           if (v == null) {
@@ -248,7 +237,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   public void callback(ReferenceCounted referenceCounted) {
     if (referenceCounted.getTotalRefCount() == 0L) {
       // Reference count reaches zero, add to pendingEvictionList
-      pendingEvictionQueue.add(((OmSnapshot) referenceCounted.get()).getSnapshotTableKey());
+      pendingEvictionQueue.add(((OmSnapshot) referenceCounted.get()).getSnapshotID());
     }
   }
 }

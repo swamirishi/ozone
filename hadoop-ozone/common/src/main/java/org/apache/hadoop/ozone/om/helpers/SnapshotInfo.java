@@ -777,6 +777,7 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
         ", referencedReplicatedSize: '" + referencedReplicatedSize + '\'' +
         ", exclusiveSize: '" + exclusiveSize + '\'' +
         ", exclusiveReplicatedSize: '" + exclusiveReplicatedSize + '\'' +
+        ", deepCleanedDeletedDir: '" + deepCleanedDeletedDir + '\'' +
         '}';
   }
 }

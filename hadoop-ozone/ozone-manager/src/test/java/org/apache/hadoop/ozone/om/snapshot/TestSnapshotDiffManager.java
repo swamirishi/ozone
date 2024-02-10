@@ -100,7 +100,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.StringUtils;
@@ -146,7 +145,6 @@ import org.apache.ozone.rocksdiff.DifferSnapshotInfo;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer;
 import org.apache.ozone.rocksdiff.RocksDiffUtils;
 import org.apache.ratis.util.ExitUtils;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -315,8 +313,8 @@ public class TestSnapshotDiffManager {
             OZONE_OM_SNAPSHOT_DIFF_JOB_DEFAULT_WAIT_TIME_DEFAULT,
             TimeUnit.MILLISECONDS))
         .thenReturn(OZONE_OM_SNAPSHOT_DIFF_JOB_DEFAULT_WAIT_TIME_DEFAULT);
-    when(configuration
-        .getBoolean(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF,
+    when(configuration.
+        getBoolean(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF,
             OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF_DEFAULT))
         .thenReturn(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF_DEFAULT);
     when(configuration
@@ -361,26 +359,25 @@ public class TestSnapshotDiffManager {
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
 
     omSnapshotManager = mock(OmSnapshotManager.class);
-    when(omSnapshotManager.isSnapshotStatus(
-        any(), any())).thenReturn(true);
+    when(omSnapshotManager.isSnapshotStatus(any(), any())).thenReturn(true);
     SnapshotCache snapshotCache = new SnapshotCache(mockCacheLoader(), 10, 0);
 
     when(omSnapshotManager.getActiveSnapshot(anyString(), anyString(), anyString()))
         .thenAnswer(invocationOnMock -> {
-          String snapshotTableKey = SnapshotInfo.getTableKey(invocationOnMock.getArgument(0),
+          SnapshotInfo snapInfo = SnapshotUtils.getSnapshotInfo(ozoneManager, invocationOnMock.getArgument(0),
               invocationOnMock.getArgument(1), invocationOnMock.getArgument(2));
-          return snapshotCache.get(snapshotTableKey);
+          return snapshotCache.get(snapInfo.getSnapshotId());
         });
     when(ozoneManager.getOmSnapshotManager()).thenReturn(omSnapshotManager);
     snapshotDiffManager = new SnapshotDiffManager(db, differ, ozoneManager,
         snapDiffJobTable, snapDiffReportTable, columnFamilyOptions, codecRegistry);
   }
 
-  private CacheLoader<String, OmSnapshot> mockCacheLoader() {
-    return new CacheLoader<String, OmSnapshot>() {
+  private CacheLoader<UUID, OmSnapshot> mockCacheLoader() {
+    return new CacheLoader<UUID, OmSnapshot>() {
       @Nonnull
       @Override
-      public OmSnapshot load(@Nonnull String key) {
+      public OmSnapshot load(@Nonnull UUID key) {
         return getMockedOmSnapshot(key);
       }
     };
@@ -398,9 +395,9 @@ public class TestSnapshotDiffManager {
     IOUtils.closeQuietly(snapshotDiffManager);
   }
 
-  private OmSnapshot getMockedOmSnapshot(String snapshot) {
+  private OmSnapshot getMockedOmSnapshot(UUID snapshotId) {
     OmSnapshot omSnapshot = mock(OmSnapshot.class);
-    when(omSnapshot.getName()).thenReturn(snapshot);
+    when(omSnapshot.getName()).thenReturn(snapshotId.toString());
     when(omSnapshot.getMetadataManager()).thenReturn(omMetadataManager);
     when(omMetadataManager.getStore()).thenReturn(dbStore);
     return omSnapshot;
@@ -417,6 +414,10 @@ public class TestSnapshotDiffManager {
   public void testGetDeltaFilesWithDag(int numberOfFiles) throws IOException {
     UUID snap1 = UUID.randomUUID();
     UUID snap2 = UUID.randomUUID();
+    when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap1.toString())))
+        .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap1.toString(), snap2));
+    when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap2.toString())))
+        .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap2.toString(), snap2));
 
     String diffDir = Files.createTempDirectory("snapdiff_dir").toString();
     String diffJobKey = snap1 + DELIMITER + snap2;
@@ -498,6 +499,10 @@ public class TestSnapshotDiffManager {
       UUID snap1 = UUID.randomUUID();
       UUID snap2 = UUID.randomUUID();
       String diffJobKey = snap1 + DELIMITER + snap2;
+      when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap1.toString())))
+          .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap1.toString(), snap2));
+      when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap2.toString())))
+          .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap2.toString(), snap2));
       if (!useFullDiff) {
         when(differ.getSSTDiffListWithFullPath(
             any(DifferSnapshotInfo.class),
@@ -566,6 +571,10 @@ public class TestSnapshotDiffManager {
           });
       UUID snap1 = UUID.randomUUID();
       UUID snap2 = UUID.randomUUID();
+      when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap1.toString())))
+          .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap1.toString(), snap1));
+      when(snapshotInfoTable.get(SnapshotInfo.getTableKey(VOLUME_NAME, BUCKET_NAME, snap2.toString())))
+          .thenReturn(getSnapshotInfoInstance(VOLUME_NAME, BUCKET_NAME, snap2.toString(), snap2));
 
       doThrow(new RuntimeException("File not found exception."))
           .when(differ)
@@ -1521,9 +1530,9 @@ public class TestSnapshotDiffManager {
   public void testGetDeltaFilesWithFullDiff() throws IOException {
     SnapshotDiffManager spy = spy(snapshotDiffManager);
     UUID snap1 = UUID.randomUUID();
-    OmSnapshot fromSnapshot = getMockedOmSnapshot(snap1.toString());
+    OmSnapshot fromSnapshot = getMockedOmSnapshot(snap1);
     UUID snap2 = UUID.randomUUID();
-    OmSnapshot toSnapshot = getMockedOmSnapshot(snap2.toString());
+    OmSnapshot toSnapshot = getMockedOmSnapshot(snap2);
     Mockito.doAnswer(invocation -> {
       OmSnapshot snapshot = invocation.getArgument(0);
       if (snapshot == fromSnapshot) {
