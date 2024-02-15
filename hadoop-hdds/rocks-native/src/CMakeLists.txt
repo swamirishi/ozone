@@ -37,11 +37,11 @@ include_directories(${GENERATED_JAVAH})
 if(${SST_DUMP_INCLUDE})
     include_directories(${ROCKSDB_HEADERS})
     set(SOURCE_FILES ${NATIVE_DIR}/ManagedRawSSTFileReader.cpp ${NATIVE_DIR}/ManagedRawSSTFileReaderIterator.cpp ${NATIVE_DIR}/cplusplus_to_java_convert.h)
-    ADD_LIBRARY(rocksdb SHARED IMPORTED)
+    ADD_LIBRARY(rocksdb STATIC IMPORTED)
     set_target_properties(
             rocksdb
             PROPERTIES
-            IMPORTED_LOCATION ${ROCKSDB_LIB})
+            IMPORTED_LOCATION ${ROCKSDB_LIB}/librocksdb.a)
     ADD_LIBRARY(rocks_tools STATIC IMPORTED)
     set_target_properties(
             rocks_tools
