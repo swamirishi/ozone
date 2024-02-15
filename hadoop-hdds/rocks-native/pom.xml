@@ -236,7 +236,7 @@
                     </exec>
                     <exec executable="make" dir="${project.build.directory}/rocksdb/rocksdb-${rocksdb.version}" failonerror="true">
                       <arg line="DEBUG_LEVEL=0"/>
-                      <arg line="EXTRA_CXXFLAGS='-fPIC'"/>
+                      <arg line="EXTRA_CXXFLAGS='-fPIC -D_GLIBCXX_USE_CXX11_ABI=0'"/>
                       <arg line="-j${system.numCores}"/>
                       <arg line="tools"/>
                     </exec>
@@ -253,8 +253,8 @@
                   <target>
                     <mkdir dir="${project.build.directory}/native/rocksdb"/>
                     <exec executable="cmake" failonerror="true" dir="${project.build.directory}/native/rocksdb">
-                      <env key="CFLAGS" value="-fPIC"/>
-                      <env key="CXXFLAGS" value="-fPIC"/>
+                      <env key="CFLAGS" value="-fPIC -D_GLIBCXX_USE_CXX11_ABI=0"/>
+                      <env key="CXXFLAGS" value="-fPIC -D_GLIBCXX_USE_CXX11_ABI=0"/>
                       <arg line="${basedir}/src"/>
                       <arg line="-DGENERATED_JAVAH=${project.build.directory}/native/javah"/>
                       <arg line="-DNATIVE_DIR=${basedir}/src/main/native"/>
