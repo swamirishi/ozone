@@ -147,6 +147,13 @@ public abstract class OMKeyRequest extends OMClientRequest {
     return keyArgs;
   }
 
+  protected KeyArgs resolveBucketLink(
+      OzoneManager ozoneManager, KeyArgs keyArgs) throws IOException {
+    ResolvedBucket bucket = ozoneManager.resolveBucketLink(keyArgs, this);
+    keyArgs = bucket.update(keyArgs);
+    return keyArgs;
+  }
+
   /**
    * This methods avoids multiple rpc calls to SCM by allocating multiple blocks
    * in one rpc call.
