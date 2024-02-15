@@ -59,7 +59,7 @@ public class TestNativeLibraryLoader {
   @MethodSource("nativeLibraryDirectoryLocations")
   public void testNativeLibraryLoader(
       String nativeLibraryDirectoryLocation) {
-    ManagedRocksObjectUtils.loadRocksDBLibrary();
+    System.out.println(NativeLibraryLoader.getInstance().loadLibrary("rocksdbjni"));
     Map<String, Boolean> libraryLoadedMap = new HashMap<>();
     NativeLibraryLoader loader = new NativeLibraryLoader(libraryLoadedMap);
     try (MockedStatic<NativeLibraryLoader> mockedNativeLibraryLoader =
