@@ -116,15 +116,16 @@ index 000000000..266a0c1c8
 +
 +#endif  // ROCKSDB_LITE
 diff --git a/src.mk b/src.mk
-index b94bc43ca..95bfff274 100644
+index b94bc43ca..83855e60a 100644
 --- a/src.mk
 +++ b/src.mk
-@@ -343,6 +343,8 @@ TOOL_LIB_SOURCES =                                              \
+@@ -343,6 +343,9 @@ TOOL_LIB_SOURCES =                                              \
    tools/ldb_tool.cc                                             \
    tools/sst_dump_tool.cc                                        \
    utilities/blob_db/blob_dump_tool.cc                           \
 +  tools/raw_sst_file_reader.cc                                  \
 +  tools/raw_sst_file_reader_iterator.cc                         \
++  options/customizable.cc                                       \
 
  ANALYZER_LIB_SOURCES =                                          \
    tools/block_cache_analyzer/block_cache_trace_analyzer.cc      \
