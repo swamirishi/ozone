@@ -298,15 +298,12 @@
     <aspectj-plugin.version>1.14.0</aspectj-plugin.version>
     <restrict-imports.enforcer.version>2.0.0</restrict-imports.enforcer.version>
     <awaitility.version>4.2.0</awaitility.version>
-    <bzip2.version>1.0.8</bzip2.version>
-    <zlib.version>1.2.13</zlib.version>
-    <lz4.version>1.9.3</lz4.version>
-    <snappy.version>1.1.8</snappy.version>
-    <zstd.version>1.4.9</zstd.version>
     <jgrapht.version>1.0.1</jgrapht.version>
 
     <vault.driver.version>5.1.0</vault.driver.version>
     <native.lib.tmp.dir />
+    <properties.maven.plugin.version>1.2.1</properties.maven.plugin.version>
+    <maven.core.version>3.9.6</maven.core.version>
   </properties>
 
 
@@ -2035,6 +2032,18 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>properties-maven-plugin</artifactId>
+        <version>${properties.maven.plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <version>${maven.core.version}</version>
+          </dependency>
+        </dependencies>
       </plugin>
     </plugins>
   </build>
