@@ -104,6 +104,7 @@ import static org.apache.hadoop.ozone.OzoneConsts.OZONE_URI_DELIMITER;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes
     .BUCKET_NOT_FOUND;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_KEY_NAME;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_REQUEST;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes
     .VOLUME_NOT_FOUND;
 import static org.apache.hadoop.ozone.om.helpers.OzoneAclUtil.getDefaultAclList;
@@ -566,9 +567,14 @@ public abstract class OMKeyRequest extends OMClientRequest {
             omMetadataManager.getOpenKeyTable(getBucketLayout())
                 .get(dbMultipartOpenKey);
 
-        if (omKeyInfo != null && omKeyInfo.getFileEncryptionInfo() != null) {
-          newKeyArgs.setFileEncryptionInfo(
-              OMPBHelper.convert(omKeyInfo.getFileEncryptionInfo()));
+        if (omKeyInfo != null) {
+          if (omKeyInfo.getFileEncryptionInfo() != null) {
+            newKeyArgs.setFileEncryptionInfo(
+                OMPBHelper.convert(omKeyInfo.getFileEncryptionInfo()));
+          }
+        } else {
+          LOG.warn("omKeyInfo not found. Key: " + dbMultipartOpenKey +
+              ". The upload id " + keyArgs.getMultipartUploadID() + " may be invalid.");
         }
       } finally {
         if (acquireLock) {
@@ -1234,5 +1240,12 @@ public abstract class OMKeyRequest extends OMClientRequest {
     }
 
     return missingParentInfos;
+  }
+
+  protected void validateEncryptionKeyInfo(OmBucketInfo bucketInfo, KeyArgs keyArgs) throws OMException {
+    if (bucketInfo.getEncryptionKeyInfo() != null && !keyArgs.hasFileEncryptionInfo()) {
+      throw new OMException("Attempting to create unencrypted file " +
+          keyArgs.getKeyName() + " in encrypted bucket " + keyArgs.getBucketName(), INVALID_REQUEST);
+    }
   }
 }
