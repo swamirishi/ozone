@@ -313,66 +313,79 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
       this.snapshotStatus = SnapshotStatus.DEFAULT;
     }
 
+    /** @param snapshotId - Snapshot UUID. */
     public Builder setSnapshotId(UUID snapshotId) {
       this.snapshotId = snapshotId;
       return this;
     }
 
+    /** @param name - snapshot name. */
     public Builder setName(String name) {
       this.name = name;
       return this;
     }
 
+    /** @param volumeName - volume name. */
     public Builder setVolumeName(String volumeName) {
       this.volumeName = volumeName;
       return this;
     }
 
+    /** @param bucketName - bucket name. */
     public Builder setBucketName(String bucketName) {
       this.bucketName = bucketName;
       return this;
     }
 
+    /** @param snapshotStatus - status: SNAPSHOT_ACTIVE, SNAPSHOT_DELETED */
     public Builder setSnapshotStatus(SnapshotStatus snapshotStatus) {
       this.snapshotStatus = snapshotStatus;
       return this;
     }
 
+    /** @param crTime - Snapshot creation time. */
     public Builder setCreationTime(long crTime) {
       this.creationTime = crTime;
       return this;
     }
 
+    /** @param delTime - Snapshot deletion time. */
     public Builder setDeletionTime(long delTime) {
       this.deletionTime = delTime;
       return this;
     }
 
+    /** @param pathPreviousSnapshotId - Snapshot path previous snapshot id. */
     public Builder setPathPreviousSnapshotId(UUID pathPreviousSnapshotId) {
       this.pathPreviousSnapshotId = pathPreviousSnapshotId;
       return this;
     }
 
+    /** @param globalPreviousSnapshotId - Snapshot global previous snapshot id. */
     public Builder setGlobalPreviousSnapshotId(UUID globalPreviousSnapshotId) {
       this.globalPreviousSnapshotId = globalPreviousSnapshotId;
       return this;
     }
 
+    /** @param snapshotPath - Snapshot path, bucket .snapshot path. */
     public Builder setSnapshotPath(String snapshotPath) {
       this.snapshotPath = snapshotPath;
       return this;
     }
 
+    /** @param checkpointDir - Snapshot checkpoint directory. */
     public Builder setCheckpointDir(String checkpointDir) {
       this.checkpointDir = checkpointDir;
       return this;
     }
 
+    /** @param dbTxSequenceNumber - RDB latest transaction sequence number. */
     public Builder setDbTxSequenceNumber(long dbTxSequenceNumber) {
       this.dbTxSequenceNumber = dbTxSequenceNumber;
       return this;
     }
 
+    /** @param deepClean - To be deep cleaned status for snapshot. */
     public Builder setDeepClean(boolean deepClean) {
       this.deepClean = deepClean;
       return this;
@@ -383,21 +396,25 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
       return this;
     }
 
+    /** @param referencedSize - Snapshot referenced size. */
     public Builder setReferencedSize(long referencedSize) {
       this.referencedSize = referencedSize;
       return this;
     }
 
+    /** @param referencedReplicatedSize - Snapshot referenced size w/ replication. */
     public Builder setReferencedReplicatedSize(long referencedReplicatedSize) {
       this.referencedReplicatedSize = referencedReplicatedSize;
       return this;
     }
 
+    /** @param exclusiveSize - Snapshot exclusive size. */
     public Builder setExclusiveSize(long exclusiveSize) {
       this.exclusiveSize = exclusiveSize;
       return this;
     }
 
+    /** @param exclusiveReplicatedSize - Snapshot exclusive size w/ replication. */
     public Builder setExclusiveReplicatedSize(long exclusiveReplicatedSize) {
       this.exclusiveReplicatedSize = exclusiveReplicatedSize;
       return this;
