@@ -44,6 +44,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto.State;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.IncrementalContainerReportProto;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
@@ -56,6 +57,7 @@ import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
+import org.apache.hadoop.ozone.recon.TestReconUtils;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -90,10 +92,10 @@ public class TestReconIncrementalContainerReportHandler
     when(getContainerManager().getScmClient()
         .getExistContainerWithPipelinesInBatch(any(
             ArrayList.class))).thenReturn(containerWithPipelineList);
-
     final String path =
         GenericTestUtils.getTempPath(UUID.randomUUID().toString());
     Path scmPath = Paths.get(path, "scm-meta");
+
     final OzoneConfiguration conf = new OzoneConfiguration();
     conf.set(HddsConfigKeys.OZONE_METADATA_DIRS, scmPath.toString());
     NetworkTopology clusterMap = new NetworkTopologyImpl(conf);
@@ -102,6 +104,7 @@ public class TestReconIncrementalContainerReportHandler
     this.versionManager =
         Mockito.mock(HDDSLayoutVersionManager.class);
     Mockito.when(versionManager.getMetadataLayoutVersion())
+
         .thenReturn(maxLayoutVersion());
     Mockito.when(versionManager.getSoftwareLayoutVersion())
         .thenReturn(maxLayoutVersion());
@@ -169,6 +172,32 @@ public class TestReconIncrementalContainerReportHandler
           String.format("Expecting %s in container state for replica state %s",
               expectedState, state));
     }
+  }
+
+  @Test
+  public void testMergeMultipleICRs() {
+    final ContainerInfo container = TestReconUtils.getContainer(
+        LifeCycleState.OPEN);
+    final DatanodeDetails datanodeOne = randomDatanodeDetails();
+    final IncrementalContainerReportProto containerReport =
+        getIncrementalContainerReportProto(container.containerID(),
+            ContainerReplicaProto.State.CLOSED,
+            datanodeOne.getUuidString());
+    final IncrementalContainerReportFromDatanode icrFromDatanode1 =
+        new IncrementalContainerReportFromDatanode(
+            datanodeOne, containerReport);
+    final IncrementalContainerReportFromDatanode icrFromDatanode2 =
+        new IncrementalContainerReportFromDatanode(
+            datanodeOne, containerReport);
+    assertEquals(1, icrFromDatanode1.getReport().getReportList().size());
+    icrFromDatanode1.mergeReport(icrFromDatanode2);
+    assertEquals(2, icrFromDatanode1.getReport().getReportList().size());
+
+    final IncrementalContainerReportFromDatanode icrFromDatanode3 =
+        new IncrementalContainerReportFromDatanode(
+            datanodeOne, containerReport);
+    icrFromDatanode1.mergeReport(icrFromDatanode3);
+    assertEquals(3, icrFromDatanode1.getReport().getReportList().size());
   }
 
   private LifeCycleState getContainerStateFromReplicaState(
