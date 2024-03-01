@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Task to query data from OMDB and write into Recon RocksDB.
@@ -60,12 +61,13 @@ import java.util.concurrent.Future;
  */
 public class NSSummaryTask implements ReconOmTask {
   private static final Logger LOG =
-          LoggerFactory.getLogger(NSSummaryTask.class);
+      LoggerFactory.getLogger(NSSummaryTask.class);
 
   private final ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private final ReconOMMetadataManager reconOMMetadataManager;
   private final NSSummaryTaskWithFSO nsSummaryTaskWithFSO;
   private final NSSummaryTaskWithLegacy nsSummaryTaskWithLegacy;
+  private final NSSummaryTaskWithOBS nsSummaryTaskWithOBS;
   private final OzoneConfiguration ozoneConfiguration;
 
   @Inject
@@ -84,6 +86,9 @@ public class NSSummaryTask implements ReconOmTask {
     this.nsSummaryTaskWithLegacy = new NSSummaryTaskWithLegacy(
         reconNamespaceSummaryManager,
         reconOMMetadataManager, ozoneConfiguration);
+    this.nsSummaryTaskWithOBS = new NSSummaryTaskWithOBS(
+        reconNamespaceSummaryManager,
+        reconOMMetadataManager, ozoneConfiguration);
   }
 
   @Override
@@ -93,19 +98,27 @@ public class NSSummaryTask implements ReconOmTask {
 
   @Override
   public Pair<String, Boolean> process(OMUpdateEventBatch events) {
-    boolean success;
-    success = nsSummaryTaskWithFSO.processWithFSO(events);
-    if (success) {
-      success = nsSummaryTaskWithLegacy.processWithLegacy(events);
-    } else {
+    boolean success = nsSummaryTaskWithFSO.processWithFSO(events);
+    if (!success) {
       LOG.error("processWithFSO failed.");
+    }
+    success = nsSummaryTaskWithLegacy.processWithLegacy(events);
+    if (!success) {
+      LOG.error("processWithLegacy failed.");
+    }
+    success = nsSummaryTaskWithOBS.processWithOBS(events);
+    if (!success) {
+      LOG.error("processWithOBS failed.");
     }
     return new ImmutablePair<>(getTaskName(), success);
   }
 
   @Override
   public Pair<String, Boolean> reprocess(OMMetadataManager omMetadataManager) {
+    // Initialize a list of tasks to run in parallel
     Collection<Callable<Boolean>> tasks = new ArrayList<>();
+
+    long startTime = System.nanoTime(); // Record start time
 
     try {
       // reinit Recon RocksDB's namespace CF.
@@ -120,6 +133,8 @@ public class NSSummaryTask implements ReconOmTask {
         .reprocessWithFSO(omMetadataManager));
     tasks.add(() -> nsSummaryTaskWithLegacy
         .reprocessWithLegacy(reconOMMetadataManager));
+    tasks.add(() -> nsSummaryTaskWithOBS
+        .reprocessWithOBS(reconOMMetadataManager));
 
     List<Future<Boolean>> results;
     ExecutorService executorService = Executors
@@ -132,17 +147,24 @@ public class NSSummaryTask implements ReconOmTask {
         }
       }
     } catch (InterruptedException ex) {
-      LOG.error("Error while reprocessing NSSummary " +
-          "table in Recon DB. ", ex);
+      LOG.error("Error while reprocessing NSSummary table in Recon DB.", ex);
       return new ImmutablePair<>(getTaskName(), false);
     } catch (ExecutionException ex2) {
-      LOG.error("Error while reprocessing NSSummary " +
-          "table in Recon DB. ", ex2);
+      LOG.error("Error while reprocessing NSSummary table in Recon DB.", ex2);
       return new ImmutablePair<>(getTaskName(), false);
     } finally {
       executorService.shutdown();
+
+      long endTime = System.nanoTime();
+      // Convert to milliseconds
+      long durationInMillis =
+          TimeUnit.NANOSECONDS.toMillis(endTime - startTime);
+
+      // Log performance metrics
+      LOG.info("Task execution time: {} milliseconds", durationInMillis);
     }
+
     return new ImmutablePair<>(getTaskName(), true);
   }
-}
 
+}
