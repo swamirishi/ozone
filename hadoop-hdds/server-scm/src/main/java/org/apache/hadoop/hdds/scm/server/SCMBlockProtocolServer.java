@@ -417,6 +417,11 @@ public class SCMBlockProtocolServer implements
   }
 
   @Override
+  public InnerNode getNetworkTopology() {
+    return (InnerNode) scm.getClusterMap().getNode(ROOT);
+  }
+
+  @Override
   public AuditMessage buildAuditMessageForSuccess(
       AuditAction op, Map<String, String> auditMap) {
 

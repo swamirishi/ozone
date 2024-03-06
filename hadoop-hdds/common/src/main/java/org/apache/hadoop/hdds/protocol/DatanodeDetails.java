@@ -360,6 +360,9 @@ public class DatanodeDetails extends NodeImpl implements
     if (datanodeDetailsProto.hasNetworkLocation()) {
       builder.setNetworkLocation(datanodeDetailsProto.getNetworkLocation());
     }
+    if (datanodeDetailsProto.hasLevel()) {
+      builder.setLevel(datanodeDetailsProto.getLevel());
+    }
     if (datanodeDetailsProto.hasPersistedOpState()) {
       builder.setPersistedOpState(datanodeDetailsProto.getPersistedOpState());
     }
@@ -451,6 +454,9 @@ public class DatanodeDetails extends NodeImpl implements
     }
     if (!Strings.isNullOrEmpty(getNetworkLocation())) {
       builder.setNetworkLocation(getNetworkLocation());
+    }
+    if (getLevel() > 0) {
+      builder.setLevel(getLevel());
     }
     if (persistedOpState != null) {
       builder.setPersistedOpState(persistedOpState);
@@ -598,6 +604,7 @@ public class DatanodeDetails extends NodeImpl implements
     private String hostName;
     private String networkName;
     private String networkLocation;
+    private int level;
     private List<Port> ports;
     private String certSerialId;
     private String version;
@@ -629,6 +636,7 @@ public class DatanodeDetails extends NodeImpl implements
       this.hostName = details.getHostName();
       this.networkName = details.getNetworkName();
       this.networkLocation = details.getNetworkLocation();
+      this.level = details.getLevel();
       this.ports = details.getPorts();
       this.certSerialId = details.getCertSerialId();
       this.version = details.getVersion();
@@ -693,6 +701,11 @@ public class DatanodeDetails extends NodeImpl implements
      */
     public Builder setNetworkLocation(String loc) {
       this.networkLocation = loc;
+      return this;
+    }
+
+    public Builder setLevel(int level) {
+      this.level = level;
       return this;
     }
 
@@ -819,6 +832,9 @@ public class DatanodeDetails extends NodeImpl implements
           initialVersion, currentVersion);
       if (networkName != null) {
         dn.setNetworkName(networkName);
+      }
+      if (level > 0) {
+        dn.setLevel(level);
       }
       return dn;
     }
@@ -1023,5 +1039,14 @@ public class DatanodeDetails extends NodeImpl implements
    */
   public void setBuildDate(String date) {
     this.buildDate = date;
+  }
+
+  @Override
+  public HddsProtos.NetworkNode toProtobuf(
+      int clientVersion) {
+    HddsProtos.NetworkNode networkNode =
+        HddsProtos.NetworkNode.newBuilder()
+            .setDatanodeDetails(toProtoBuilder(clientVersion).build()).build();
+    return networkNode;
   }
 }
