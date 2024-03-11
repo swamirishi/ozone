@@ -24,9 +24,12 @@ import org.apache.http.auth.AuthSchemeProvider;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
 import org.apache.http.client.config.AuthSchemes;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.Lookup;
 import org.apache.http.config.RegistryBuilder;
@@ -59,8 +62,12 @@ import java.util.List;
 public class SolrHttpClient {
   private static final Logger LOG =
       LoggerFactory.getLogger(SolrHttpClient.class);
+  public static final int TIMEOUT = 10000;
   private CloseableHttpClient httpClient;
   private HttpClientContext context;
+  RequestConfig requestConfig =
+      RequestConfig.custom().setConnectionRequestTimeout(TIMEOUT).setConnectTimeout(TIMEOUT)
+          .setSocketTimeout(TIMEOUT).build();
 
   private static volatile SolrHttpClient instance;
   public static SolrHttpClient getInstance() {
@@ -140,15 +147,21 @@ public class SolrHttpClient {
   public String sendPost(String host, int port,
                          String uri, List<NameValuePair> urlParameters)
       throws IOException {
-    String entityResponse = "";
+
     String hostBaseQuery = getHostBaseURI(host, port, uri);
     HttpPost post = new HttpPost(hostBaseQuery);
-    LOG.info("Making Http Query to host: {} ", hostBaseQuery);
+    post.setConfig(requestConfig);
+    LOG.info("Making POST type http query to host: {} ", hostBaseQuery);
     post.setEntity(new UrlEncodedFormEntity(urlParameters));
+    return executeHttpRequest(post);
+  }
+
+  private String executeHttpRequest(HttpUriRequest request) throws IOException {
+    String entityResponse = StringUtils.EMPTY;
     Instant start = Instant.now();
     try {
       CloseableHttpClient closeableHttpClient = getCloseableHttpClient();
-      CloseableHttpResponse response = closeableHttpClient.execute(post,
+      CloseableHttpResponse response = closeableHttpClient.execute(request,
           getHttpClientContext());
       Instant end = Instant.now();
       int statusCode = response.getStatusLine().getStatusCode();
@@ -192,8 +205,7 @@ public class SolrHttpClient {
       break;
     case GET:
       entityResponse = sendGet(httpRequestWrapper.getHost(),
-          httpRequestWrapper.getPort(), httpRequestWrapper.getUri(),
-          httpRequestWrapper.getUrlParameters());
+          httpRequestWrapper.getPort(), httpRequestWrapper.getUri());
       break;
     default:
       LOG.error("Unsupported Http Request Type: {} ", httpReqType);
@@ -202,8 +214,11 @@ public class SolrHttpClient {
     return entityResponse;
   }
 
-  private String sendGet(String host, int port, String uri,
-                         List<NameValuePair> urlParameters) {
-    return StringUtils.EMPTY;
+  private String sendGet(String host, int port, String uri) throws IOException {
+    String hostBaseQuery = getHostBaseURI(host, port, uri);
+    HttpGet get = new HttpGet(hostBaseQuery);
+    get.setConfig(requestConfig);
+    LOG.info("Making GET type http query to host: {} ", hostBaseQuery);
+    return executeHttpRequest(get);
   }
 }

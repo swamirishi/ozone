@@ -27,6 +27,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.ozone.recon.api.types.EntityMetaData;
+import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
 import org.apache.hadoop.ozone.recon.heatmap.IHeatMapProvider;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
@@ -185,5 +186,18 @@ public class SolrHeatMapProviderImpl implements IHeatMapProvider {
     } else {
       return OptionalInt.of(port);
     }
+  }
+
+  @Override
+  public InetSocketAddress getSolrAddress() {
+    return getSolrAddress(ozoneConfiguration);
+  }
+
+  @Override
+  public HealthCheckResponse doSolrHealthCheck() {
+    SolrUtil solrUtil = new SolrUtil(omMetadataManager, ozoneConfiguration);
+    InetSocketAddress solrAddr = getAndValidateInetSocketAddress();
+    SolrHttpClient solrHttpClient = SolrHttpClient.getInstance();
+    return solrUtil.doSolrHealthCheck(solrHttpClient, solrAddr);
   }
 }

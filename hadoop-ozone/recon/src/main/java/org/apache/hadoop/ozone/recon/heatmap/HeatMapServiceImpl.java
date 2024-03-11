@@ -23,11 +23,27 @@ import com.google.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
+import org.apache.hadoop.ozone.recon.api.types.EntityMetaData;
 import org.apache.hadoop.ozone.recon.api.types.EntityReadAccessHeatMapResponse;
+import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
+import org.apache.hadoop.security.SecurityUtil;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.impl.HttpSolrClient;
+import org.apache.solr.client.solrj.request.SolrPing;
+import org.apache.solr.client.solrj.response.SolrPingResponse;
+import org.eclipse.jetty.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.security.PrivilegedExceptionAction;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.hadoop.hdds.recon.ReconConfigKeys.OZONE_RECON_HEATMAP_PROVIDER_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
@@ -36,15 +52,15 @@ import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
  * This class is an implementation of abstract class for retrieving
  * data through HeatMapService.
  */
-public class HeatMapServiceImpl extends HeatMapService {
+public class HeatMapServiceImpl extends org.apache.hadoop.ozone.recon.heatmap.HeatMapService {
   private static final Logger LOG =
       LoggerFactory.getLogger(HeatMapServiceImpl.class);
   private final OzoneConfiguration ozoneConfiguration;
   private final ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private final ReconOMMetadataManager omMetadataManager;
   private final OzoneStorageContainerManager reconSCM;
-  private IHeatMapProvider heatMapProvider;
-  private HeatMapUtil heatMapUtil;
+  private org.apache.hadoop.ozone.recon.heatmap.IHeatMapProvider heatMapProvider;
+  private org.apache.hadoop.ozone.recon.heatmap.HeatMapUtil heatMapUtil;
 
   @Inject
   public HeatMapServiceImpl(OzoneConfiguration ozoneConfiguration,
@@ -57,7 +73,7 @@ public class HeatMapServiceImpl extends HeatMapService {
     this.omMetadataManager = omMetadataManager;
     this.reconSCM = reconSCM;
     heatMapUtil =
-        new HeatMapUtil(reconNamespaceSummaryManager, omMetadataManager,
+        new org.apache.hadoop.ozone.recon.heatmap.HeatMapUtil(reconNamespaceSummaryManager, omMetadataManager,
             reconSCM, ozoneConfiguration);
     initializeProvider();
   }
@@ -102,6 +118,10 @@ public class HeatMapServiceImpl extends HeatMapService {
       path = path.substring(1);
     }
     return path;
+  }
+
+  public HealthCheckResponse doSolrHealthCheck() {
+    return heatMapUtil.doSolrHealthCheck(heatMapProvider);
   }
 
 }

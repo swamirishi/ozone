@@ -28,6 +28,7 @@ import com.google.inject.Inject;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.recon.api.types.EntityMetaData;
+import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.solr.http.HttpRequestWrapper;
 import org.apache.hadoop.security.SecurityUtil;
@@ -37,6 +38,7 @@ import org.apache.solr.client.solrj.util.ClientUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.PrivilegedExceptionAction;
@@ -172,6 +174,25 @@ public class SolrUtil {
     }
   }
 
+  private HttpRequestWrapper preparePingHttpRequest(List<NameValuePair> urlParameters,
+                                                    InetSocketAddress solrAddress,
+                                                    String uri) {
+    // add request parameter, form parameters
+    urlParameters.add(new BasicNameValuePair("q", "*:*"));
+    urlParameters.add(new BasicNameValuePair("wt", "json"));
+    urlParameters.add(new BasicNameValuePair("fl",
+        "access, agent, repo, resource, resType, event_count"));
+    urlParameters.add(new BasicNameValuePair("fq", "access:read"));
+    urlParameters.add(new BasicNameValuePair("fq", "repo:cm_ozone"));
+    urlParameters.add(new BasicNameValuePair("rows", "0"));
+
+    HttpRequestWrapper requestWrapper =
+        new HttpRequestWrapper(solrAddress.getHostName(),
+            solrAddress.getPort(), uri,
+            urlParameters, HttpRequestWrapper.HttpReqType.POST);
+    return requestWrapper;
+  }
+
   private HttpRequestWrapper prepareHttpRequest(
       List<NameValuePair> urlParameters, InetSocketAddress solrAddress,
       String uri) {
@@ -265,5 +286,32 @@ public class SolrUtil {
           "Unsupported Last X units of time : " + lastXUnit);
     }
     return zonedDateTime;
+  }
+
+  public HealthCheckResponse doSolrHealthCheck(SolrHttpClient solrHttpClient, InetSocketAddress solrAddress) {
+    try {
+      return SecurityUtil.doAsCurrentUser(
+          (PrivilegedExceptionAction<HealthCheckResponse>) () -> {
+            List<NameValuePair> urlParameters = new ArrayList<>();
+
+            final String solrPingResp =
+                solrHttpClient.sendRequest(
+                    preparePingHttpRequest(urlParameters, solrAddress, "/solr/ranger_audits/query"));
+            LOG.info("Solr Ping Response: {}", solrPingResp);
+            if (solrPingResp.isEmpty()) {
+              return new HealthCheckResponse.Builder("UnHealthy",
+                  Response.Status.SERVICE_UNAVAILABLE.getStatusCode()).build();
+            }
+            return new HealthCheckResponse.Builder("Healthy", Response.Status.OK.getStatusCode()).build();
+          });
+    } catch (JsonProcessingException e) {
+      LOG.error("Solr Query Output Processing Error: {} ", e);
+      return new HealthCheckResponse.Builder("UnHealthy",
+          Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()).build();
+    } catch (IOException e) {
+      LOG.error("Error while generating the access heatmap: {} ", e);
+      return new HealthCheckResponse.Builder("UnHealthy",
+          Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()).build();
+    }
   }
 }

@@ -22,9 +22,11 @@ package org.apache.hadoop.ozone.recon.heatmap;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.ozone.recon.api.types.EntityMetaData;
+import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 
 /**
@@ -65,4 +67,10 @@ public interface IHeatMapProvider {
             ReconOMMetadataManager omMetadataManager,
             ReconNamespaceSummaryManager namespaceSummaryManager,
             OzoneStorageContainerManager reconSCM) throws Exception;
+
+  default InetSocketAddress getSolrAddress() {
+    return null;
+  }
+
+  HealthCheckResponse doSolrHealthCheck();
 }
