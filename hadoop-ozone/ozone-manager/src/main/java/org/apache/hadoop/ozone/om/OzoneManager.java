@@ -405,7 +405,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   private OzoneManagerHttpServer httpServer;
   private final OMStorage omStorage;
   private ObjectName omInfoBeanName;
-  private NetworkTopology clusterMap;
   private Timer metricsTimer;
   private ScheduleOMMetricsWriteTask scheduleOMMetricsWriteTask;
   private static final ObjectWriter WRITER =
@@ -1864,8 +1863,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     metricsTimer = new Timer();
     metricsTimer.schedule(scheduleOMMetricsWriteTask, 0, period);
 
-    keyManager.start(configuration);
-
     try {
       scmTopologyClient.start(configuration);
     } catch (IOException ex) {
@@ -1873,10 +1870,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
       throw new UncheckedIOException(ex);
     }
 
-    clusterMap = new NetworkTopologyImpl(configuration.get(
-        ScmConfigKeys.OZONE_SCM_NETWORK_TOPOLOGY_SCHEMA_FILE,
-        ScmConfigKeys.OZONE_SCM_NETWORK_TOPOLOGY_SCHEMA_FILE_DEFAULT),
-        scmTopologyClient.getClusterTree());
+    keyManager.start(configuration);
 
     try {
       httpServer = new OzoneManagerHttpServer(configuration, this);
