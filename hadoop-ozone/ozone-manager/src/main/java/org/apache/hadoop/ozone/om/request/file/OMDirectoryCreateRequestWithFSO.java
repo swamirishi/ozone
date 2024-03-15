@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.om.request.file;
 
 import org.apache.hadoop.ozone.OzoneAcl;
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -81,8 +82,8 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
   }
 
   @Override
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long trxnLogIndex) {
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
+    final long trxnLogIndex = termIndex.getIndex();
 
     CreateDirectoryRequest createDirectoryRequest = getOmRequest()
         .getCreateDirectoryRequest();

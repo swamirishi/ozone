@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.apache.ratis.server.protocol.TermIndex;
 
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
@@ -83,7 +84,6 @@ public class TestOzoneManagerDoubleBufferWithDummyResponse {
         .setOzoneManagerRatisSnapShot(ozoneManagerRatisSnapshot)
         .setmaxUnFlushedTransactionCount(10000)
         .enableRatis(true)
-        .setIndexToTerm((val) -> term)
         .build();
   }
 
@@ -112,7 +112,7 @@ public class TestOzoneManagerDoubleBufferWithDummyResponse {
 
     for (int i = 0; i < bucketCount; i++) {
       doubleBuffer.add(createDummyBucketResponse(volumeName),
-          trxId.incrementAndGet());
+          TermIndex.valueOf(term, trxId.incrementAndGet()));
     }
     waitFor(() -> metrics.getTotalNumOfFlushedTransactions() == bucketCount,
         100, 60000);

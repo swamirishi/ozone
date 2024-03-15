@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,8 +126,7 @@ public class S3GetSecretRequest extends OMClientRequest {
   }
 
   @Override
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long transactionLogIndex) {
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
     OMClientResponse omClientResponse = null;
     OMResponse.Builder omResponse = OmResponseUtil.getOMResponseBuilder(
         getOmRequest());

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.util.Map;
 
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
@@ -92,15 +93,14 @@ public class OMKeyDeleteRequest extends OMKeyRequest {
 
   @Override
   @SuppressWarnings("methodlength")
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long trxnLogIndex) {
-    return validateAndUpdateCache(ozoneManager, trxnLogIndex,
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
+    return validateAndUpdateCache(ozoneManager, termIndex,
         BucketLayout.DEFAULT);
   }
 
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long trxnLogIndex,
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex,
       BucketLayout bucketLayout) {
+    final long trxnLogIndex = termIndex.getIndex();
     DeleteKeyRequest deleteKeyRequest = getOmRequest().getDeleteKeyRequest();
 
     OzoneManagerProtocolProtos.KeyArgs keyArgs = deleteKeyRequest.getKeyArgs();

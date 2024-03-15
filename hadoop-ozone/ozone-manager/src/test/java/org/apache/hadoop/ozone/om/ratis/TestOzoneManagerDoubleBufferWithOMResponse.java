@@ -45,6 +45,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.apache.ratis.server.protocol.TermIndex;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -113,7 +114,6 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
         .setOzoneManagerRatisSnapShot(ozoneManagerRatisSnapshot)
         .setmaxUnFlushedTransactionCount(100000)
         .enableRatis(true)
-        .setIndexToTerm((i) -> term)
         .build();
   }
 
@@ -310,9 +310,9 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
     OMBucketDeleteRequest omBucketDeleteRequest =
         new OMBucketDeleteRequest(omRequest);
 
-    OMClientResponse omClientResponse =
-        omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, transactionID);
-    doubleBuffer.add(omClientResponse, transactionID);
+    final TermIndex termIndex = TermIndex.valueOf(term, transactionID);
+    OMClientResponse omClientResponse = omBucketDeleteRequest.validateAndUpdateCache(ozoneManager, termIndex);
+    doubleBuffer.add(omClientResponse, termIndex);
     return omClientResponse;
   }
 
@@ -458,9 +458,9 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
     OMVolumeCreateRequest omVolumeCreateRequest =
         new OMVolumeCreateRequest(omRequest);
 
-    OMClientResponse omClientResponse =
-        omVolumeCreateRequest.validateAndUpdateCache(ozoneManager, transactionId);
-    doubleBuffer.add(omClientResponse, transactionId);
+    final TermIndex termIndex = TransactionInfo.getTermIndex(transactionId);
+    OMClientResponse omClientResponse = omVolumeCreateRequest.validateAndUpdateCache(ozoneManager, termIndex);
+    doubleBuffer.add(omClientResponse, termIndex);
     return omClientResponse;
   }
 
@@ -480,9 +480,9 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
     OMBucketCreateRequest omBucketCreateRequest =
         new OMBucketCreateRequest(omRequest);
 
-    OMClientResponse omClientResponse =
-        omBucketCreateRequest.validateAndUpdateCache(ozoneManager, transactionID);
-    doubleBuffer.add(omClientResponse, transactionID);
+    final TermIndex termIndex = TermIndex.valueOf(term, transactionID);
+    OMClientResponse omClientResponse = omBucketCreateRequest.validateAndUpdateCache(ozoneManager, termIndex);
+    doubleBuffer.add(omClientResponse, termIndex);
     return (OMBucketCreateResponse) omClientResponse;
   }
 

@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
@@ -182,8 +183,8 @@ public class OMKeyCreateRequest extends OMKeyRequest {
 
   @Override
   @SuppressWarnings("methodlength")
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long trxnLogIndex) {
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
+    final long trxnLogIndex = termIndex.getIndex();
     CreateKeyRequest createKeyRequest = getOmRequest().getCreateKeyRequest();
 
     KeyArgs keyArgs = createKeyRequest.getKeyArgs();

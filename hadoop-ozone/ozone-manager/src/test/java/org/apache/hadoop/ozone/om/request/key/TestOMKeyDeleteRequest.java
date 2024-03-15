@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.om.request.key;
 
 import java.util.UUID;
 
+import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.junit.Assert;
@@ -107,7 +108,7 @@ public class TestOMKeyDeleteRequest extends TestOMKeyRequest {
             getOmKeyDeleteRequest(modifiedOmRequest);
 
     OMClientResponse omClientResponse = omKeyDeleteRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
+        .validateAndUpdateCache(ozoneManager, TransactionInfo.getTermIndex(100L),
             omKeyDeleteRequest.getBucketLayout());
 
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.VOLUME_NOT_FOUND,
@@ -125,7 +126,7 @@ public class TestOMKeyDeleteRequest extends TestOMKeyRequest {
     OMRequestTestUtils.addVolumeToDB(volumeName, omMetadataManager);
 
     OMClientResponse omClientResponse = omKeyDeleteRequest
-        .validateAndUpdateCache(ozoneManager, 100L,
+        .validateAndUpdateCache(ozoneManager, TransactionInfo.getTermIndex(100L),
             omKeyDeleteRequest.getBucketLayout());
 
     Assert.assertEquals(OzoneManagerProtocolProtos.Status.BUCKET_NOT_FOUND,

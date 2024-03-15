@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneAcl;
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
@@ -130,8 +131,8 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
   }
 
   @Override
-  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager,
-      long trxnLogIndex) {
+  public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
+    final long trxnLogIndex = termIndex.getIndex();
 
     CreateDirectoryRequest createDirectoryRequest = getOmRequest()
         .getCreateDirectoryRequest();

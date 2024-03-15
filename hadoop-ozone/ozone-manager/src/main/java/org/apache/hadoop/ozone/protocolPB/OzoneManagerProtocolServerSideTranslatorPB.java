@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hdds.server.OzoneProtocolMessageDispatcher;
 import org.apache.hadoop.hdds.tracing.TracingUtil;
 import org.apache.hadoop.hdds.utils.ProtocolMessageMetrics;
+import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -283,7 +284,7 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements
             createClientRequest(request, ozoneManager);
         request = omClientRequest.preExecute(ozoneManager);
         long index = transactionIndex.incrementAndGet();
-        omClientResponse = handler.handleWriteRequest(request, index);
+        omClientResponse = handler.handleWriteRequest(request, TransactionInfo.getTermIndex(index));
       }
     } catch (IOException ex) {
       // As some preExecute returns error. So handle here.
