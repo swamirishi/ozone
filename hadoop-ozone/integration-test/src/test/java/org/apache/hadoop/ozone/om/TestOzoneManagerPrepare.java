@@ -49,6 +49,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Prepare
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.LambdaTestUtils;
 import org.apache.ozone.test.tag.Slow;
+import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.util.ExitUtils;
 import org.junit.Assert;
 import org.apache.ozone.test.tag.Flaky;
@@ -327,11 +328,9 @@ public class TestOzoneManagerPrepare extends TestOzoneManagerHA {
   }
 
   private boolean logFilesPresentInRatisPeer(OzoneManager om) {
-    String ratisDir = om.getOmRatisServer().getServer().getProperties()
-        .get("raft.server.storage.dir");
-    String groupIdDirName =
-        om.getOmRatisServer().getServer().getGroupIds().iterator()
-            .next().getUuid().toString();
+    final RaftServer.Division server = om.getOmRatisServer().getServerDivision();
+    final String ratisDir = server.getRaftServer().getProperties().get("raft.server.storage.dir");
+    final String groupIdDirName = server.getGroup().getGroupId().getUuid().toString();
     File logDir = Paths.get(ratisDir, groupIdDirName, "current")
         .toFile();
 

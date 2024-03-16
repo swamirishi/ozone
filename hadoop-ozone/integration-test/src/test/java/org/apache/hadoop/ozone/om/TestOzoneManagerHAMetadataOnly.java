@@ -431,7 +431,7 @@ public class TestOzoneManagerHAMetadataOnly extends TestOzoneManagerHA {
     OzoneManagerRatisServer ozoneManagerRatisServer =
         getCluster().getOzoneManager(currentLeaderNodeId).getOmRatisServer();
 
-    RaftServer raftServer = ozoneManagerRatisServer.getServer();
+    RaftServer raftServer = ozoneManagerRatisServer.getServerDivision().getRaftServer();
 
     ClientId clientId = ClientId.randomId();
     long callId = 2000L;

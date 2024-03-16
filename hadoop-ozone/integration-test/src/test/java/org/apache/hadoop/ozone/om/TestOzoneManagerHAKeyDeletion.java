@@ -43,7 +43,8 @@ public class TestOzoneManagerHAKeyDeletion extends TestOzoneManagerHA {
     final RaftProperties p = getCluster()
         .getOzoneManager()
         .getOmRatisServer()
-        .getServer()
+        .getServerDivision()
+        .getRaftServer()
         .getProperties();
     final TimeDuration t = RaftServerConfigKeys.Log.Appender.waitTimeMin(p);
     Assertions.assertEquals(TimeDuration.ZERO, t,

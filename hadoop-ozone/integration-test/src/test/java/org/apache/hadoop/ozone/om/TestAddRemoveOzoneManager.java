@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -27,6 +27,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.IOUtils;
@@ -48,6 +50,8 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.tag.Flaky;
 import org.apache.ratis.grpc.server.GrpcLogAppender;
+import org.apache.ratis.protocol.RaftPeer;
+import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.server.leader.FollowerInfo;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
@@ -119,6 +123,13 @@ public class TestAddRemoveOzoneManager {
     }
   }
 
+  static List<String> getCurrentPeersFromRaftConf(OzoneManagerRatisServer omRatisServer) {
+    return omRatisServer.getServerDivision().getRaftConf().getCurrentPeers().stream()
+        .map(RaftPeer::getId)
+        .map(RaftPeerId::toString)
+        .collect(Collectors.toList());
+  }
+
   private void assertNewOMExistsInPeerList(String nodeId) throws Exception {
     // Check that new peer exists in all OMs peers list and also in their Ratis
     // server's peer list
@@ -128,9 +139,9 @@ public class TestAddRemoveOzoneManager {
       Assert.assertTrue("New OM node " + nodeId + " not present in Peer list " +
               "of OM " + om.getOMNodeId() + " RatisServer",
           om.getOmRatisServer().doesPeerExist(nodeId));
-      Assert.assertTrue("New OM node " + nodeId + " not present in " +
-              "OM " + om.getOMNodeId() + "RatisServer's RaftConf",
-          om.getOmRatisServer().getCurrentPeersFromRaftConf().contains(nodeId));
+      Assert.assertTrue(
+          "New OM node " + nodeId + " not present in " + om.getOMNodeId() + "'s RaftConf",
+          getCurrentPeersFromRaftConf(om.getOmRatisServer()).contains(nodeId));
     }
 
     OzoneManager newOM = cluster.getOzoneManager(nodeId);
