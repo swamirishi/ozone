@@ -65,20 +65,15 @@ public class TestReservedVolumeSpace {
         HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT);
 
     long volumeCapacity = hddsVolume.getCapacity();
-    //Gets the actual total capacity
-    long totalCapacity = hddsVolume.getVolumeInfo().get()
-        .getUsageForTesting().getCapacity();
-    long reservedCapacity = hddsVolume.getVolumeInfo().get()
-            .getReservedInBytes();
-    //Volume Capacity with Reserved
-    long volumeCapacityReserved = totalCapacity - reservedCapacity;
+    VolumeUsage usage = hddsVolume.getVolumeInfo().get().getUsageForTesting();
 
-    long reservedFromVolume = hddsVolume.getVolumeInfo().get()
-            .getReservedInBytes();
+    //Gets the actual total capacity
+    long totalCapacity = usage.realUsage().getCapacity();
+    long reservedCapacity = usage.getReservedBytes();
     long reservedCalculated = (long) Math.ceil(totalCapacity * percentage);
 
-    Assert.assertEquals(reservedFromVolume, reservedCalculated);
-    Assert.assertEquals(volumeCapacity, volumeCapacityReserved);
+    Assert.assertEquals(reservedCalculated, reservedCapacity);
+    Assert.assertEquals(totalCapacity - reservedCapacity, volumeCapacity);
   }
 
   /**
@@ -118,16 +113,15 @@ public class TestReservedVolumeSpace {
         temp.getRoot() + ":500B");
     HddsVolume hddsVolume = volumeBuilder.conf(conf).build();
 
-    long reservedFromVolume = hddsVolume.getVolumeInfo().get()
-            .getReservedInBytes();
-    Assert.assertNotEquals(reservedFromVolume, 0);
+    VolumeUsage usage = hddsVolume.getVolumeInfo().get().getUsageForTesting();
+    long reservedFromVolume = usage.getReservedBytes();
+    Assert.assertNotEquals(0, reservedFromVolume);
 
-    long totalCapacity = hddsVolume.getVolumeInfo().get()
-        .getUsageForTesting().getCapacity();
+    long totalCapacity = usage.realUsage().getCapacity();
     float percentage = conf.getFloat(HDDS_DATANODE_DIR_DU_RESERVED_PERCENT,
         HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT);
     long reservedCalculated = (long) Math.ceil(totalCapacity * percentage);
-    Assert.assertEquals(reservedFromVolume, reservedCalculated);
+    Assert.assertEquals(reservedCalculated, reservedFromVolume);
   }
 
   @Test

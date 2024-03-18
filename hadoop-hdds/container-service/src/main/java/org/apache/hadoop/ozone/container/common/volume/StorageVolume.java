@@ -456,11 +456,6 @@ public abstract class StorageVolume
 
   }
 
-  public long getAvailable(PrecomputedVolumeSpace precomputedVolumeSpace) {
-    return volumeInfo.map(info -> info.getAvailable(precomputedVolumeSpace))
-        .orElse(0L);
-  }
-
   public PrecomputedVolumeSpace getPrecomputedVolumeSpace() {
     return volumeInfo.map(VolumeInfo::getPrecomputedVolumeSpace)
         .orElse(new PrecomputedVolumeSpace(0L, 0L));
