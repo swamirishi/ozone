@@ -68,6 +68,7 @@ interface IOverviewState {
   deletePendingSummarytotalUnrepSize: number,
   deletePendingSummarytotalRepSize: number,
   deletePendingSummarytotalDeletedKeys: number,
+  heatmapHealthCheck: boolean;
 }
 
 export class Overview extends React.Component<Record<string, object>, IOverviewState> {
@@ -102,7 +103,8 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       openSummarytotalOpenKeys: 0,
       deletePendingSummarytotalUnrepSize: 0,
       deletePendingSummarytotalRepSize: 0,
-      deletePendingSummarytotalDeletedKeys: 0
+      deletePendingSummarytotalDeletedKeys: 0,
+      heatmapHealthCheck:false,
     };
     this.autoReload = new AutoReloadHelper(this._loadData);
   }
@@ -116,13 +118,15 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       axios.get('/api/v1/task/status'),
       axios.get('/api/v1/keys/open?limit=0'),
       axios.get('/api/v1/keys/deletePending?limit=1'),
-    ]).then(axios.spread((clusterStateResponse, taskstatusResponse, openResponse, deletePendingResponse) => {
+      axios.get('/api/v1/heatmap/healthCheck')
+    ]).then(axios.spread((clusterStateResponse, taskstatusResponse, openResponse, deletePendingResponse, healthCheckResponse) => {
       
       const clusterState: IClusterStateResponse = clusterStateResponse.data;
       const taskStatus = taskstatusResponse.data;
       const missingContainersCount = clusterState.missingContainers;
       const omDBDeltaObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmDeltaRequest');
-      const omDBFullObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmSnapshotRequest');
+      const omDBFullObject = taskStatus && taskStatus.find((item: any) => item.taskName === 'OmSnapshotRequest');
+      const healthcheckStatus = healthCheckResponse && healthCheckResponse.data && healthCheckResponse.data.message;
     
       this.setState({
         loading: false,
@@ -145,7 +149,8 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
         openSummarytotalOpenKeys: openResponse.data && openResponse.data.keysSummary && openResponse.data.keysSummary.totalOpenKeys,
         deletePendingSummarytotalUnrepSize: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalUnreplicatedDataSize,
         deletePendingSummarytotalRepSize: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalReplicatedDataSize,
-        deletePendingSummarytotalDeletedKeys: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalDeletedKeys
+        deletePendingSummarytotalDeletedKeys: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalDeletedKeys,
+        heatmapHealthCheck: healthcheckStatus === 'Healthy' ? true :false
       });
     })).catch(error => {
       this.setState({
@@ -187,7 +192,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
   render() {
     const {loading, datanodes, pipelines, storageReport, containers, volumes, buckets, openSummarytotalUnrepSize, openSummarytotalRepSize, openSummarytotalOpenKeys,
       deletePendingSummarytotalUnrepSize,deletePendingSummarytotalRepSize,deletePendingSummarytotalDeletedKeys,keysPendingDeletion,
-      keys, missingContainersCount, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, omStatus, openContainers, deletedContainers } = this.state;
+      keys, missingContainersCount, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, omStatus, openContainers, deletedContainers, heatmapHealthCheck } = this.state;
       
     const datanodesElement = (
       <span>
@@ -230,7 +235,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       <div className='overview-content'>
         <div className='page-header'>
           Overview
-          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed}
+          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed} heatmapHealthCheck={heatmapHealthCheck}
           lastUpdatedOMDBDelta={lastUpdatedOMDBDelta} lastUpdatedOMDBFull={lastUpdatedOMDBFull}
           togglePolling={this.autoReload.handleAutoReloadToggle} onReload={this._loadData} omSyncLoad={this.omSyncData} omStatus={omStatus}/>
         </div>

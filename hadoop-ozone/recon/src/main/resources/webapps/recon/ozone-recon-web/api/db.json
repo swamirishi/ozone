@@ -6478,5 +6478,9 @@
   "deleted4": {
     "lastKey": null,
     "containers": []
+  },
+  "heatmapHealthCheck": {
+    "message": "Healthy",
+    "status": 200
   }
 }

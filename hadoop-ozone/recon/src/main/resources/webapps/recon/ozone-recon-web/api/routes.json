@@ -67,5 +67,6 @@
   "/containers/mismatch/deleted?limit=*&prevKey=11": "/deleted1",
   "/containers/mismatch/deleted?limit=*&prevKey=21": "/deleted2",
   "/containers/mismatch/deleted?limit=*&prevKey=31": "/deleted3",
-  "/containers/mismatch/deleted?limit=*&prevKey=41": "/deleted4"
+  "/containers/mismatch/deleted?limit=*&prevKey=41": "/deleted4",
+  "/heatmap/healthCheck": "/heatmapHealthCheck"
 }
