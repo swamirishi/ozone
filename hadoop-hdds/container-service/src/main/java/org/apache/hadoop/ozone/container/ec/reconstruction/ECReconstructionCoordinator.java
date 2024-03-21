@@ -110,6 +110,7 @@ public class ECReconstructionCoordinator implements Closeable {
   private final ContainerClientMetrics clientMetrics;
   private final ECReconstructionMetrics metrics;
   private final StateContext context;
+  private final OzoneClientConfig ozoneClientConfig;
 
   public ECReconstructionCoordinator(
       ConfigurationSource conf, CertificateClient certificateClient,
@@ -119,6 +120,7 @@ public class ECReconstructionCoordinator implements Closeable {
     this.containerOperationClient = new ECContainerOperationClient(conf,
         certificateClient);
     this.byteBufferPool = new ElasticByteBufferPool();
+    ozoneClientConfig = conf.getObject(OzoneClientConfig.class);
     this.ecReconstructExecutor =
         new ThreadPoolExecutor(EC_RECONSTRUCT_STRIPE_READ_POOL_MIN_SIZE,
             conf.getObject(OzoneClientConfig.class)
@@ -257,12 +259,15 @@ public class ECReconstructionCoordinator implements Closeable {
       return;
     }
 
+    OzoneClientConfig clientConfig = this.ozoneClientConfig;
+    clientConfig.setChecksumVerify(true);
     try (ECBlockReconstructedStripeInputStream sis
         = new ECBlockReconstructedStripeInputStream(
-        repConfig, blockLocationInfo, true,
+        repConfig, blockLocationInfo,
         this.containerOperationClient.getXceiverClientManager(), null,
         this.blockInputStreamFactory, byteBufferPool,
-        this.ecReconstructExecutor)) {
+        this.ecReconstructExecutor,
+        clientConfig)) {
 
       ECBlockOutputStream[] targetBlockStreams =
           new ECBlockOutputStream[toReconstructIndexes.size()];
