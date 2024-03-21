@@ -30,7 +30,14 @@ find_package(JNI REQUIRED)
 include_directories(${JNI_INCLUDE_DIRS})
 set(CMAKE_CXX_STANDARD ${CMAKE_STANDARDS})
 
-set(linked_libraries "")
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+set(CMAKE_INSTALL_RPATH "")
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+
 if(NOT GENERATED_JAVAH)
     message(FATAL_ERROR "You must set the CMake variable GENERATED_JAVAH")
 endif()
@@ -48,7 +55,13 @@ if(${SST_DUMP_INCLUDE})
             rocks_tools
             PROPERTIES
             IMPORTED_LOCATION ${ROCKSDB_TOOLS_LIB}/librocksdb_tools.a)
-    set(linked_libraries ${linked_libraries} rocks_tools rocksdb)
 endif()
+
 add_library(ozone_rocksdb_tools SHARED ${SOURCE_FILES})
-target_link_libraries(ozone_rocksdb_tools ${linked_libraries})
+
+
+target_link_libraries(ozone_rocksdb_tools PRIVATE rocksdb)
+target_link_libraries(ozone_rocksdb_tools PRIVATE rocks_tools)
+set_target_properties(ozone_rocksdb_tools PROPERTIES
+        BUILD_WITH_INSTALL_RPATH FALSE
+        LINK_FLAGS "-Wl,-rpath -Wl,'$ORIGIN'")
