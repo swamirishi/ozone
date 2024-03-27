@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.om.helpers;
 
 import com.google.protobuf.ByteString;
+import java.util.ArrayList;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.storage.proto.OzoneManagerStorageProtos;
@@ -27,7 +28,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.HashMap;
 
 
 import static org.apache.hadoop.ozone.OzoneAcl.AclScope.ACCESS;
@@ -73,10 +73,14 @@ public class TestOmPrefixInfo {
       String identityString,
       IAccessAuthorizer.ACLType aclType,
       OzoneAcl.AclScope scope) {
-    return new OmPrefixInfo(path,
-        Collections.singletonList(new OzoneAcl(
+    return OmPrefixInfo.newBuilder()
+        .setName(path)
+        .setAcls(new ArrayList<>(Collections.singletonList(new OzoneAcl(
             identityType, identityString,
-            aclType, scope)), new HashMap<>(), 10, 100);
+            aclType, scope))))
+        .setObjectID(10)
+        .setUpdateID(100)
+        .build();
   }
 
 
