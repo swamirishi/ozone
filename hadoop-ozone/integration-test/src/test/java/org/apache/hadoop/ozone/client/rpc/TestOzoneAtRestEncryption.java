@@ -260,6 +260,17 @@ public class TestOzoneAtRestEncryption {
       out.write(value.getBytes(StandardCharsets.UTF_8));
     }
     verifyKeyData(bucket, keyName, value, testStartTime);
+    OzoneKeyDetails key1 = bucket.getKey(keyName);
+
+    // Overwrite the key
+    try (OzoneOutputStream out = bucket.createKey(keyName,
+        value.getBytes(StandardCharsets.UTF_8).length,
+        ReplicationConfig.fromTypeAndFactor(RATIS, ONE),
+        new HashMap<>())) {
+      out.write(value.getBytes(StandardCharsets.UTF_8));
+    }
+    OzoneKeyDetails key2 = bucket.getKey(keyName);
+    Assert.assertNotEquals(key1.getFileEncryptionInfo().toString(), key2.getFileEncryptionInfo().toString());
   }
 
   static void verifyKeyData(OzoneBucket bucket, String keyName, String value,
