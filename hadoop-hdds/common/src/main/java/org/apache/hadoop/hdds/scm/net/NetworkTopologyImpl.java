@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -231,13 +232,10 @@ public class NetworkTopologyImpl implements NetworkTopology {
 
   private boolean containsNode(Node node) {
     Node parent = node.getParent();
-    while (parent != null && parent != clusterTree) {
+    while (parent != null && !Objects.equals(parent, clusterTree)) {
       parent = parent.getParent();
     }
-    if (parent == clusterTree) {
-      return true;
-    }
-    return false;
+    return Objects.equals(parent, clusterTree);
   }
 
   /**
@@ -251,7 +249,9 @@ public class NetworkTopologyImpl implements NetworkTopology {
     }
     netlock.readLock().lock();
     try {
-      return node1.getAncestor(ancestorGen) == node2.getAncestor(ancestorGen);
+      Node ancestor1 = node1.getAncestor(ancestorGen);
+      Node ancestor2 = node2.getAncestor(ancestorGen);
+      return Objects.equals(ancestor1, ancestor2);
     } finally {
       netlock.readLock().unlock();
     }
@@ -270,7 +270,7 @@ public class NetworkTopologyImpl implements NetworkTopology {
     try {
       node1 = node1.getParent();
       node2 = node2.getParent();
-      return node1 == node2;
+      return Objects.equals(node1, node2);
     } finally {
       netlock.readLock().unlock();
     }
@@ -715,8 +715,7 @@ public class NetworkTopologyImpl implements NetworkTopology {
    */
   @Override
   public int getDistanceCost(Node node1, Node node2) {
-    if ((node1 != null && node1.equals(node2)) ||
-        (node1 == null && node2 == null))  {
+    if (Objects.equals(node1, node2)) {
       return 0;
     }
     if (node1 == null || node2 == null) {
@@ -738,12 +737,9 @@ public class NetworkTopologyImpl implements NetworkTopology {
     netlock.readLock().lock();
     try {
       Node ancestor1 = node1.getAncestor(level1 - 1);
-      boolean node1Topology = (ancestor1 != null && clusterTree != null &&
-          !ancestor1.equals(clusterTree)) || (ancestor1 != clusterTree);
       Node ancestor2 = node2.getAncestor(level2 - 1);
-      boolean node2Topology = (ancestor2 != null && clusterTree != null &&
-          !ancestor2.equals(clusterTree)) || (ancestor2 != clusterTree);
-      if (node1Topology || node2Topology) {
+      if (!Objects.equals(ancestor1, clusterTree) ||
+          !Objects.equals(ancestor2, clusterTree)) {
         LOG.debug("One of the nodes is outside of network topology");
         return Integer.MAX_VALUE;
       }
@@ -757,7 +753,7 @@ public class NetworkTopologyImpl implements NetworkTopology {
         level2--;
         cost += node2 == null ? 0 : node2.getCost();
       }
-      while (node1 != null && node2 != null && !node1.equals(node2)) {
+      while (node1 != null && node2 != null && !Objects.equals(node1, node2)) {
         node1 = node1.getParent();
         node2 = node2.getParent();
         cost += node1 == null ? 0 : node1.getCost();
