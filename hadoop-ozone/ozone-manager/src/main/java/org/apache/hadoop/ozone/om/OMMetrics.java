@@ -72,6 +72,7 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotCreates;
   private @Metric MutableCounterLong numSnapshotDeletes;
   private @Metric MutableCounterLong numSnapshotLists;
+  private @Metric MutableCounterLong numSnapshotPurges;
 
   private @Metric MutableCounterLong numGetFileStatus;
   private @Metric MutableCounterLong numCreateDirectory;
@@ -126,6 +127,7 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotCreateFails;
   private @Metric MutableCounterLong numSnapshotDeleteFails;
   private @Metric MutableCounterLong numSnapshotListFails;
+  private @Metric MutableCounterLong numSnapshotPurgeFails;
   private @Metric MutableCounterLong numSnapshotActive;
   private @Metric MutableCounterLong numSnapshotDeleted;
   private @Metric MutableCounterLong numSnapshotReclaimed;
@@ -465,8 +467,16 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     numSnapshotLists.incr();
   }
 
+  public void incNumSnapshotPurges() {
+    numSnapshotPurges.incr();
+  }
+
   public void incNumSnapshotListFails() {
     numSnapshotListFails.incr();
+  }
+
+  public void incNumSnapshotPurgeFails() {
+    numSnapshotPurgeFails.incr();
   }
 
   public void setNumSnapshotActive(long num) {
@@ -1225,6 +1235,9 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     return numSnapshotLists.value();
   }
 
+  public long getNumSnapshotPurges() {
+    return numSnapshotPurges.value();
+  }
   public long getNumSnapshotCreateFails() {
     return numSnapshotCreateFails.value();
   }
@@ -1245,6 +1258,9 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     return numSnapshotReclaimed.value();
   }
 
+  public long getNumSnapshotPurgeFails() {
+    return numSnapshotPurgeFails.value();
+  }
 
   public void incNumTrashRenames() {
     numTrashRenames.incr();
