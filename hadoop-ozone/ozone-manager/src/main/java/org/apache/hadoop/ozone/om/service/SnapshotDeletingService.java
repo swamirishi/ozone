@@ -68,6 +68,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -462,10 +463,10 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
     }
 
     private void submitSnapshotPurgeRequest(List<String> purgeSnapshotKeys) {
-      if (!purgeSnapshotKeys.isEmpty()) {
+      for (String purgeSnapshotKey : purgeSnapshotKeys) {
         SnapshotPurgeRequest snapshotPurgeRequest = SnapshotPurgeRequest
             .newBuilder()
-            .addAllSnapshotDBKeys(purgeSnapshotKeys)
+            .addAllSnapshotDBKeys(Collections.singleton(purgeSnapshotKey))
             .build();
 
         OMRequest omRequest = OMRequest.newBuilder()

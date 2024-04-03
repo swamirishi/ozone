@@ -18,6 +18,7 @@ package org.apache.hadoop.ozone.om.service;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -357,10 +358,10 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     }
 
     private void updateDeepCleanedSnapshots(List<String> deepCleanedSnapshots) {
-      if (!deepCleanedSnapshots.isEmpty()) {
+      for (String deepCleanedSnapshot: deepCleanedSnapshots) {
         SnapshotPurgeRequest snapshotPurgeRequest = SnapshotPurgeRequest
             .newBuilder()
-            .addAllUpdatedSnapshotDBKey(deepCleanedSnapshots)
+            .addAllUpdatedSnapshotDBKey(Collections.singleton(deepCleanedSnapshot))
             .build();
 
         OMRequest omRequest = OMRequest.newBuilder()
