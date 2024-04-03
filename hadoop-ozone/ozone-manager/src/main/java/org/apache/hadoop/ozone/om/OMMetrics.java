@@ -73,6 +73,7 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotDeletes;
   private @Metric MutableCounterLong numSnapshotLists;
   private @Metric MutableCounterLong numSnapshotPurges;
+  private @Metric MutableCounterLong numSnapshotSetProperties;
   private @Metric MutableCounterLong numSnapshotDiffJobs;
   private @Metric MutableCounterLong numSnapshotInfos;
 
@@ -136,6 +137,7 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong numSnapshotDeleteFails;
   private @Metric MutableCounterLong numSnapshotListFails;
   private @Metric MutableCounterLong numSnapshotPurgeFails;
+  private @Metric MutableCounterLong numSnapshotSetPropertyFails;
   private @Metric MutableCounterLong numSnapshotDiffJobFails;
   private @Metric MutableCounterLong numSnapshotInfoFails;
 
@@ -481,6 +483,10 @@ public class OMMetrics implements OmMetadataReaderMetrics {
     numSnapshotPurges.incr();
   }
 
+  public void incNumSnapshotSetProperties() {
+    numSnapshotSetProperties.incr();
+  }
+
   public void incNumSnapshotInfos() {
     numSnapshotInfos.incr();
   }
@@ -495,6 +501,10 @@ public class OMMetrics implements OmMetadataReaderMetrics {
 
   public void incNumSnapshotPurgeFails() {
     numSnapshotPurgeFails.incr();
+  }
+
+  public void incNumSnapshotSetPropertyFails() {
+    numSnapshotSetPropertyFails.incr();
   }
 
   public void incNumSnapshotDiffJobFails() {
@@ -1299,6 +1309,11 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   public long getNumSnapshotPurges() {
     return numSnapshotPurges.value();
   }
+
+  public long getNumSnapshotSetProperties() {
+    return numSnapshotSetProperties.value();
+  }
+
   public long getNumSnapshotDiffJobs() {
     return numSnapshotDiffJobs.value();
   }
@@ -1329,6 +1344,10 @@ public class OMMetrics implements OmMetadataReaderMetrics {
 
   public long getNumSnapshotPurgeFails() {
     return numSnapshotPurgeFails.value();
+  }
+
+  public long getNumSnapshotSetPropertyFails() {
+    return numSnapshotSetPropertyFails.value();
   }
 
   public void incNumTrashRenames() {
