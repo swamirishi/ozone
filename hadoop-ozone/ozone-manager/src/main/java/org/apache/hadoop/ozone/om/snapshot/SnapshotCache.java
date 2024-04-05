@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hdds.utils.Scheduler;
+import org.apache.hadoop.ozone.om.OMMetrics;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.slf4j.Logger;
@@ -54,13 +55,15 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
   private final Scheduler scheduler;
   private static final String SNAPSHOT_CACHE_CLEANUP_SERVICE =
       "SnapshotCacheCleanupService";
+  private final OMMetrics omMetrics;
 
   public SnapshotCache(
       CacheLoader<UUID, OmSnapshot> cacheLoader,
-      int cacheSizeLimit, long cleanupInterval) {
+      int cacheSizeLimit, OMMetrics omMetrics, long cleanupInterval) {
     this.dbMap = new ConcurrentHashMap<>();
     this.cacheLoader = cacheLoader;
     this.cacheSizeLimit = cacheSizeLimit;
+    this.omMetrics = omMetrics;
     this.pendingEvictionQueue = ConcurrentHashMap.newKeySet();
     if (cleanupInterval > 0) {
       this.scheduler = new Scheduler(SNAPSHOT_CACHE_CLEANUP_SERVICE,
@@ -98,6 +101,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
         } catch (IOException e) {
           throw new IllegalStateException("Failed to close snapshotId: " + key, e);
         }
+        omMetrics.decNumSnapshotCacheSize();
       }
       return null;
     });
@@ -163,6 +167,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
               // Unexpected and unknown exception thrown from CacheLoader#load
               throw new IllegalStateException(ex);
             }
+            omMetrics.incNumSnapshotCacheSize();
           }
           if (v != null) {
             // When RC OmSnapshot is successfully loaded
@@ -170,7 +175,6 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
           }
           return v;
         });
-
     if (rcOmSnapshot == null) {
       // The only exception that would fall through the loader logic above
       // is OMException with FILE_NOT_FOUND.
@@ -221,6 +225,7 @@ public class SnapshotCache implements ReferenceCountedCallback, AutoCloseable {
             } catch (IOException ex) {
               throw new IllegalStateException("Error while closing snapshot DB.", ex);
             }
+            omMetrics.decNumSnapshotCacheSize();
             return null;
           }
         });
