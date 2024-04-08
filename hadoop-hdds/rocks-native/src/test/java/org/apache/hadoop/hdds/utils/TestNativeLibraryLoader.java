@@ -29,6 +29,7 @@ import org.mockito.Mockito;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -72,7 +73,7 @@ public class TestNativeLibraryLoader {
       mockedNativeLibraryLoader.when(() -> NativeLibraryLoader.getResourceStream(anyString()))
           .thenReturn(new ByteArrayInputStream(new byte[]{0, 1, 2, 3}));
       String dummyLibraryName = "dummy_lib";
-      NativeLibraryLoader.getInstance().loadLibrary(dummyLibraryName);
+      NativeLibraryLoader.getInstance().loadLibrary(dummyLibraryName, Collections.emptyList());
       NativeLibraryLoader.isLibraryLoaded(dummyLibraryName);
       // Checking if the resource with random was copied to a temp file.
       File[] libPath = new File(nativeLibraryDirectoryLocation == null ? "" : nativeLibraryDirectoryLocation)
