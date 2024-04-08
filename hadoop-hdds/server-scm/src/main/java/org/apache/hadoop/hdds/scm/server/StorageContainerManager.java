@@ -1758,6 +1758,10 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     ExitUtils.terminate(0, message, LOG);
   }
 
+  public boolean isStopped() {
+    return isStopped.get();
+  }
+
   /**
    * Wait until service has completed shutdown.
    */
