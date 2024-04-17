@@ -374,7 +374,7 @@ public class TestSnapshotDiffManager {
     omSnapshotManager = Mockito.mock(OmSnapshotManager.class);
     Mockito.when(omSnapshotManager.isSnapshotStatus(
         Matchers.any(), Matchers.any())).thenReturn(true);
-    snapshotCache = new SnapshotCache(omSnapshotManager, loader, 10);
+    snapshotCache = new SnapshotCache(omSnapshotManager, loader, 10, 0);
 
     snapshotDiffManager = new SnapshotDiffManager(db, differ, ozoneManager,
         snapshotCache, snapDiffJobTable, snapDiffReportTable,

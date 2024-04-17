@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Add reference counter to an object instance.
  */
-public class ReferenceCounted<T, U>
+public class ReferenceCounted<T, U extends ReferenceCountedCallback>
     implements AutoCloseable {
 
   /**
@@ -127,6 +127,9 @@ public class ReferenceCounted<T, U>
           "Total reference count underflow");
     }
 
+    if (refCount.get() == 0L) {
+      parentWithCallback.callback(this);
+    }
     return refCount.get();
   }
 

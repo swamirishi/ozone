@@ -33,6 +33,7 @@ import org.mockito.stubbing.Answer;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
+import java.util.concurrent.TimeoutException;
 
 import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,8 +82,7 @@ class TestSnapshotCache {
   @BeforeEach
   void setUp() {
     // Reset cache for each test case
-    snapshotCache = new SnapshotCache(
-        omSnapshotManager, cacheLoader, CACHE_SIZE_LIMIT);
+    snapshotCache = new SnapshotCache(omSnapshotManager, cacheLoader, CACHE_SIZE_LIMIT, 50);
   }
 
   @AfterEach
@@ -216,7 +216,7 @@ class TestSnapshotCache {
 
   @Test
   @DisplayName("07. Basic cache eviction")
-  void testEviction1() throws IOException {
+  void testEviction1() throws IOException, InterruptedException, TimeoutException {
 
     final String dbKey1 = "dbKey1";
     snapshotCache.get(dbKey1);
@@ -240,13 +240,14 @@ class TestSnapshotCache {
     snapshotCache.get(dbKey4);
     // dbKey1, dbKey2 and dbKey3 would have been evicted by the end of the last get() because
     // those were release()d.
+    GenericTestUtils.waitFor(() -> snapshotCache.size() == 1, 50, 3000);
     assertEquals(1, snapshotCache.size());
     assertEntryExistence(dbKey1, false);
   }
 
   @Test
   @DisplayName("08. Cache eviction while exceeding soft limit")
-  void testEviction2() throws IOException {
+  void testEviction2() throws IOException, InterruptedException, TimeoutException {
 
     final String dbKey1 = "dbKey1";
     snapshotCache.get(dbKey1);
@@ -269,6 +270,7 @@ class TestSnapshotCache {
     // Releasing dbKey2 at this point should immediately trigger its eviction
     // because the cache size exceeded the soft limit
     snapshotCache.release(dbKey2);
+    GenericTestUtils.waitFor(() -> snapshotCache.size() == 3, 50, 3000);
     assertEquals(3, snapshotCache.size());
     assertEntryExistence(dbKey2, false);
     assertEntryExistence(dbKey1, true);
@@ -276,7 +278,7 @@ class TestSnapshotCache {
 
   @Test
   @DisplayName("09. Cache eviction with try-with-resources")
-  void testEviction3WithClose() throws IOException {
+  void testEviction3WithClose() throws IOException, InterruptedException, TimeoutException {
 
     final String dbKey1 = "dbKey1";
     try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot = snapshotCache.get(dbKey1)) {
@@ -313,6 +315,7 @@ class TestSnapshotCache {
 
     final String dbKey4 = "dbKey4";
     try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot = snapshotCache.get(dbKey4)) {
+      GenericTestUtils.waitFor(() -> snapshotCache.size() == 1, 50, 3000);
       assertEquals(1L, rcOmSnapshot.getTotalRefCount());
       assertEquals(1, snapshotCache.size());
     }
