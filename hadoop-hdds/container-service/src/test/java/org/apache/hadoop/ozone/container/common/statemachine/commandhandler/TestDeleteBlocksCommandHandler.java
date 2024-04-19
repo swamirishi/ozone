@@ -32,6 +32,11 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainer;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.common.statemachine.commandhandler.DeleteBlocksCommandHandler.SchemaHandler;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -85,7 +90,7 @@ public class TestDeleteBlocksCommandHandler {
   private OzoneContainer ozoneContainer;
   private ContainerSet containerSet;
   private DeleteBlocksCommandHandler handler;
-  private final String schemaVersion;
+  private String schemaVersion;
   private HddsVolume volume1;
   private BlockDeletingServiceMetrics blockDeleteMetrics;
 
@@ -99,6 +104,15 @@ public class TestDeleteBlocksCommandHandler {
   @Parameterized.Parameters
   public static Iterable<Object[]> parameters() {
     return ContainerTestVersionInfo.versionParameters();
+  }
+
+  private void prepareTest(ContainerTestVersionInfo versionInfo)
+      throws Exception {
+    this.layout = versionInfo.getLayout();
+    this.schemaVersion = versionInfo.getSchemaVersion();
+    conf = new OzoneConfiguration();
+    ContainerTestVersionInfo.setTestSchemaVersion(schemaVersion, conf);
+    setup();
   }
 
   @Before
@@ -272,6 +286,45 @@ public class TestDeleteBlocksCommandHandler {
   }
 
 
+  @ContainerTestVersionInfo.ContainerTest
+  public void testDuplicateDeleteBlocksCommand(
+      ContainerTestVersionInfo versionInfo) throws Exception {
+    prepareTest(versionInfo);
+    assertThat(containerSet.containerCount()).isGreaterThan(0);
+    Container<?> container = containerSet.getContainerIterator(volume1).next();
+    DeletedBlocksTransaction transaction = createDeletedBlocksTransaction(100,
+        container.getContainerData().getContainerID());
+
+    List<DeleteBlockTransactionResult> results1 =
+        handler.executeCmdWithRetry(Arrays.asList(transaction));
+    List<DeleteBlockTransactionResult> results2 =
+        handler.executeCmdWithRetry(Arrays.asList(transaction));
+
+    transaction = createDeletedBlocksTransaction(99,
+        container.getContainerData().getContainerID());
+    List<DeleteBlockTransactionResult> results3 =
+        handler.executeCmdWithRetry(Arrays.asList(transaction));
+
+    String schemaVersionOrDefault = ((KeyValueContainerData)
+        container.getContainerData()).getSupportedSchemaVersionOrDefault();
+    verify(handler.getSchemaHandlers().get(schemaVersionOrDefault),
+        times(3)).handle(any(), any());
+    // submitTasks will be executed three times
+    verify(handler, times(3)).submitTasks(any());
+
+    assertEquals(1, results1.size());
+    assertTrue(results1.get(0).getSuccess());
+    assertEquals(1, results2.size());
+    assertTrue(results2.get(0).getSuccess());
+    assertEquals(1, results3.size());
+    assertTrue(results3.get(0).getSuccess());
+    assertEquals(0,
+        blockDeleteMetrics.getTotalLockTimeoutTransactionCount());
+    // Duplicate cmd content will not be persisted.
+    assertEquals(2,
+        ((KeyValueContainerData) container.getContainerData()).getNumPendingDeletionBlocks());
+  }
+
   private DeletedBlocksTransaction createDeletedBlocksTransaction(long txID,
       long containerID) {
     return DeletedBlocksTransaction.newBuilder()
@@ -286,7 +339,11 @@ public class TestDeleteBlocksCommandHandler {
     @Override
     public void handle(KeyValueContainerData containerData,
         DeletedBlocksTransaction tx) throws IOException {
-      // doNoting just for Test
+      if (DeleteBlocksCommandHandler.isDuplicateTransaction(containerData.getContainerID(), containerData, tx, null)) {
+        return;
+      }
+      containerData.incrPendingDeletionBlocks(tx.getLocalIDCount());
+      containerData.updateDeleteTransactionId(tx.getTxID());
     }
   }
 }
