@@ -15,7 +15,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.ozone</groupId>
   <artifactId>ozone-main</artifactId>
-  <version>1.4.0.7.1.9.1-SNAPSHOT</version>
+  <version>1.4.0.7.1.9.1000-SNAPSHOT</version>
   <description>Apache Ozone Main</description>
   <name>Apache Ozone Main</name>
   <packaging>pom</packaging>
@@ -60,11 +60,11 @@
 
   <properties>
     <hadoop2.version>2.7.3</hadoop2.version>
-    <hadoop.version>3.1.1.7.1.9.1-SNAPSHOT</hadoop.version>
+    <hadoop.version>3.1.1.7.1.9.1000-SNAPSHOT</hadoop.version>
 
     <!-- version for hdds/ozone components -->
     <hdds.version>${ozone.version}</hdds.version>
-    <ozone.version>1.4.0.7.1.9.1-SNAPSHOT</ozone.version>
+    <ozone.version>1.4.0.7.1.9.1000-SNAPSHOT</ozone.version>
     <ozone.release>Hot Springs</ozone.release>
     <declared.hdds.version>${hdds.version}</declared.hdds.version>
     <declared.ozone.version>${ozone.version}</declared.ozone.version>
@@ -72,13 +72,13 @@
     <!-- HDDS Rocks Native dependency version-->
     <hdds.rocks.native.version>${hdds.version}</hdds.rocks.native.version>
     <!-- Apache Ratis version -->
-    <ratis.version>2.5.1.7.1.9.1-SNAPSHOT</ratis.version>
+    <ratis.version>2.5.1.7.1.9.1000-SNAPSHOT</ratis.version>
 
     <!-- Apache Ratis thirdparty version -->
-    <ratis.thirdparty.version>1.0.4.7.1.9.1-SNAPSHOT</ratis.thirdparty.version>
+    <ratis.thirdparty.version>1.0.4.7.1.9.1000-SNAPSHOT</ratis.thirdparty.version>
 
     <!-- Apache Ranger plugin version -->
-    <ranger.version>2.4.0.7.1.9.1-SNAPSHOT</ranger.version>
+    <ranger.version>2.4.0.7.1.9.1000-SNAPSHOT</ranger.version>
 
     <distMgmtSnapshotsId>apache.snapshots.https</distMgmtSnapshotsId>
     <distMgmtSnapshotsName>Apache Development Snapshot Repository</distMgmtSnapshotsName>
@@ -99,9 +99,9 @@
 
     <failIfNoTests>false</failIfNoTests>
     <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
-    <jetty.version>9.4.53.v20231009</jetty.version>
+    <jetty.version>9.4.54.v20240208</jetty.version>
     <java.dev.jna.version>5.2.0</java.dev.jna.version>
-    <curator.version>5.4.0.7.1.9.1-SNAPSHOT</curator.version>
+    <curator.version>5.4.0.7.1.9.1000-SNAPSHOT</curator.version>
     <test.exclude>_</test.exclude>
     <test.exclude.pattern>_</test.exclude.pattern>
 
@@ -139,7 +139,7 @@
     <bonecp.version>0.8.0.RELEASE</bonecp.version>
     <bouncycastle.version>1.70</bouncycastle.version>
     <cglib.version>3.2.0</cglib.version>
-    <derby.version>10.14.2.0</derby.version>
+    <derby.version>10.14.3.0-cloudera1</derby.version>
     <codahale-metrics.version>3.0.2</codahale-metrics.version>
     <dropwizard-metrics.version>3.2.4</dropwizard-metrics.version>
     <jacoco.version>0.8.5</jacoco.version>
@@ -223,7 +223,7 @@
     <junit4.version>4.13.1</junit4.version>
     <junit.jupiter.version>5.8.2</junit.jupiter.version>
     <junit.platform.version>1.8.2</junit.platform.version>
-    <zookeeper.version>3.8.1.7.1.9.1-SNAPSHOT</zookeeper.version>
+    <zookeeper.version>3.8.1.7.1.9.1000-SNAPSHOT</zookeeper.version>
 
     <!-- Maven protoc compiler -->
     <protobuf-maven-plugin.version>0.5.1</protobuf-maven-plugin.version>
