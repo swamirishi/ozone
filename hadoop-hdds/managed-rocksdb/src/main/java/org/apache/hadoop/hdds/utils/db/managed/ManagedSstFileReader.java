@@ -18,20 +18,16 @@
  */
 package org.apache.hadoop.hdds.utils.db.managed;
 
+import org.rocksdb.Options;
 import org.rocksdb.SstFileReader;
 
 /**
  * Managed SstFileReader.
  */
-public class ManagedSstFileReader extends ManagedObject<SstFileReader> {
+public class ManagedSstFileReader extends SstFileReader {
 
-  ManagedSstFileReader(SstFileReader original) {
-    super(original);
-  }
-
-  public static ManagedSstFileReader managed(
-      SstFileReader reader) {
-    return new ManagedSstFileReader(reader);
+  public ManagedSstFileReader(final Options options) {
+    super(options);
   }
 
   @Override
@@ -39,5 +35,4 @@ public class ManagedSstFileReader extends ManagedObject<SstFileReader> {
     ManagedRocksObjectUtils.assertClosed(this);
     super.finalize();
   }
-
 }
