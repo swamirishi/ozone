@@ -40,6 +40,7 @@ import java.util.Map;
 
 import static org.apache.ozone.test.GenericTestUtils.getTestDir;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED_PERCENT;
 
 /**
  * Tests {@link CapacityVolumeChoosingPolicy}.
@@ -60,6 +61,9 @@ public class TestCapacityVolumeChoosingPolicy {
   @BeforeEach
   public void setup() throws Exception {
     policy = new CapacityVolumeChoosingPolicy();
+    // Use the exact capacity and availability specified in this test. Do not reserve space to prevent volumes from
+    // filling up.
+    CONF.setFloat(HDDS_DATANODE_DIR_DU_RESERVED_PERCENT, 0);
 
     SpaceUsageSource source1 = MockSpaceUsageSource.fixed(500, 100);
     SpaceUsageCheckFactory factory1 = MockSpaceUsageCheckFactory.of(

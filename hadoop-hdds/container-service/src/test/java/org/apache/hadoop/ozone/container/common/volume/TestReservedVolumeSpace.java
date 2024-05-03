@@ -29,6 +29,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 
 import static org.apache.hadoop.hdds.conf.StorageUnit.*;
@@ -54,6 +57,27 @@ public class TestReservedVolumeSpace {
     volumeBuilder = new HddsVolume.Builder(folder.getRoot().getPath())
         .datanodeUuid(DATANODE_UUID)
         .usageCheckFactory(MockSpaceUsageCheckFactory.NONE);
+  }
+
+  @Test
+  public void testDefaultConfig() throws Exception {
+    OzoneConfiguration conf = new OzoneConfiguration();
+    HddsVolume hddsVolume = volumeBuilder.conf(conf).build();
+    float percentage = conf.getFloat(HDDS_DATANODE_DIR_DU_RESERVED_PERCENT,
+        HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT);
+    assertEquals(percentage, HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT);
+
+    // Gets the total capacity reported by Ozone, which may be limited to less than the volume's real capacity by the
+    // DU reserved configurations.
+    long volumeCapacity = hddsVolume.getCapacity();
+    VolumeUsage usage = hddsVolume.getVolumeInfo().get().getUsageForTesting();
+
+    // Gets the actual total capacity without accounting for DU reserved space configurations.
+    long totalCapacity = usage.realUsage().getCapacity();
+    long reservedCapacity = usage.getReservedBytes();
+
+    assertEquals(getExpectedDefaultReserved(hddsVolume), reservedCapacity);
+    assertEquals(totalCapacity - reservedCapacity, volumeCapacity);
   }
 
   /**
@@ -96,17 +120,7 @@ public class TestReservedVolumeSpace {
 
     long reservedFromVolume = hddsVolume.getVolumeInfo().get()
             .getReservedInBytes();
-    Assert.assertEquals(reservedFromVolume, 500);
-  }
-
-  @Test
-  public void testReservedToZeroWhenBothConfigNotSet() throws Exception {
-    OzoneConfiguration conf = new OzoneConfiguration();
-    HddsVolume hddsVolume = volumeBuilder.conf(conf).build();
-
-    long reservedFromVolume = hddsVolume.getVolumeInfo().get()
-            .getReservedInBytes();
-    Assert.assertEquals(reservedFromVolume, 0);
+    assertEquals(500, reservedFromVolume);
   }
 
   @Test
@@ -140,7 +154,7 @@ public class TestReservedVolumeSpace {
 
     long reservedFromVolume1 = hddsVolume1.getVolumeInfo().get()
             .getReservedInBytes();
-    Assert.assertEquals(reservedFromVolume1, 0);
+    assertEquals(getExpectedDefaultReserved(hddsVolume1), reservedFromVolume1);
 
     OzoneConfiguration conf2 = new OzoneConfiguration();
 
@@ -150,7 +164,28 @@ public class TestReservedVolumeSpace {
 
     long reservedFromVolume2 = hddsVolume2.getVolumeInfo().get()
             .getReservedInBytes();
-    Assert.assertEquals(reservedFromVolume2, 0);
+    assertEquals(getExpectedDefaultReserved(hddsVolume2), reservedFromVolume2);
+  }
+
+  @Test
+  public void testPathsCanonicalized() throws Exception {
+    OzoneConfiguration conf = new OzoneConfiguration();
+
+    // Create symlink in folder (which is the root of the volume)
+    Path symlink = new File(temp.getRoot(), "link").toPath();
+    Files.createSymbolicLink(symlink, folder.getRoot().toPath());
+
+    // Use the symlink in the configuration. Canonicalization should still match it to folder used in the volume config.
+    conf.set(ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED, symlink + ":500B");
+    HddsVolume hddsVolume = volumeBuilder.conf(conf).build();
+
+    long reservedFromVolume = hddsVolume.getVolumeInfo().get().getReservedInBytes();
+    assertEquals(500, reservedFromVolume);
+  }
+
+  private long getExpectedDefaultReserved(HddsVolume volume) {
+    long totalCapacity = volume.getVolumeInfo().get().getUsageForTesting().realUsage().getCapacity();
+    return (long) Math.ceil(totalCapacity * HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT);
   }
 
   @Test
