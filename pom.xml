@@ -180,6 +180,7 @@
     <disruptor.version>3.4.2</disruptor.version>
     <reload4j.version>1.2.22</reload4j.version>
 
+    <kerby.version>2.0.3</kerby.version>
     <kotlin.version>1.6.21</kotlin.version>
     <metainf-services.version>1.8</metainf-services.version>
     <picocli.version>4.6.1</picocli.version>
@@ -772,6 +773,16 @@
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpcore-nio</artifactId>
         <version>${httpcore.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kerby</groupId>
+        <artifactId>kerb-core</artifactId>
+        <version>${kerby.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kerby</groupId>
+        <artifactId>kerb-util</artifactId>
+        <version>${kerby.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-codec</groupId>

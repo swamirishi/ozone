@@ -130,5 +130,13 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>org.apache.kerby</groupId>
+      <artifactId>kerb-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.kerby</groupId>
+      <artifactId>kerb-util</artifactId>
+    </dependency>
   </dependencies>
 </project>
