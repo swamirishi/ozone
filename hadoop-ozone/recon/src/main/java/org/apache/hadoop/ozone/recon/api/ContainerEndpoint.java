@@ -95,10 +95,7 @@ import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_PREVKEY;
 @AdminOnly
 public class ContainerEndpoint {
 
-  @Inject
   private ReconContainerMetadataManager reconContainerMetadataManager;
-
-  @Inject
   private ReconOMMetadataManager omMetadataManager;
 
   private final ReconContainerManager containerManager;
@@ -290,6 +287,8 @@ public class ContainerEndpoint {
             keyMetadata.setBucket(omKeyInfo.getBucketName());
             keyMetadata.setVolume(omKeyInfo.getVolumeName());
             keyMetadata.setKey(omKeyInfo.getKeyName());
+            keyMetadata.setCompletePath(ReconUtils.constructFullPath(omKeyInfo,
+                reconNamespaceSummaryManager, omMetadataManager));
             keyMetadata.setCreationTime(
                 Instant.ofEpochMilli(omKeyInfo.getCreationTime()));
             keyMetadata.setModificationTime(
@@ -310,7 +309,7 @@ public class ContainerEndpoint {
           Response.Status.INTERNAL_SERVER_ERROR);
     }
     KeysResponse keysResponse =
-        new KeysResponse(totalCount, keyMetadataMap.values());
+        new KeysResponse(totalCount, keyMetadataMap.values(), lastKey);
     return Response.ok(keysResponse).build();
   }
 
@@ -409,18 +408,13 @@ public class ContainerEndpoint {
       summary = containerHealthSchemaManager.getUnhealthyContainersSummary();
       List<UnhealthyContainers> containers = containerHealthSchemaManager
           .getUnhealthyContainers(internalState, offset, limit);
-
-      // Filtering out EMPTY_MISSING and NEGATIVE_SIZE containers from the response.
-      // These container states are not being inserted into the database as they represent
-      // edge cases that are not critical to track as unhealthy containers.
-      List<UnhealthyContainers> filteredContainers = containers.stream()
-          .filter(container -> !container.getContainerState()
-              .equals(UnHealthyContainerStates.EMPTY_MISSING.toString())
-              && !container.getContainerState()
-              .equals(UnHealthyContainerStates.NEGATIVE_SIZE.toString()))
-          .collect(Collectors.toList());
-
-      for (UnhealthyContainers c : filteredContainers) {
+      List<UnhealthyContainers> emptyMissingFiltered = containers.stream()
+          .filter(
+              container -> !container.getContainerState()
+                  .equals(UnHealthyContainerStates.EMPTY_MISSING.toString()))
+          .collect(
+              Collectors.toList());
+      for (UnhealthyContainers c : emptyMissingFiltered) {
         long containerID = c.getContainerId();
         ContainerInfo containerInfo =
             containerManager.getContainer(ContainerID.valueOf(containerID));
