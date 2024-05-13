@@ -104,6 +104,8 @@ import static org.apache.hadoop.ozone.om.OmSnapshotManager.OM_HARDLINK_FILE;
 import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.truncateFileName;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPath;
 import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COMPACTION_LOG_FILE_NAME_SUFFIX;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -268,14 +270,14 @@ public class TestOMDbCheckpointServlet {
 
     doEndpoint();
 
-    Assertions.assertTrue(tempFile.length() > 0);
-    Assertions.assertTrue(
+    assertTrue(tempFile.length() > 0);
+    assertTrue(
         omMetrics.getDBCheckpointMetrics().
             getLastCheckpointCreationTimeTaken() > 0);
-    Assertions.assertTrue(
+    assertTrue(
         omMetrics.getDBCheckpointMetrics().
             getLastCheckpointStreamingTimeTaken() > 0);
-    Assertions.assertTrue(omMetrics.getDBCheckpointMetrics().
+    assertTrue(omMetrics.getDBCheckpointMetrics().
         getNumCheckpoints() > initialCheckpointCount);
 
     Mockito.verify(omDbCheckpointServletMock).writeDbDataToStream(any(),
@@ -376,7 +378,7 @@ public class TestOMDbCheckpointServlet {
 
     // Recon user should be able to access the servlet and download the
     // snapshot
-    Assertions.assertTrue(tempFile.length() > 0);
+    assertTrue(tempFile.length() > 0);
   }
 
   @Test
@@ -403,13 +405,8 @@ public class TestOMDbCheckpointServlet {
     Path expectedLog = Paths.get(compactionLogDir, "expected" +
         COMPACTION_LOG_FILE_NAME_SUFFIX);
     String expectedLogStr = truncateFileName(metaDirLength, expectedLog);
-    Path unExpectedLog = Paths.get(compactionLogDir, "unexpected" +
-        COMPACTION_LOG_FILE_NAME_SUFFIX);
-    String unExpectedLogStr = truncateFileName(metaDirLength, unExpectedLog);
     Path expectedSst = Paths.get(sstBackupDir, "expected.sst");
     String expectedSstStr = truncateFileName(metaDirLength, expectedSst);
-    Path unExpectedSst = Paths.get(sstBackupDir, "unexpected.sst");
-    String unExpectedSstStr = truncateFileName(metaDirLength, unExpectedSst);
 
     // put "expected" fabricated files onto the fs before the files get
     //  copied to the temp dir.
@@ -425,15 +422,6 @@ public class TestOMDbCheckpointServlet {
       // with the snapshot data.
       doNothing().when(checkpoint).cleanupCheckpoint();
       realCheckpoint.set(checkpoint);
-
-      // put "unexpected" fabricated files onto the fs after the files
-      // get copied to the temp dir.  Since these appear in the "real"
-      // dir after the copy, they shouldn't exist in the final file
-      // set.  That will show that the copy only happened from the temp dir.
-      Files.write(unExpectedLog,
-          "fabricatedData".getBytes(StandardCharsets.UTF_8));
-      Files.write(unExpectedSst,
-          "fabricatedData".getBytes(StandardCharsets.UTF_8));
       return checkpoint;
     });
 
@@ -447,10 +435,6 @@ public class TestOMDbCheckpointServlet {
     // Get the tarball.
     when(responseMock.getOutputStream()).thenReturn(servletOutputStream);
     omDbCheckpointServletMock.doGet(requestMock, responseMock);
-
-    // Verify that tarball request count reaches to zero once doGet completes.
-    Assertions.assertEquals(0,
-        dbStore.getRocksDBCheckpointDiffer().getTarballRequestCount());
     dbCheckpoint = realCheckpoint.get();
 
     // Untar the file into a temp folder to be examined.
@@ -459,11 +443,11 @@ public class TestOMDbCheckpointServlet {
     String newDbDirName = testDirName + OM_KEY_PREFIX + OM_DB_NAME;
     int newDbDirLength = newDbDirName.length() + 1;
     File newDbDir = new File(newDbDirName);
-    Assertions.assertTrue(newDbDir.mkdirs());
+    assertTrue(newDbDir.mkdirs());
     FileUtil.unTar(tempFile, newDbDir);
 
     // Move snapshot dir to correct location.
-    Assertions.assertTrue(new File(newDbDirName, OM_SNAPSHOT_DIR)
+    assertTrue(new File(newDbDirName, OM_SNAPSHOT_DIR)
         .renameTo(new File(newDbDir.getParent(), OM_SNAPSHOT_DIR)));
 
     // Confirm the checkpoint directories match, (after remove extras).
@@ -474,7 +458,7 @@ public class TestOMDbCheckpointServlet {
     Set<String> finalCheckpointSet = getFiles(finalCheckpointLocation,
         newDbDirLength);
 
-    Assertions.assertTrue(finalCheckpointSet.contains(OM_HARDLINK_FILE),
+    assertTrue(finalCheckpointSet.contains(OM_HARDLINK_FILE),
         "hardlink file exists in checkpoint dir");
     finalCheckpointSet.remove(OM_HARDLINK_FILE);
     Assertions.assertEquals(initialCheckpointSet, finalCheckpointSet);
@@ -513,17 +497,9 @@ public class TestOMDbCheckpointServlet {
 
     Set<String> initialFullSet =
         getFiles(Paths.get(metaDir.toString(), OM_SNAPSHOT_DIR), metaDirLength);
-    Assertions.assertTrue(finalFullSet.contains(expectedLogStr));
-    Assertions.assertTrue(finalFullSet.contains(expectedSstStr));
-    Assertions.assertTrue(initialFullSet.contains(unExpectedLogStr));
-    Assertions.assertTrue(initialFullSet.contains(unExpectedSstStr));
-
-    // Remove the dummy files that should not have been copied over
-    // from the expected data.
-    initialFullSet.remove(unExpectedLogStr);
-    initialFullSet.remove(unExpectedSstStr);
-    Assertions.assertEquals(initialFullSet, finalFullSet,
-        "expected snapshot files not found");
+    assertTrue(finalFullSet.contains(expectedLogStr));
+    assertTrue(finalFullSet.contains(expectedSstStr));
+    assertEquals(initialFullSet, finalFullSet, "expected snapshot files not found");
   }
 
   @Test
@@ -577,7 +553,7 @@ public class TestOMDbCheckpointServlet {
         new FileOutputStream(dummyFile), StandardCharsets.UTF_8)) {
       writer.write("Dummy data.");
     }
-    Assertions.assertTrue(dummyFile.exists());
+    assertTrue(dummyFile.exists());
     List<String> toExcludeList = new ArrayList<>();
     List<String> excludedList = new ArrayList<>();
     toExcludeList.add(dummyFile.getName());
@@ -607,7 +583,7 @@ public class TestOMDbCheckpointServlet {
         testDirLength);
 
     initialCheckpointSet.removeAll(finalCheckpointSet);
-    Assertions.assertTrue(initialCheckpointSet.contains(dummyFile.getName()));
+    assertTrue(initialCheckpointSet.contains(dummyFile.getName()));
   }
 
   /**
@@ -715,7 +691,7 @@ public class TestOMDbCheckpointServlet {
         new File(snapshotDirName).getParent(),
         "fabricatedSnapshot");
     fabricatedSnapshot.toFile().mkdirs();
-    Assertions.assertTrue(Paths.get(fabricatedSnapshot.toString(),
+    assertTrue(Paths.get(fabricatedSnapshot.toString(),
         FABRICATED_FILE_NAME).toFile().createNewFile());
 
     // Create fabricated links to snapshot dirs
@@ -818,10 +794,10 @@ public class TestOMDbCheckpointServlet {
 
     for (String line : lines) {
       String[] files = line.split("\t");
-      Assertions.assertTrue(
+      assertTrue(
           files[0].startsWith(dir0) || files[0].startsWith(dir1),
           "fabricated entry contains valid first directory: " + line);
-      Assertions.assertTrue(files[1].startsWith(realDir),
+      assertTrue(files[1].startsWith(realDir),
           "fabricated entry contains correct real directory: " + line);
       Path path0 = Paths.get(files[0]);
       Path path1 = Paths.get(files[1]);
@@ -840,7 +816,7 @@ public class TestOMDbCheckpointServlet {
                             String shortSnapshotLocation2,
                             String line) {
     String[] files = line.split("\t");
-    Assertions.assertTrue(files[0].startsWith(shortSnapshotLocation) ||
+    assertTrue(files[0].startsWith(shortSnapshotLocation) ||
         files[0].startsWith(shortSnapshotLocation2),
         "hl entry starts with valid snapshot dir: " + line);
 
@@ -902,7 +878,7 @@ public class TestOMDbCheckpointServlet {
     // Confirm that servlet takes the lock when none of the other
     //  handlers have it.
     Future<Boolean> servletTest = checkLock(spyServlet, executorService);
-    Assertions.assertTrue(servletTest.get(10000, TimeUnit.MILLISECONDS));
+    assertTrue(servletTest.get(10000, TimeUnit.MILLISECONDS));
 
     executorService.shutdownNow();
 

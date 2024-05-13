@@ -35,7 +35,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.GraphBuilder;
 import com.google.common.graph.MutableGraph;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -51,8 +50,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,10 +63,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -79,8 +76,8 @@ import org.apache.hadoop.hdds.utils.NativeLibraryNotLoadedException;
 import org.apache.hadoop.hdds.utils.Scheduler;
 import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
-import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedEnvOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRawSSTFileIterator;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRawSSTFileReader;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
@@ -90,9 +87,9 @@ import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileWriter;
 import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.ozone.compaction.log.CompactionFileInfo;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
-import org.apache.ozone.rocksdb.util.RdbUtil;
 import org.apache.ozone.graph.PrintableGraph;
 import org.apache.ozone.graph.PrintableGraph.GraphType;
+import org.apache.ozone.rocksdb.util.RdbUtil;
 import org.rocksdb.AbstractEventListener;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.CompactionJobInfo;
@@ -185,7 +182,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
   private static final int SST_READ_AHEAD_SIZE = 2 * 1024 * 1024;
   private int pruneSSTFileBatchSize;
   private ColumnFamilyHandle snapshotInfoTableCFHandle;
-  private final AtomicInteger tarballRequestCount;
   private static final String DAG_PRUNING_SERVICE_NAME = "CompactionDagPruningService";
   private AtomicBoolean suspended;
 
@@ -284,7 +280,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     } else {
       this.scheduler = null;
     }
-    this.tarballRequestCount = new AtomicInteger(0);
     this.inflightCompactions = new ConcurrentHashMap<>();
   }
 
@@ -562,8 +557,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
             return;
           }
 
-          waitForTarballCreation();
-
           // Add the compaction log entry to Compaction log table.
           key = addToCompactionLogTable(compactionLogEntry);
 
@@ -611,22 +604,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
       throw new RuntimeException(exception);
     }
     return key;
-  }
-
-  /**
-   * Check if there is any in_progress tarball creation request and wait till
-   * all tarball creation finish, and it gets notified.
-   */
-  private void waitForTarballCreation() {
-    while (tarballRequestCount.get() != 0) {
-      try {
-        wait(Integer.MAX_VALUE);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        LOG.error("Compaction log thread {} is interrupted.",
-            Thread.currentThread().getName());
-      }
-    }
   }
 
   /**
@@ -1454,19 +1431,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     }
   }
 
-  public void incrementTarballRequestCount() {
-    tarballRequestCount.incrementAndGet();
-  }
-
-  public void decrementTarballRequestCountAndNotify() {
-    // Synchronized block is used to ensure that lock is on the same instance notifyAll is being called.
-    synchronized (this) {
-      tarballRequestCount.decrementAndGet();
-      // Notify compaction threads to continue.
-      notifyAll();
-    }
-  }
-
   /**
    * Defines the task that removes OMKeyInfo from SST files from backup directory to
    * save disk space.
@@ -1570,11 +1534,6 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
 
   public boolean shouldRun() {
     return !suspended.get();
-  }
-
-  @VisibleForTesting
-  public int getTarballRequestCount() {
-    return tarballRequestCount.get();
   }
 
   @VisibleForTesting
