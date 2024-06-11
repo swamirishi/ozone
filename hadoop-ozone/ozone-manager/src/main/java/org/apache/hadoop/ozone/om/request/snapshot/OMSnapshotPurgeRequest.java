@@ -97,6 +97,12 @@ public class OMSnapshotPurgeRequest extends OMClientRequest {
       // can be marked as deepCleaned.
       for (String snapTableKey : snapInfosToUpdate) {
         SnapshotInfo snapInfo = omMetadataManager.getSnapshotInfoTable().get(snapTableKey);
+        if (snapInfo == null) {
+          // Snapshot may have been purged in the previous iteration of SnapshotDeletingService.
+          LOG.warn("The snapshot {} is not longer in snapshot table, It maybe removed in the previous " +
+              "Snapshot purge request.", snapTableKey);
+          continue;
+        }
         try {
           omMetadataManager.getLock()
               .acquireWriteLock(SNAPSHOT_LOCK, snapInfo.getVolumeName(), snapInfo.getBucketName(), snapInfo.getName());
