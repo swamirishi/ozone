@@ -24,11 +24,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.hdds.client.BlockID;
@@ -118,7 +116,7 @@ public class BlockInputStream extends BlockExtendedInputStream {
       Token<OzoneBlockTokenIdentifier> token,
       XceiverClientFactory xceiverClientFactory,
       Function<BlockID, BlockLocationInfo> refreshFunction,
-      OzoneClientConfig config) throws IOException {
+      OzoneClientConfig config) {
     this.blockID = blockId;
     this.length = blockLen;
     setPipeline(pipeline);
@@ -135,7 +133,7 @@ public class BlockInputStream extends BlockExtendedInputStream {
                           Token<OzoneBlockTokenIdentifier> token,
                           XceiverClientFactory xceiverClientFactory,
                           OzoneClientConfig config
-  ) throws IOException {
+  ) {
     this(blockId, blockLen, pipeline, token,
         xceiverClientFactory, null, config);
   }
@@ -246,27 +244,32 @@ public class BlockInputStream extends BlockExtendedInputStream {
 
   @VisibleForTesting
   protected List<ChunkInfo> getChunkInfoListUsingClient() throws IOException {
-    Pipeline pipeline = pipelineRef.get();
+    final Pipeline pipeline = xceiverClient.getPipeline();
+
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Initializing BlockInputStream for get key to access {} with pipeline {}.",
-          blockID.getContainerID(), pipeline);
+      LOG.debug("Initializing BlockInputStream for get key to access {}",
+          blockID.getContainerID());
+    }
+
+    DatanodeBlockID.Builder blkIDBuilder =
+        DatanodeBlockID.newBuilder().setContainerID(blockID.getContainerID())
+            .setLocalID(blockID.getLocalID())
+            .setBlockCommitSequenceId(blockID.getBlockCommitSequenceId());
+
+    int replicaIndex = pipeline.getReplicaIndex(pipeline.getClosestNode());
+    if (replicaIndex > 0) {
+      blkIDBuilder.setReplicaIndex(replicaIndex);
     }
 
     GetBlockResponseProto response = ContainerProtocolCalls.getBlock(
-        xceiverClient, VALIDATORS, blockID, tokenRef.get(), pipeline.getReplicaIndexes());
+        xceiverClient, VALIDATORS, blkIDBuilder.build(), tokenRef.get());
 
     return response.getBlockData().getChunksList();
   }
 
-  private void setPipeline(Pipeline pipeline) throws IOException {
+  private void setPipeline(Pipeline pipeline) {
     if (pipeline == null) {
       return;
-    }
-    Set<Integer> replicaIndexes =
-        pipeline.getNodes().stream().map(pipeline::getReplicaIndex).collect(Collectors.toSet());
-    if (replicaIndexes.size() > 1) {
-      throw new IOException(String.format("Pipeline: %s has nodes containing different replica indexes.",
-          pipeline));
     }
 
     // irrespective of the container state, we will always read via Standalone

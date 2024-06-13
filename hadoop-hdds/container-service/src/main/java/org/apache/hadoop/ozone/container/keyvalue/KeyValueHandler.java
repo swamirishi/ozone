@@ -116,7 +116,6 @@ import static org.apache.hadoop.hdds.scm.protocolPB.ContainerCommandResponseBuil
 import static org.apache.hadoop.hdds.scm.utils.ClientCommandsUtils.getReadChunkVersion;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .ContainerDataProto.State.RECOVERING;
-import static org.apache.hadoop.ozone.ClientVersion.ERASURE_CODING_READ_CHUNK_CORRUPTION_FIX;
 import static org.apache.hadoop.ozone.container.common.interfaces.Container.ScanResult;
 
 import org.apache.ratis.statemachine.StateMachine;
@@ -589,9 +588,8 @@ public class KeyValueHandler extends Handler {
     try {
       BlockID blockID = BlockID.getFromProtobuf(
           request.getGetBlock().getBlockID());
-      responseData = blockManager.getBlock(kvContainer, blockID,
-          request.hasVersion() && request.getVersion() >=
-              ERASURE_CODING_READ_CHUNK_CORRUPTION_FIX.toProtoValue()).getProtoBufMessage();
+      responseData = blockManager.getBlock(kvContainer, blockID)
+          .getProtoBufMessage();
       final long numBytes = responseData.getSerializedSize();
       metrics.incContainerBytesStats(Type.GetBlock, numBytes);
 
@@ -693,6 +691,7 @@ public class KeyValueHandler extends Handler {
   ContainerCommandResponseProto handleReadChunk(
       ContainerCommandRequestProto request, KeyValueContainer kvContainer,
       DispatcherContext dispatcherContext) {
+
     if (!request.hasReadChunk()) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Malformed Read Chunk request. trace ID: {}",
@@ -700,6 +699,7 @@ public class KeyValueHandler extends Handler {
       }
       return malformedRequest(request);
     }
+
     ChunkBuffer data;
     try {
       BlockID blockID = BlockID.getFromProtobuf(
@@ -707,11 +707,8 @@ public class KeyValueHandler extends Handler {
       ChunkInfo chunkInfo = ChunkInfo.getFromProtoBuf(request.getReadChunk()
           .getChunkData());
       Preconditions.checkNotNull(chunkInfo);
-      if (request.hasVersion() && request.getVersion() >= ERASURE_CODING_READ_CHUNK_CORRUPTION_FIX.toProtoValue()) {
-        BlockUtils.verifyReplicaIdx(kvContainer, blockID);
-      }
-      BlockUtils.verifyBCSId(kvContainer, blockID);
 
+      BlockUtils.verifyBCSId(kvContainer, blockID);
       if (dispatcherContext == null) {
         dispatcherContext = DispatcherContext.getHandleReadChunk();
       }

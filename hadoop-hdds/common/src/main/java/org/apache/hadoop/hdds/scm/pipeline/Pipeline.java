@@ -31,8 +31,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.collect.ImmutableList;
@@ -239,14 +237,6 @@ public final class Pipeline {
    */
   public int getReplicaIndex(DatanodeDetails dn) {
     return replicaIndexes.getOrDefault(dn, 0);
-  }
-
-  /**
-   * Get the replicaIndex Map.
-   * @return
-   */
-  public Map<DatanodeDetails, Integer> getReplicaIndexes() {
-    return this.getNodes().stream().collect(Collectors.toMap(Function.identity(), this::getReplicaIndex));
   }
 
   /**
@@ -519,10 +509,7 @@ public final class Pipeline {
         new StringBuilder(getClass().getSimpleName()).append("[");
     b.append(" Id: ").append(id.getId());
     b.append(", Nodes: ");
-    for (DatanodeDetails datanodeDetails : nodeStatus.keySet()) {
-      b.append(datanodeDetails);
-      b.append(" ReplicaIndex: ").append(this.getReplicaIndex(datanodeDetails));
-    }
+    nodeStatus.keySet().forEach(b::append);
     b.append(", ReplicationConfig: ").append(replicationConfig);
     b.append(", State:").append(getPipelineState());
     b.append(", leaderId:").append(leaderId != null ? leaderId.toString() : "");

@@ -27,7 +27,6 @@ import org.apache.hadoop.hdds.scm.storage.BlockLocationInfo;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
 import org.apache.hadoop.security.token.Token;
 
-import java.io.IOException;
 import java.util.function.Function;
 
 /**
@@ -53,6 +52,6 @@ public interface BlockInputStreamFactory {
       Token<OzoneBlockTokenIdentifier> token,
        XceiverClientFactory xceiverFactory,
        Function<BlockID, BlockLocationInfo> refreshFunction,
-       OzoneClientConfig config) throws IOException;
+       OzoneClientConfig config);
 
 }

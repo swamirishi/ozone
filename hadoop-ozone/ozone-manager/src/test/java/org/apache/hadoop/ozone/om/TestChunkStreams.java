@@ -25,7 +25,6 @@ import jakarta.annotation.Nonnull;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,7 +81,7 @@ public class TestChunkStreams {
   }
 
   @Nonnull
-  private List<BlockInputStream> createInputStreams(String dataString) throws IOException {
+  private List<BlockInputStream> createInputStreams(String dataString) {
     byte[] buf = dataString.getBytes(UTF_8);
     List<BlockInputStream> streams = new ArrayList<>();
     int offset = 0;
@@ -94,7 +93,7 @@ public class TestChunkStreams {
     return streams;
   }
 
-  private BlockInputStream createStream(byte[] buf, int offset) throws IOException {
+  private BlockInputStream createStream(byte[] buf, int offset) {
     OzoneClientConfig clientConfig = conf.getObject(OzoneClientConfig.class);
     clientConfig.setChecksumVerify(true);
     return new BlockInputStream(null, 100, null, null, null,
