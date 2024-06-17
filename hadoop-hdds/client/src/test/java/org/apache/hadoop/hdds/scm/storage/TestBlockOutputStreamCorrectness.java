@@ -49,6 +49,7 @@ import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.pipeline.MockPipeline;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
@@ -240,7 +241,10 @@ public class TestBlockOutputStreamCorrectness {
         ContainerCommandRequestProto request
     )
         throws IOException, ExecutionException, InterruptedException {
-
+      if (!request.hasVersion()) {
+        request = ContainerCommandRequestProto.newBuilder(request)
+            .setVersion(ClientVersion.CURRENT.toProtoValue()).build();
+      }
       final ContainerCommandResponseProto.Builder builder =
           ContainerCommandResponseProto.newBuilder()
               .setResult(Result.SUCCESS)
