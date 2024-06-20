@@ -60,8 +60,8 @@ public interface BlockManager {
    * @return Block Data.
    * @throws IOException
    */
-  BlockData getBlock(Container container, BlockID blockID)
-      throws IOException;
+  BlockData getBlock(Container container, BlockID blockID) throws IOException;
+
 
   /**
    * Deletes an existing block.
