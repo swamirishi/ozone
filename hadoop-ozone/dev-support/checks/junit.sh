@@ -56,7 +56,7 @@ for i in $(seq 1 ${ITERATIONS}); do
     mkdir -p "${REPORT_DIR}"
   fi
 
-  mvn ${MAVEN_OPTIONS} "$@" test \
+  mvn ${MAVEN_OPTIONS} "$@" verify \
     | tee "${REPORT_DIR}/output.log"
   irc=$?
 
