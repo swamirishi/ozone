@@ -3410,7 +3410,7 @@
   </property>
   <property>
     <name>ozone.snapshot.filtering.service.interval</name>
-    <value>1m</value>
+    <value>-1</value>
     <tag>OZONE, PERFORMANCE, OM</tag>
     <description>Time interval of the SST File filtering service from Snapshot.
     </description>
