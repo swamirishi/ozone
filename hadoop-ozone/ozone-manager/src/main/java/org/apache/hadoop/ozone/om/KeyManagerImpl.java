@@ -633,10 +633,12 @@ public class KeyManagerImpl implements KeyManager {
     return openKeyCleanupService;
   }
 
+  @Override
   public SstFilteringService getSnapshotSstFilteringService() {
     return snapshotSstFilteringService;
   }
 
+  @Override
   public SnapshotDeletingService getSnapshotDeletingService() {
     return snapshotDeletingService;
   }

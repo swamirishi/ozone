@@ -196,6 +196,7 @@ public class RDBStore implements DBStore {
     return snapshotsParentDir;
   }
 
+  @Override
   public RocksDBCheckpointDiffer getRocksDBCheckpointDiffer() {
     return rocksDBCheckpointDiffer;
   }
