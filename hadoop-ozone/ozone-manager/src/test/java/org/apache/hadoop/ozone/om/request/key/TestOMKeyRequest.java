@@ -124,6 +124,7 @@ public class TestOMKeyRequest {
     ozoneManager = Mockito.mock(OzoneManager.class);
     omMetrics = OMMetrics.create();
     delMetrics = DeletingServiceMetrics.create();
+    metrics = OMPerformanceMetrics.register();
     OzoneConfiguration ozoneConfiguration = getOzoneConfiguration();
     ozoneConfiguration.set(OMConfigKeys.OZONE_OM_DB_DIRS,
         folder.newFolder().getAbsolutePath());
@@ -134,6 +135,7 @@ public class TestOMKeyRequest {
         ozoneManager);
     when(ozoneManager.getMetrics()).thenReturn(omMetrics);
     when(ozoneManager.getDeletionMetrics()).thenReturn(delMetrics);
+    when(ozoneManager.getPerfMetrics()).thenReturn(metrics);
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
     when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
     OMLayoutVersionManager lvm = mock(OMLayoutVersionManager.class);
