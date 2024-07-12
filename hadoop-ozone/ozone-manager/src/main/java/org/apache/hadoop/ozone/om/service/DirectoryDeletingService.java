@@ -156,13 +156,6 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
         List<Pair<String, OmKeyInfo>> allSubDirList
             = new ArrayList<>((int) remainNum);
 
-        // Acquire active DB deletedDirectoryTable write lock because of the
-        // deletedDirTable read-write here to avoid interleaving with
-        // the table range delete operation in createOmSnapshotCheckpoint()
-        // that is called from OMSnapshotCreateResponse#addToDBBatch.
-        getOzoneManager().getMetadataManager().getTableLock(
-            OmMetadataManagerImpl.DELETED_DIR_TABLE).writeLock().lock();
-
         Table.KeyValue<String, OmKeyInfo> pendingDeletedDirInfo;
         try (TableIterator<String, ? extends KeyValue<String, OmKeyInfo>>
                  deleteTableIterator = getOzoneManager().getMetadataManager().
@@ -218,10 +211,6 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
         } catch (IOException e) {
           LOG.error("Error while running delete directories and files " +
               "background task. Will retry at next run.", e);
-        } finally {
-          // Release deletedDirectoryTable write lock
-          getOzoneManager().getMetadataManager().getTableLock(
-              OmMetadataManagerImpl.DELETED_DIR_TABLE).writeLock().unlock();
         }
       }
 
