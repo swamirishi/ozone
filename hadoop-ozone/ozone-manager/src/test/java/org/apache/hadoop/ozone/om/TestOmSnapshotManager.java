@@ -25,6 +25,7 @@ import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.HddsWhiteboxTestUtils;
 import org.apache.hadoop.hdds.utils.db.DBStore;
+import org.apache.hadoop.hdds.utils.db.RDBBatchOperation;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
@@ -172,9 +173,13 @@ public class TestOmSnapshotManager {
     when(snapshotInfoTable.get(first.getTableKey())).thenReturn(first);
     when(snapshotInfoTable.get(second.getTableKey())).thenReturn(second);
 
+    ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager().addSnapshot(first);
+    ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager().addSnapshot(second);
+    RDBBatchOperation rdbBatchOperation = new RDBBatchOperation();
     // create the first snapshot checkpoint
     OmSnapshotManager.createOmSnapshotCheckpoint(om.getMetadataManager(),
-        first);
+        first, rdbBatchOperation);
+    om.getMetadataManager().getStore().commitBatchOperation(rdbBatchOperation);
 
     // retrieve it and setup store mock
     OmSnapshotManager omSnapshotManager = om.getOmSnapshotManager();
@@ -186,8 +191,10 @@ public class TestOmSnapshotManager {
         firstSnapshot.getMetadataManager(), "store", firstSnapshotStore);
 
     // create second snapshot checkpoint (which will be used for eviction)
+    rdbBatchOperation = new RDBBatchOperation();
     OmSnapshotManager.createOmSnapshotCheckpoint(om.getMetadataManager(),
-        second);
+        second, rdbBatchOperation);
+    om.getMetadataManager().getStore().commitBatchOperation(rdbBatchOperation);
 
     // confirm store not yet closed
     verify(firstSnapshotStore, times(0)).close();
@@ -631,15 +638,19 @@ public class TestOmSnapshotManager {
     when(snapshotInfoTable.get(first.getTableKey())).thenReturn(first);
 
     // Create first checkpoint for the snapshot checkpoint
+    RDBBatchOperation rdbBatchOperation = new RDBBatchOperation();
     OmSnapshotManager.createOmSnapshotCheckpoint(om.getMetadataManager(),
-        first);
+        first, rdbBatchOperation);
+    om.getMetadataManager().getStore().commitBatchOperation(rdbBatchOperation);
     Assert.assertFalse(logCapturer.getOutput().contains(
         "for snapshot " + first.getName() + " already exists."));
     logCapturer.clearOutput();
 
     // Create checkpoint again for the same snapshot.
+    rdbBatchOperation = new RDBBatchOperation();
     OmSnapshotManager.createOmSnapshotCheckpoint(om.getMetadataManager(),
-        first);
+        first, rdbBatchOperation);
+    om.getMetadataManager().getStore().commitBatchOperation(rdbBatchOperation);
 
     Assert.assertTrue(logCapturer.getOutput().contains(
         "for snapshot " + first.getName() + " already exists."));
