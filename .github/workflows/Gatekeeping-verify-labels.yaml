@@ -23,4 +23,4 @@ jobs:
   verify_labels:
      uses: Kitchen/gatekeeping-common/.github/workflows/verify_labels.yaml@master
      with:
-      required_labels: "gk-ticket-validation-pass,gk-system-test-pass"
+      required_labels: "gk-system-test-pass,gk-ticket-validation-pass"
