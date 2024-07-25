@@ -17,17 +17,23 @@
  * under the License.
  */
 
-package org.apache.hadoop.ozone.recon.heatmap;
-
-import org.apache.hadoop.ozone.recon.api.types.EntityReadAccessHeatMapResponse;
-import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
+package org.apache.hadoop.ozone.recon.solr;
 
 /**
- * This is an abstract class for implementation of access to HeatMap Service.
+ * This class contains constants for Solr related configuration keys used in
+ * Recon for heatmap.
  */
-public abstract class HeatMapService {
-  public abstract EntityReadAccessHeatMapResponse retrieveData(
-      String path, String entityType, String startDate) throws Exception;
+public final class SolrConstants {
 
-  public abstract HealthCheckResponse doHeatMapHealthCheck();
+  /**
+   * Never constructed.
+   */
+  private SolrConstants() {
+  }
+
+  public static final String OZONE_SOLR_ADDRESS_KEY = "solr.address";
+  public static final int OZONE_SOLR_SERVER_PORT_DEFAULT = 8995;
+  public static final String OZONE_RECON_SOLR_TIMEZONE_KEY =
+      "ozone.recon.solr.timezone";
+
 }
