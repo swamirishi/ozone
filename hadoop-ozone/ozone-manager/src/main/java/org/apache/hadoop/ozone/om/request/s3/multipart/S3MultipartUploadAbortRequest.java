@@ -203,7 +203,7 @@ public class S3MultipartUploadAbortRequest extends OMKeyRequest {
     }
 
     // audit log
-    auditLog(ozoneManager.getAuditLogger(), buildAuditMessage(
+    markForAudit(ozoneManager.getAuditLogger(), buildAuditMessage(
         OMAction.ABORT_MULTIPART_UPLOAD, auditMap,
         exception, getOmRequest().getUserInfo()));
 

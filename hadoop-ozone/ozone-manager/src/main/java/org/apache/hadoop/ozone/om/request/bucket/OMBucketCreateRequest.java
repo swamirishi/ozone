@@ -261,7 +261,7 @@ public class OMBucketCreateRequest extends OMClientRequest {
     }
 
     // Performing audit logging outside of the lock.
-    auditLog(auditLogger, buildAuditMessage(OMAction.CREATE_BUCKET,
+    markForAudit(auditLogger, buildAuditMessage(OMAction.CREATE_BUCKET,
         omBucketInfo.toAuditMap(), exception, userInfo));
 
     // return response.

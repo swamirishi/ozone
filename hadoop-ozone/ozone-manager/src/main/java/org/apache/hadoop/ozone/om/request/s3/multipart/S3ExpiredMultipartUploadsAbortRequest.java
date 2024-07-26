@@ -154,7 +154,7 @@ public class S3ExpiredMultipartUploadsAbortRequest extends OMKeyRequest {
                 .getUploadID())
             .build();
         Map<String, String> auditMap = buildKeyArgsAuditMap(keyArgsForAudit);
-        auditLog(ozoneManager.getAuditLogger(), buildAuditMessage(
+        markForAudit(ozoneManager.getAuditLogger(), buildAuditMessage(
             OMAction.ABORT_EXPIRED_MULTIPART_UPLOAD, auditMap,
             null, getOmRequest().getUserInfo()));
       }

@@ -40,6 +40,7 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos.UpgradeFinalizationStatu
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.utils.FaultInjector;
 import org.apache.hadoop.ozone.OzoneAcl;
+import org.apache.hadoop.ozone.om.helpers.OMAuditLogger;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.OzoneManagerPrepareState;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -384,15 +385,21 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     injectPause();
     OMClientRequest omClientRequest =
         OzoneManagerRatisUtils.createClientRequest(omRequest, impl);
-    OMClientResponse omClientResponse =
-        omClientRequest.validateAndUpdateCache(getOzoneManager(), termIndex);
-    Preconditions.checkNotNull(omClientResponse,
-        "omClientResponse returned by validateAndUpdateCache cannot be null");
-    if (omRequest.getCmdType() != Type.Prepare) {
-      omClientResponse.setFlushFuture(
-          ozoneManagerDoubleBuffer.add(omClientResponse, termIndex));
+    try {
+      OMClientResponse omClientResponse =
+              omClientRequest.validateAndUpdateCache(getOzoneManager(), termIndex);
+      Preconditions.checkNotNull(omClientResponse,
+              "omClientResponse returned by validateAndUpdateCache cannot be null");
+      if (omRequest.getCmdType() != Type.Prepare) {
+        omClientResponse.setFlushFuture(
+                ozoneManagerDoubleBuffer.add(omClientResponse, termIndex));
+      }
+      OMAuditLogger.log(omClientRequest.getAuditBuilder(), termIndex);
+      return omClientResponse;
+    } catch (Throwable th) {
+      OMAuditLogger.log(omClientRequest.getAuditBuilder(), omClientRequest, getOzoneManager(), termIndex, th);
+      throw th;
     }
-    return omClientResponse;
   }
 
   @Override
