@@ -113,13 +113,9 @@ public class TestOmSnapshotUtils {
 
   @ParameterizedTest
   @MethodSource("testCasesForIgnoreSnapshotGc")
-  public void testProcessSnapshotLogicInSDS(SnapshotInfo snapshotInfo,
-      SnapshotInfo.SnapshotStatus status, boolean isSstFilteringSvcEnabled,
-      boolean expectedOutcome) {
+  public void testProcessSnapshotLogicInSDS(SnapshotInfo snapshotInfo, SnapshotInfo.SnapshotStatus status,
+                                            boolean expectedOutcome) {
     snapshotInfo.setSnapshotStatus(status);
-    assertEquals(expectedOutcome,
-        SnapshotDeletingService.shouldIgnoreSnapshot(snapshotInfo,
-            isSstFilteringSvcEnabled));
+    assertEquals(expectedOutcome, SnapshotDeletingService.shouldIgnoreSnapshot(snapshotInfo));
   }
-
 }

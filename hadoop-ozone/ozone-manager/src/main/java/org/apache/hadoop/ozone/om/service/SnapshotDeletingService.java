@@ -37,7 +37,6 @@ import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.hadoop.ozone.om.IOmMetadataReader;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
-import org.apache.hadoop.ozone.om.KeyManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.OmSnapshotManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -159,12 +158,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
 
         while (iterator.hasNext() && snapshotLimit > 0) {
           SnapshotInfo snapInfo = iterator.next().getValue();
-          boolean isSstFilteringServiceEnabled =
-              ((KeyManagerImpl) ozoneManager.getKeyManager())
-                  .isSstFilteringSvcEnabled();
 
           // Only Iterate in deleted snapshot
-          if (shouldIgnoreSnapshot(snapInfo, isSstFilteringServiceEnabled)) {
+          if (shouldIgnoreSnapshot(snapInfo)) {
             continue;
           }
 
@@ -599,11 +595,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
     }
   }
 
-  public static boolean shouldIgnoreSnapshot(SnapshotInfo snapInfo,
-      boolean isSstFilteringServiceEnabled) {
-    SnapshotInfo.SnapshotStatus snapshotStatus = snapInfo.getSnapshotStatus();
-    return !(snapshotStatus == SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED)
-        || (isSstFilteringServiceEnabled && !snapInfo.isSstFiltered());
+  @VisibleForTesting
+  public static boolean shouldIgnoreSnapshot(SnapshotInfo snapInfo) {
+    return snapInfo.getSnapshotStatus() != SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED;
   }
 
   // TODO: Move this util class.
