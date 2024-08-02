@@ -31,7 +31,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.collect.Iterators;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase;
+import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedWriteBatch;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedWriteOptions;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
@@ -234,6 +237,23 @@ public class OzoneManagerServiceProviderImpl
       omMetadataManager.start(configuration);
     } catch (IOException ioEx) {
       LOG.error("Error staring Recon OM Metadata Manager.", ioEx);
+    } catch (RuntimeException runtimeException) {
+      LOG.warn("Unexpected runtime error starting Recon OM Metadata Manager.", runtimeException);
+      LOG.warn("Trying to delete existing recon OM snapshot DB and fetch new one.");
+      metrics.incrNumSnapshotRequests();
+      LOG.info("Fetching full snapshot from Ozone Manager");
+      // Update local Recon OM DB to new snapshot.
+      try {
+        boolean success = updateReconOmDBWithNewSnapshot();
+        if (success) {
+          LOG.info("Successfully fetched a full snapshot from Ozone Manager");
+        } else {
+          LOG.error("Failed fetching a full snapshot from Ozone Manager");
+        }
+      } catch (IOException e) {
+        LOG.error("Unexpected IOException occurred while trying to fetch a full snapshot: {}", e);
+        throw new RuntimeException(runtimeException);
+      }
     }
     reconTaskController.start();
     long initialDelay = configuration.getTimeDuration(
@@ -484,6 +504,7 @@ public class OzoneManagerServiceProviderImpl
   /**
    * Based on current state of Recon's OM DB, we either get delta updates or
    * full snapshot from Ozone Manager.
+   * @return true or false if sync operation between Recon and OM was successful or failed.
    */
   @VisibleForTesting
   public boolean syncDataFromOM() {
@@ -547,6 +568,7 @@ public class OzoneManagerServiceProviderImpl
             LOG.error("Unable to update Recon's metadata with new OM DB. ", e);
           }
         }
+        printOMDBMetaInfo();
       } finally {
         isSyncDataFromOMRunning.set(false);
       }
@@ -555,6 +577,27 @@ public class OzoneManagerServiceProviderImpl
       return false;
     }
     return true;
+  }
+
+  private void printOMDBMetaInfo() {
+    printTableCount("fileTable");
+    printTableCount("keyTable");
+  }
+
+  private void printTableCount(String tableName) {
+    Table table = omMetadataManager.getTable(tableName);
+    if (table == null) {
+      LOG.error("Table {} not found in OM Metadata.", tableName);
+      return;
+    }
+    if (LOG.isDebugEnabled()) {
+      try (TableIterator<String, ? extends Table.KeyValue<String, ?>> iterator = table.iterator()) {
+        long count = Iterators.size(iterator);
+        LOG.debug("{} Table count: {}", tableName, count);
+      } catch (IOException ioException) {
+        LOG.error("Unexpected error while iterating table for table count: {}", tableName);
+      }
+    }
   }
 
   /**
