@@ -26,6 +26,7 @@ import org.apache.hadoop.ozone.recon.api.types.HealthCheckResponse;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
 
+import javax.ws.rs.core.Response;
 import java.net.InetSocketAddress;
 import java.util.List;
 
@@ -72,5 +73,7 @@ public interface IHeatMapProvider {
     return null;
   }
 
-  HealthCheckResponse doSolrHealthCheck();
+  default HealthCheckResponse doHeatMapHealthCheck() {
+    return new HealthCheckResponse.Builder("Healthy", Response.Status.OK.getStatusCode()).build();
+  };
 }

@@ -108,9 +108,14 @@ public class AccessHeatMapEndpoint {
     }
   }
 
+  /**
+   * This API do a health check for HeatMapProvider source if it is initialized
+   * and returning response.
+   * @return HealthCheckResponse wrapped in Response object.
+   */
   @GET
   @Path("/healthCheck")
   public Response getReadAccessMetaData() {
-    return Response.ok(heatMapService.doSolrHealthCheck()).build();
+    return Response.ok(heatMapService.doHeatMapHealthCheck()).build();
   }
 }

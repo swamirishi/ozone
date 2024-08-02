@@ -194,7 +194,7 @@ public class SolrHeatMapProviderImpl implements IHeatMapProvider {
   }
 
   @Override
-  public HealthCheckResponse doSolrHealthCheck() {
+  public HealthCheckResponse doHeatMapHealthCheck() {
     SolrUtil solrUtil = new SolrUtil(omMetadataManager, ozoneConfiguration);
     InetSocketAddress solrAddr = getAndValidateInetSocketAddress();
     SolrHttpClient solrHttpClient = SolrHttpClient.getInstance();
