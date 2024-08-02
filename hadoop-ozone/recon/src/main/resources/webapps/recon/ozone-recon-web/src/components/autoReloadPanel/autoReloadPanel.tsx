@@ -33,7 +33,6 @@ interface IAutoReloadPanelProps extends RouteComponentProps<object> {
   omStatus: string;
   togglePolling: (isEnabled: boolean) => void;
   omSyncLoad: () => void;
-  heatmapHealthCheck: boolean;
 }
 
 class AutoReloadPanel extends React.Component<IAutoReloadPanelProps> {
@@ -43,8 +42,9 @@ class AutoReloadPanel extends React.Component<IAutoReloadPanelProps> {
   };
 
   render() {
-    const {onReload, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, isLoading, omSyncLoad, omStatus, heatmapHealthCheck} = this.props;
+    const {onReload, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, isLoading, omSyncLoad, omStatus} = this.props;
     const autoReloadEnabled = sessionStorage.getItem('autoReloadEnabled') === 'false' ? false : true;
+    const heatmapHealthCheck = sessionStorage.getItem('heatmapHealthCheck') === 'false' ? false : true;
     
     const content = (
       <div>

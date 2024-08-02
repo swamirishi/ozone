@@ -68,7 +68,6 @@ interface IOverviewState {
   deletePendingSummarytotalUnrepSize: number,
   deletePendingSummarytotalRepSize: number,
   deletePendingSummarytotalDeletedKeys: number,
-  heatmapHealthCheck: boolean;
 }
 
 export class Overview extends React.Component<Record<string, object>, IOverviewState> {
@@ -104,7 +103,6 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       deletePendingSummarytotalUnrepSize: 0,
       deletePendingSummarytotalRepSize: 0,
       deletePendingSummarytotalDeletedKeys: 0,
-      heatmapHealthCheck:false,
     };
     this.autoReload = new AutoReloadHelper(this._loadData);
   }
@@ -113,7 +111,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
     this.setState({
       loading: true
     });
-    axios.all([
+    Promise.allSettled([
       axios.get('/api/v1/clusterState'),
       axios.get('/api/v1/task/status'),
       axios.get('/api/v1/keys/open?limit=0'),
@@ -121,36 +119,37 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       axios.get('/api/v1/heatmap/healthCheck')
     ]).then(axios.spread((clusterStateResponse, taskstatusResponse, openResponse, deletePendingResponse, healthCheckResponse) => {
       
-      const clusterState: IClusterStateResponse = clusterStateResponse.data;
-      const taskStatus = taskstatusResponse.data;
-      const missingContainersCount = clusterState.missingContainers;
+      const clusterState: IClusterStateResponse = clusterStateResponse && clusterStateResponse.value && clusterStateResponse.value.data;
+      const taskStatus = taskstatusResponse && taskstatusResponse.value && taskstatusResponse.value.data;
       const omDBDeltaObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmDeltaRequest');
       const omDBFullObject = taskStatus && taskStatus.find((item: any) => item.taskName === 'OmSnapshotRequest');
-      const healthcheckStatus = healthCheckResponse && healthCheckResponse.data && healthCheckResponse.data.message;
-    
+      const openKeysSummary = openResponse && openResponse.value && openResponse.value.data && openResponse.value.data.keysSummary;
+      const deletePendingSummary = deletePendingResponse && deletePendingResponse.value && deletePendingResponse.value.data && deletePendingResponse.value.data.keysSummary;
+      const healthcheckStatus = healthCheckResponse && healthCheckResponse.value && healthCheckResponse.value.data && healthCheckResponse.value.data.message;
+      const clusterNotEmptyCheck = clusterState !== undefined && Object.keys(clusterState).length !== 0;
+      sessionStorage.setItem('heatmapHealthCheck', JSON.stringify(healthcheckStatus === 'Healthy' ? true : false));
       this.setState({
         loading: false,
-        datanodes: `${clusterState.healthyDatanodes}/${clusterState.totalDatanodes}`,
-        storageReport: clusterState.storageReport,
-        pipelines: clusterState.pipelines,
-        containers: clusterState.containers,
-        volumes: clusterState.volumes,
-        buckets: clusterState.buckets,
-        keys: clusterState.keys,
-        missingContainersCount,
-        openContainers: clusterState.openContainers,
-        keysPendingDeletion: clusterState.keysPendingDeletion,
-        deletedContainers: clusterState.deletedContainers,
+        datanodes: clusterNotEmptyCheck  ? `${clusterState.healthyDatanodes}/${clusterState.totalDatanodes}` : '0',
+        storageReport: clusterNotEmptyCheck ? clusterState.storageReport : {capacity: 0, used: 0, remaining: 0},
+        pipelines: clusterNotEmptyCheck ? clusterState.pipelines : 0,
+        containers: clusterNotEmptyCheck  ? clusterState.containers : 0,
+        volumes: clusterNotEmptyCheck  ? clusterState.volumes : 0,
+        buckets: clusterNotEmptyCheck ? clusterState.buckets :0,
+        keys: clusterNotEmptyCheck ? clusterState.keys : 0,
+        missingContainersCount : clusterNotEmptyCheck ? clusterState.missingContainers : 0,
+        openContainers: clusterNotEmptyCheck ? clusterState.openContainers: 0,
+        keysPendingDeletion: clusterNotEmptyCheck ? clusterState.keysPendingDeletion: 0,
+        deletedContainers: clusterNotEmptyCheck ? clusterState.deletedContainers: 0,
         lastRefreshed: Number(moment()),
         lastUpdatedOMDBDelta: omDBDeltaObject && omDBDeltaObject.lastUpdatedTimestamp,
         lastUpdatedOMDBFull: omDBFullObject && omDBFullObject.lastUpdatedTimestamp,
-        openSummarytotalUnrepSize: openResponse.data && openResponse.data.keysSummary && openResponse.data.keysSummary.totalUnreplicatedDataSize,
-        openSummarytotalRepSize: openResponse.data && openResponse.data.keysSummary && openResponse.data.keysSummary.totalReplicatedDataSize,
-        openSummarytotalOpenKeys: openResponse.data && openResponse.data.keysSummary && openResponse.data.keysSummary.totalOpenKeys,
-        deletePendingSummarytotalUnrepSize: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalUnreplicatedDataSize,
-        deletePendingSummarytotalRepSize: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalReplicatedDataSize,
-        deletePendingSummarytotalDeletedKeys: deletePendingResponse.data && deletePendingResponse.data.keysSummary && deletePendingResponse.data.keysSummary.totalDeletedKeys,
-        heatmapHealthCheck: healthcheckStatus === 'Healthy' ? true :false
+        openSummarytotalUnrepSize: openKeysSummary && openKeysSummary.totalUnreplicatedDataSize,
+        openSummarytotalRepSize: openKeysSummary && openKeysSummary.totalReplicatedDataSize,
+        openSummarytotalOpenKeys: openKeysSummary && openKeysSummary.totalOpenKeys,
+        deletePendingSummarytotalUnrepSize: deletePendingSummary && deletePendingSummary.totalUnreplicatedDataSize,
+        deletePendingSummarytotalRepSize: deletePendingSummary && deletePendingSummary.totalReplicatedDataSize,
+        deletePendingSummarytotalDeletedKeys: deletePendingSummary && deletePendingSummary.totalDeletedKeys,
       });
     })).catch(error => {
       this.setState({
@@ -192,7 +191,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
   render() {
     const {loading, datanodes, pipelines, storageReport, containers, volumes, buckets, openSummarytotalUnrepSize, openSummarytotalRepSize, openSummarytotalOpenKeys,
       deletePendingSummarytotalUnrepSize,deletePendingSummarytotalRepSize,deletePendingSummarytotalDeletedKeys,keysPendingDeletion,
-      keys, missingContainersCount, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, omStatus, openContainers, deletedContainers, heatmapHealthCheck } = this.state;
+      keys, missingContainersCount, lastRefreshed, lastUpdatedOMDBDelta, lastUpdatedOMDBFull, omStatus, openContainers, deletedContainers } = this.state;
       
     const datanodesElement = (
       <span>
@@ -230,12 +229,12 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
           <span>({openContainers})</span>
         </Tooltip>
       </div>
-    const clusterCapacity = `${size(storageReport.capacity - storageReport.remaining)}/${size(storageReport.capacity)}`;
+    const clusterCapacity = storageReport && `${size(storageReport.capacity - storageReport.remaining)}/${size(storageReport.capacity)}`;
     return (
       <div className='overview-content'>
         <div className='page-header'>
           Overview
-          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed} heatmapHealthCheck={heatmapHealthCheck}
+          <AutoReloadPanel isLoading={loading} lastRefreshed={lastRefreshed} 
           lastUpdatedOMDBDelta={lastUpdatedOMDBDelta} lastUpdatedOMDBFull={lastUpdatedOMDBFull}
           togglePolling={this.autoReload.handleAutoReloadToggle} onReload={this._loadData} omSyncLoad={this.omSyncData} omStatus={omStatus}/>
         </div>
