@@ -376,7 +376,7 @@ public final class OMConfigKeys {
   public static final String OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL =
       "ozone.snapshot.filtering.service.interval";
   public static final String
-      OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL_DEFAULT = "-1";
+      OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL_DEFAULT = "60s";
 
   public static final String
       OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT =
