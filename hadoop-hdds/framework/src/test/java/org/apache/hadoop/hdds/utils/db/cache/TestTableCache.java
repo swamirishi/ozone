@@ -112,7 +112,12 @@ public class TestTableCache {
     // Epoch entries should be like (long, (key1, key2, ...))
     // (0, (0A, 0B))  (1, (1A, 1B))  (2, (2A, 1B))
     Assertions.assertEquals(3, tableCache.getEpochEntries().size());
-    Assertions.assertEquals(2, tableCache.getEpochEntries().get(0L).size());
+    if (cacheType == TableCache.CacheType.FULL_CACHE) {
+      // first time cache value is null for xA cases and non-null value for xB cases, so have 1 entry
+      Assertions.assertEquals(1, tableCache.getEpochEntries().get(0L).size());
+    } else {
+      Assertions.assertEquals(2, tableCache.getEpochEntries().get(0L).size());
+    }
     
     // Cache should be like (key, (cacheValue, long))
     // (0A, (null, 0))   (0B, (0, 0))
@@ -224,9 +229,13 @@ public class TestTableCache {
 
 
     Assertions.assertEquals(3, tableCache.size());
-    // It will have 2 additional entries because we have 2 override entries.
-    Assertions.assertEquals(3 + 2,
-        tableCache.getEpochEntries().size());
+    if (cacheType == TableCache.CacheType.FULL_CACHE) {
+      // full table cache keep only deleted entry which is 0
+      Assertions.assertEquals(0, tableCache.getEpochEntries().size());
+    } else {
+      // It will have 2 additional entries because we have 2 override entries.
+      Assertions.assertEquals(3 + 2, tableCache.getEpochEntries().size());
+    }
 
     // Now remove
 
@@ -298,9 +307,13 @@ public class TestTableCache {
 
 
     Assertions.assertEquals(3, tableCache.size());
-    // It will have 4 additional entries because we have 4 override entries.
-    Assertions.assertEquals(3 + 4,
-        tableCache.getEpochEntries().size());
+    if (cacheType == TableCache.CacheType.FULL_CACHE) {
+      // It will have 2 deleted entries
+      Assertions.assertEquals(2, tableCache.getEpochEntries().size());
+    } else {
+      // It will have 4 additional entries because we have 4 override entries.
+      Assertions.assertEquals(3 + 4, tableCache.getEpochEntries().size());
+    }
 
     // Now remove
 
@@ -503,7 +516,12 @@ public class TestTableCache {
     tableCache.evictCache(epochs);
 
     Assertions.assertEquals(2, tableCache.size());
-    Assertions.assertEquals(2, tableCache.getEpochEntries().size());
+    if (cacheType == TableCache.CacheType.FULL_CACHE) {
+      // no deleted entries
+      Assertions.assertEquals(0, tableCache.getEpochEntries().size());
+    } else {
+      Assertions.assertEquals(2, tableCache.getEpochEntries().size());
+    }
 
     Assertions.assertNotNull(tableCache.get(new CacheKey<>(Long.toString(0))));
     Assertions.assertEquals(2,
