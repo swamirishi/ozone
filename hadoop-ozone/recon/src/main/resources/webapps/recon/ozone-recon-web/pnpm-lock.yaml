@@ -11,7 +11,7 @@ dependencies:
   ag-charts-community: 7.3.0
   ag-charts-react: 7.3.0_2fb7134336cac68bf11d844adcdb0f57
   antd: 3.26.17_react-dom@16.13.1+react@16.13.1
-  axios: 0.21.4
+  axios: 0.28.1
   babel-jest: 24.9.0_@babel+core@7.10.2
   babel-plugin-import: 1.13.0
   classnames: 2.2.6
@@ -3410,7 +3410,7 @@ packages:
       integrity: sha512-zflvls11DCy+dQWzTW2dzuilv8Z5X/pjfmZOWba6TNIVDm+2UDaJmXSOXlasHKfNBs8oo3M0aT50fDEWfKZjXg==
   /asynckit/0.4.0:
     resolution:
-      integrity: sha1-x57Zf380y48robyXkLzDZkdLS3k=
+      integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==
   /at-least-node/1.0.0:
     dev: true
     engines:
@@ -3452,12 +3452,14 @@ packages:
   /aws4/1.10.0:
     resolution:
       integrity: sha512-3YDiu347mtVtjpyV3u5kVqQLP242c06zwDOgpeRnybmXlYYsLbtTrUBUm8i8srONt+FWobl5aibnU1030PeeuA==
-  /axios/0.21.4:
+  /axios/0.28.1:
     dependencies:
       follow-redirects: 1.15.0
+      form-data: 4.0.0
+      proxy-from-env: 1.1.0
     dev: false
     resolution:
-      integrity: sha512-ut5vewkiu8jjGBdqpM44XxjuCjq9LAKeHVmoVfHVzy8eHgxxq8SbAVQNovDA8mVi05kP0Ea/n/UzcSHcTJQfNg==
+      integrity: sha512-iUcGA5a7p0mVb4Gm/sy+FSECNkPFT4y7wt6OM/CDpO/OnNCvSs3PoMG8ibrC9jRoGYU0gUK5pXVC4NPXq6lHRQ==
   /axobject-query/2.1.2:
     dev: false
     resolution:
@@ -5554,7 +5556,7 @@ packages:
     engines:
       node: '>=0.4.0'
     resolution:
-      integrity: sha1-3zrhmayt+31ECqrgsp4icrJOxhk=
+      integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==
   /depd/1.1.2:
     engines:
       node: '>= 0.6'
@@ -7225,6 +7227,16 @@ packages:
       node: '>= 0.12'
     resolution:
       integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==
+  /form-data/4.0.0:
+    dependencies:
+      asynckit: 0.4.0
+      combined-stream: 1.0.8
+      mime-types: 2.1.27
+    dev: false
+    engines:
+      node: '>= 6'
+    resolution:
+      integrity: sha512-ETEklSGi5t0QMZuiXoA/Q6vcnxcLQP5vdugSpuAyi6SVGi2clPPp+xgEhuMaHC+zGgn31Kd235W35f7Hykkaww==
   /forwarded/0.1.2:
     engines:
       node: '>= 0.6'
@@ -12908,6 +12920,10 @@ packages:
       node: '>= 0.10'
     resolution:
       integrity: sha512-dh/frvCBVmSsDYzw6n926jv974gddhkFPfiN8hPOi30Wax25QZyZEGveluCgliBnqmuM+UJmBErbAUFIoDbjOw==
+  /proxy-from-env/1.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==
   /prr/1.0.1:
     dev: false
     resolution:
@@ -17219,7 +17235,7 @@ specifiers:
   ag-charts-community: ^7.3.0
   ag-charts-react: ^7.3.0
   antd: ^3.26.9
-  axios: ^0.21.4
+  axios: ^0.28.1
   babel-jest: ^24.9.0
   babel-plugin-import: ^1.11.0
   classnames: ^2.2.6
