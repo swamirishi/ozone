@@ -1,30 +1,33 @@
-## What changes were proposed in this pull request?
-Provide a one-liner summary of the changes in the PR **Title** field above.
-It should be in the form of `HDDS-1234. Short summary of the change`.
+<!--
+ Licensed to Cloudera, Inc. under one
+ or more contributor license agreements.  See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.  Cloudera, Inc. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
 
-Please describe your PR in detail:
-* What changes are proposed in the PR? and Why? It would be better if it is written from third person's
-perspective not just for the reviewer.
-* Provide as much context and rationale for the pull request as possible. It could be copy-paste from
-the Jira's description if the jira is well defined.
-* If it is complex code, describe the approach used to solve the issue. If possible attach design doc,
-issue investigation, github discussion, etc.
+     http://www.apache.org/licenses/LICENSE-2.0
 
-Examples of well-written pull requests:
-* [#3980](https://github.com/apache/ozone/pull/3980)
-* [#5265](https://github.com/apache/ozone/pull/5265)
-* [#4701](https://github.com/apache/ozone/pull/4701)
-* [#5283](https://github.com/apache/ozone/pull/5283)
-* [#5300](https://github.com/apache/ozone/pull/5300)
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
 
-## What is the link to the Apache JIRA
+While creating the PR, Please go to the `Preview` tab and select appropriate template:
 
-Please create an issue in ASF JIRA before opening a pull request, and you need to set the title of the pull
-request which starts with the corresponding JIRA issue number. (e.g. HDDS-XXXX. Fix a typo in YYY.)
+* [cdpd-master](?expand=1&template=pull_request_template_cdpd-master.md)
+* [cdw-master|cdw-master-staging|CDWH-*|CDH-7.3.0.2](?expand=1&template=pull_request_template_cdw-master.md)
+* [unified-branch|cdh_main](?expand=1&template=pull_request_template_unified_branch.md)
+* [CDH-7.1.\*](?expand=1&template=pull_request_template_private_cloud.md)
+* [CDH-7.2.\*|cdh_backport](?expand=1&template=pull_request_template_public_cloud.md)
 
-(Please replace this section with the link to the Apache JIRA)
+-----
+* If your branch regex does not follow the above list, do not select the PR template.
 
-## How was this patch tested?
+Template Issues
+* If a template was not selected, then follow the [label-based triggering](https://cloudera.atlassian.net/wiki/spaces/ENG/pages/10776412161) approach to trigger required jobs on demand.
 
-(Please explain how this patch was tested. Ex: unit tests, manual tests, workflow run on the fork git repo.)
-(If this patch involves UI changes, please attach a screenshot; otherwise, remove this.)
+* If a wrong template was selected, close and create another PR by selecting the right template to execute the pre-commit CI pipeline automatically.
