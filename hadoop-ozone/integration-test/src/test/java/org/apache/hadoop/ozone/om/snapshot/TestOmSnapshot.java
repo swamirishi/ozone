@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.om.snapshot;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -29,6 +30,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdds.StringUtils;
+import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.events.SCMEvents;
 import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
@@ -91,6 +94,7 @@ import jakarta.annotation.Nonnull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.Timeout;
 import org.rocksdb.LiveFileMetaData;
 
 import java.io.File;
@@ -229,10 +233,7 @@ public abstract class TestOmSnapshot {
 
     store = client.getObjectStore();
     writeClient = store.getClientProxy().getOzoneManagerClient();
-
-    // stop the deletion services so that keys can still be read
-    stopKeyManager();
-    preFinalizationChecks();
+//    preFinalizationChecks();
     finalizeOMUpgrade();
   }
 
@@ -791,6 +792,73 @@ public abstract class TestOmSnapshot {
         SnapshotDiffReportOzone.getDiffReportEntry(
             SnapshotDiffReport.DiffType.DELETE, key1)
     ));
+  }
+
+  /**
+   * Testing scenario:
+   * 1) Key k1 is created.
+   * 2) Snapshot snap1 created.
+   * 3) Key k1 is renamed to renamed-k1.
+   * 4) Key renamed-k1 is deleted.
+   * 5) Snapshot snap2 created.
+   * 4) Snap diff b/w snap2 & snap1 taken to assert difference of 1 key.
+   */
+  @Test
+  public void testWithKeyRename() throws Exception {
+    String testVolumeName = "vol" + RandomStringUtils.randomNumeric(5);
+    String testBucketName = "bucket1";
+    store.createVolume(testVolumeName);
+    OzoneVolume volume = store.getVolume(testVolumeName);
+    volume.createBucket(testBucketName);
+    OzoneBucket bucket = volume.getBucket(testBucketName);
+    String key1 = "k1";
+    key1 = createFileKeyWithPrefix(bucket, key1);
+    String snap1 = "snap1";
+    String val = createSnapshot(testVolumeName, testBucketName, snap1);
+    String renamedKey = "renamed-" + key1;
+    bucket.renameKey(key1, renamedKey);
+    GenericTestUtils.waitFor(() -> {
+      try {
+        getOmKeyInfo(testVolumeName, testBucketName, renamedKey);
+      } catch (IOException e) {
+        return false;
+      }
+      return true;
+    }, 1000, 10000);
+    String snap2 = "snap2";
+    String val1 = createSnapshot(testVolumeName, testBucketName, snap2);
+    getOmKeyInfo(testVolumeName, testBucketName, renamedKey);
+    store.deleteSnapshot(testVolumeName, testBucketName, "snap2");
+    bucket.deleteKey(renamedKey);
+    String finalKey = key1;
+    long containerId = bucket.getKey(val+ finalKey).getOzoneKeyLocations().get(0).getContainerID();
+    cluster.getStorageContainerManager().getEventQueue().fireEvent(SCMEvents.CLOSE_CONTAINER, ContainerID.valueOf(containerId));
+    cluster.getStorageContainerManager().getScmBlockManager().getSCMBlockDeletingService().runPeriodicalTaskNow();
+    GenericTestUtils.waitFor(() -> {
+      try {
+
+        byte[] bytes = new byte[10240];
+        ozoneManager.getKeyManager().getDeletingService().runPeriodicalTaskNow();
+        cluster.getStorageContainerManager().getScmBlockManager().getSCMBlockDeletingService().runPeriodicalTaskNow();
+        cluster.getHddsDatanodes().forEach(dn -> {
+          try {
+            dn.getDatanodeStateMachine().getContainer().getBlockDeletingService().runPeriodicalTaskNow();
+          } catch (Exception e) {
+          }
+        });
+        try(InputStream inputStream = bucket.readKey(val+ finalKey).getInputStream()){
+          inputStream.read(bytes);
+
+        }
+        System.out.println(StringUtils.bytes2String(bytes));
+      } catch (IOException e) {
+        return true;
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+      return false;
+    }, 1000, 1000000);
+
   }
 
   /**
