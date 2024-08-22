@@ -154,6 +154,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.slf4j.event.Level.DEBUG;
@@ -4295,5 +4296,11 @@ public abstract class TestOzoneRpcClientAbstract {
     Assert.assertEquals(10, volABucketASnapshotACount);
     Assert.assertFalse(snapshotIter.hasNext());
 
+  }
+
+  @Test
+  public void testGetServerDefaults() throws IOException {
+    assertNotNull(getClient().getProxy().getServerDefaults());
+    assertNull(getClient().getProxy().getServerDefaults().getKeyProviderUri());
   }
 }

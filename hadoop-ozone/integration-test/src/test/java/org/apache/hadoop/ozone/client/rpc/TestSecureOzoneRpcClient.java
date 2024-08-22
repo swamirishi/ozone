@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.client.rpc;
 
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
@@ -96,6 +97,7 @@ public class TestSecureOzoneRpcClient extends TestOzoneRpcClient {
   private static final String CLUSTER_ID = UUID.randomUUID().toString();
   private static File testDir;
   private static OzoneConfiguration conf;
+  private static String keyProviderUri = "kms://http@kms:9600/kms";
 
   /**
    * Create a MiniOzoneCluster for testing.
@@ -124,6 +126,8 @@ public class TestSecureOzoneRpcClient extends TestOzoneRpcClient {
     // constructed.
     conf.set(OMConfigKeys.OZONE_DEFAULT_BUCKET_LAYOUT,
         OMConfigKeys.OZONE_BUCKET_LAYOUT_OBJECT_STORE);
+    conf.set(CommonConfigurationKeysPublic.HADOOP_SECURITY_KEY_PROVIDER_PATH,
+        keyProviderUri);
     cluster = MiniOzoneCluster.newBuilder(conf)
         .setNumDatanodes(14)
         .setScmId(SCM_ID)
@@ -392,6 +396,13 @@ public class TestSecureOzoneRpcClient extends TestOzoneRpcClient {
   @Override
   // Restart DN doesn't work with security enabled.
   public void testZReadKeyWithUnhealthyContainerReplica() {
+  }
+
+  @Test
+  public void testGetServerDefaults() throws IOException {
+    Assert.assertNotNull(getClient().getProxy().getServerDefaults());
+    Assert.assertEquals(keyProviderUri,
+        getClient().getProxy().getServerDefaults().getKeyProviderUri());
   }
 
   /**

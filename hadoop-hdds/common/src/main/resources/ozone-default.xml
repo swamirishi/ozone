@@ -3436,6 +3436,19 @@
   </property>
 
   <property>
+    <name>ozone.client.server-defaults.validity.period.ms</name>
+    <tag>OZONE, CLIENT, SECURITY</tag>
+    <value>3600000ms</value>
+    <description>
+      The amount of milliseconds after which cached server defaults are updated.
+
+      By default this parameter is set to 1 hour.
+      Support multiple time unit suffix(case insensitive).
+      If no time unit is specified then milliseconds is assumed.
+    </description>
+  </property>
+
+  <property>
     <name>ozone.scm.info.wait.duration</name>
     <tag>OZONE, SCM, OM</tag>
     <value>10m</value>

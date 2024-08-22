@@ -51,6 +51,7 @@ import org.apache.hadoop.crypto.CryptoOutputStream;
 import org.apache.hadoop.crypto.key.KeyProvider;
 import org.apache.hadoop.fs.FileEncryptionInfo;
 import org.apache.hadoop.fs.Syncable;
+import org.apache.hadoop.util.Time;
 import org.apache.hadoop.hdds.client.DefaultReplicationConfig;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
@@ -73,6 +74,7 @@ import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.hadoop.io.ByteBufferPool;
 import org.apache.hadoop.io.ElasticByteBufferPool;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.ozone.OzoneFsServerDefaults;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -162,6 +164,8 @@ import static org.apache.hadoop.ozone.OzoneAcl.LINK_BUCKET_DEFAULT_ACL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_KEY_PROVIDER_CACHE_EXPIRY;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_KEY_PROVIDER_CACHE_EXPIRY_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_REQUIRED_OM_VERSION_MIN_KEY;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_SERVER_DEFAULTS_VALIDITY_PERIOD_MS;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_SERVER_DEFAULTS_VALIDITY_PERIOD_MS_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConsts.OLD_QUOTA_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConsts.OZONE_MAXIMUM_ACCESS_ID_LENGTH;
 
@@ -203,6 +207,9 @@ public class RpcClient implements ClientProtocol {
   private volatile ExecutorService ecReconstructExecutor;
   private final ContainerClientMetrics clientMetrics;
   private final AtomicBoolean isS3GRequest = new AtomicBoolean(false);
+  private volatile OzoneFsServerDefaults serverDefaults;
+  private volatile long serverDefaultsLastUpdate;
+  private final long serverDefaultsValidityPeriod;
 
   /**
    * Creates RpcClient instance with the given configuration.
@@ -311,6 +318,10 @@ public class RpcClient implements ClientProtocol {
     this.blockInputStreamFactory = BlockInputStreamFactoryImpl
         .getInstance(byteBufferPool, this::getECReconstructExecutor);
     this.clientMetrics = ContainerClientMetrics.acquire();
+    this.serverDefaultsValidityPeriod = conf.getTimeDuration(
+        OZONE_CLIENT_SERVER_DEFAULTS_VALIDITY_PERIOD_MS,
+        OZONE_CLIENT_SERVER_DEFAULTS_VALIDITY_PERIOD_MS_DEFAULT,
+        TimeUnit.MILLISECONDS);
   }
 
   public XceiverClientFactory getXceiverClientManager() {
@@ -2253,10 +2264,21 @@ public class RpcClient implements ClientProtocol {
   }
 
   @Override
+  public OzoneFsServerDefaults getServerDefaults() throws IOException {
+    long now = Time.monotonicNow();
+    if ((serverDefaults == null) ||
+        (now - serverDefaultsLastUpdate > serverDefaultsValidityPeriod)) {
+      serverDefaults = ozoneManagerClient.getServerDefaults();
+      serverDefaultsLastUpdate = now;
+    }
+    assert serverDefaults != null;
+    return serverDefaults;
+  }
+
+  @Override
   public URI getKeyProviderUri() throws IOException {
-    // TODO: fix me to support kms instances for difference OMs
     return OzoneKMSUtil.getKeyProviderUri(ugi,
-        null, null, conf);
+        null, getServerDefaults().getKeyProviderUri(), conf);
   }
 
   @Override
