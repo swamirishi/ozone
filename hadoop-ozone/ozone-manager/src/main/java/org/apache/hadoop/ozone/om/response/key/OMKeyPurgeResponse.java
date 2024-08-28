@@ -79,14 +79,10 @@ public class OMKeyPurgeResponse extends OmKeyResponse {
           ((OmMetadataManagerImpl) omMetadataManager).getOzoneManager().getOmSnapshotManager();
 
       try (ReferenceCounted<OmSnapshot> rcOmFromSnapshot =
-          omSnapshotManager.getSnapshot(
-              fromSnapshot.getVolumeName(),
-              fromSnapshot.getBucketName(),
-              fromSnapshot.getName())) {
+          omSnapshotManager.getSnapshot(fromSnapshot.getSnapshotId())) {
 
         OmSnapshot fromOmSnapshot = rcOmFromSnapshot.get();
-        DBStore fromSnapshotStore =
-            fromOmSnapshot.getMetadataManager().getStore();
+        DBStore fromSnapshotStore = fromOmSnapshot.getMetadataManager().getStore();
         // Init Batch Operation for snapshot db.
         try (BatchOperation writeBatch =
             fromSnapshotStore.initBatchOperation()) {
