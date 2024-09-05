@@ -271,6 +271,8 @@ public final class OmUtils {
     case TransferLeadership:
     case SetSafeMode:
     case PrintCompactionLogDag:
+    case GetQuotaRepairStatus:
+    case StartQuotaRepair:
       return true;
     case CreateVolume:
     case SetVolumeProperty:

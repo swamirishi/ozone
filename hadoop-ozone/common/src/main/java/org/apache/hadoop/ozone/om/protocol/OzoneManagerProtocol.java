@@ -1126,4 +1126,17 @@ public interface OzoneManagerProtocol
    */
   boolean setSafeMode(SafeModeAction action, boolean isChecked)
       throws IOException;
+
+  /**
+   * Get status of last triggered quota repair in OM.
+   * @return String
+   * @throws IOException
+   */
+  String getQuotaRepairStatus() throws IOException;
+
+  /**
+   * start quota repair in OM.
+   * @throws IOException
+   */
+  void startQuotaRepair(List<String> buckets) throws IOException;
 }
