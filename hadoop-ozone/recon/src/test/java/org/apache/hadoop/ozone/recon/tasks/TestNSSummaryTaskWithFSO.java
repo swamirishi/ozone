@@ -41,7 +41,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -391,18 +391,10 @@ public final class TestNSSummaryTaskWithFSO {
           .setTable(omMetadataManager.getDirectoryTable().getName())
           .build();
 
-      OMUpdateEventBatch omUpdateEventBatch = new OMUpdateEventBatch(
-              new ArrayList<OMDBUpdateEvent>() {{
-              add(keyEvent1);
-              add(keyEvent2);
-              add(keyEvent3);
-              add(keyEvent4);
-              add(keyEvent5);
-              add(keyEvent6);
-              add(keyEvent7);
-              }});
-
-      return omUpdateEventBatch;
+      return new OMUpdateEventBatch(Arrays.asList(
+          keyEvent1, keyEvent2, keyEvent3, keyEvent4, keyEvent5,
+          keyEvent6, keyEvent7
+      ));
     }
 
     @Test

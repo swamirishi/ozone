@@ -163,6 +163,7 @@ public class TestOMVolumeCreateRequest extends TestOMVolumeRequest {
         new OMVolumeCreateRequest(originalRequest);
 
     modifiedRequest = omVolumeCreateRequest.preExecute(ozoneManager);
+    omVolumeCreateRequest = new OMVolumeCreateRequest(modifiedRequest);
 
     omClientResponse =
         omVolumeCreateRequest.validateAndUpdateCache(ozoneManager, 2L);
