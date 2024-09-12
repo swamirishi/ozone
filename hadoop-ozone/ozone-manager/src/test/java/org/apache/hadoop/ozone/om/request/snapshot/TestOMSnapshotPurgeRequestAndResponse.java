@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.protobuf.ByteString;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,6 +39,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.Table;
@@ -494,12 +497,29 @@ public class TestOMSnapshotPurgeRequestAndResponse {
         .countRowsInTable(omMetadataManager.getSnapshotInfoTable());
     assertEquals(totalKeys, numberOfSnapshotBeforePurge);
     assertEquals(totalKeys, chainManager.getGlobalSnapshotChain().size());
-
-    validateSnapshotOrderInSnapshotInfoTableAndSnapshotChain(snapshotInfoList);
-
+    Map<UUID, ByteString> expectedTransactionInfos = new HashMap<>();
+    // Ratis transaction uses term index 1 while creating snapshot.
+    ByteString expectedLastTransactionVal = TransactionInfo.valueOf(TransactionInfo.getTermIndex(1L))
+        .toByteString();
+    for (SnapshotInfo snapshotInfo : snapshotInfoList) {
+      expectedTransactionInfos.put(snapshotInfo.getSnapshotId(), expectedLastTransactionVal);
+    }
+    validateSnapshotOrderInSnapshotInfoTableAndSnapshotChain(snapshotInfoList, expectedTransactionInfos);
+    // Ratis transaction uses term index 200 while purging snapshot.
+    expectedLastTransactionVal = TransactionInfo.valueOf(TransactionInfo.getTermIndex(200L))
+        .toByteString();
     List<String> purgeSnapshotKeys = new ArrayList<>();
     for (int i = fromIndex; i <= toIndex; i++) {
       SnapshotInfo purgeSnapshotInfo = snapshotInfoList.get(i);
+      UUID snapId = purgeSnapshotInfo.getSnapshotId();
+      // expecting nextPathSnapshot & nextGlobalSnapshot in chain gets updated.
+      if (chainManager.hasNextGlobalSnapshot(snapId)) {
+        expectedTransactionInfos.put(chainManager.nextGlobalSnapshot(snapId), expectedLastTransactionVal);
+      }
+      if (chainManager.hasNextPathSnapshot(purgeSnapshotInfo.getSnapshotPath(), snapId)) {
+        expectedTransactionInfos.put(chainManager.nextPathSnapshot(purgeSnapshotInfo.getSnapshotPath(), snapId),
+            expectedLastTransactionVal);
+      }
       String purgeSnapshotKey = SnapshotInfo.getTableKey(volumeName,
           purgeSnapshotInfo.getBucketName(),
           purgeSnapshotInfo.getName());
@@ -528,17 +548,17 @@ public class TestOMSnapshotPurgeRequestAndResponse {
         actualNumberOfSnapshotAfterPurge);
     assertEquals(expectNumberOfSnapshotAfterPurge, chainManager
         .getGlobalSnapshotChain().size());
-    validateSnapshotOrderInSnapshotInfoTableAndSnapshotChain(
-        snapshotInfoListAfterPurge);
+    validateSnapshotOrderInSnapshotInfoTableAndSnapshotChain(snapshotInfoListAfterPurge, expectedTransactionInfos);
   }
 
   private void validateSnapshotOrderInSnapshotInfoTableAndSnapshotChain(
-      List<SnapshotInfo> snapshotInfoList
-  ) throws IOException {
+      List<SnapshotInfo> snapshotInfoList, Map<UUID, ByteString> expectedTransactionInfos) throws IOException {
     if (snapshotInfoList.isEmpty()) {
       return;
     }
-
+    for (SnapshotInfo snapshotInfo : snapshotInfoList) {
+      assertEquals(snapshotInfo.getLastTransactionInfo(), expectedTransactionInfos.get(snapshotInfo.getSnapshotId()));
+    }
     OmMetadataManagerImpl metadataManager =
         (OmMetadataManagerImpl) omMetadataManager;
     SnapshotChainManager chainManager = metadataManager

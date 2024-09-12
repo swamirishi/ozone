@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.om.helpers;
  */
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.ByteString;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.utils.db.Codec;
 import org.apache.hadoop.hdds.utils.db.CopyObject;
@@ -123,66 +124,29 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
   private long exclusiveSize;
   private long exclusiveReplicatedSize;
   private boolean deepCleanedDeletedDir;
+  private ByteString lastTransactionInfo;
 
-  /**
-   * Private constructor, constructed via builder.
-   * @param snapshotId - Snapshot UUID.
-   * @param name - snapshot name.
-   * @param volumeName - volume name.
-   * @param bucketName - bucket name.
-   * @param snapshotStatus - status: SNAPSHOT_ACTIVE, SNAPSHOT_DELETED
-   * @param creationTime - Snapshot creation time.
-   * @param deletionTime - Snapshot deletion time.
-   * @param pathPreviousSnapshotId - Snapshot path previous snapshot id.
-   * @param globalPreviousSnapshotId - Snapshot global previous snapshot id.
-   * @param snapshotPath - Snapshot path, bucket .snapshot path.
-   * @param checkpointDir - Snapshot checkpoint directory.
-   * @param dbTxSequenceNumber - RDB latest transaction sequence number.
-   * @param deepCleaned - To be deep cleaned status for snapshot.
-   * @param referencedSize - Snapshot referenced size.
-   * @param referencedReplicatedSize - Snapshot referenced size w/ replication.
-   * @param exclusiveSize - Snapshot exclusive size.
-   * @param exclusiveReplicatedSize - Snapshot exclusive size w/ replication.
-   */
-  @SuppressWarnings("checkstyle:ParameterNumber")
-  private SnapshotInfo(UUID snapshotId,
-                       String name,
-                       String volumeName,
-                       String bucketName,
-                       SnapshotStatus snapshotStatus,
-                       long creationTime,
-                       long deletionTime,
-                       UUID pathPreviousSnapshotId,
-                       UUID globalPreviousSnapshotId,
-                       String snapshotPath,
-                       String checkpointDir,
-                       long dbTxSequenceNumber,
-                       boolean deepCleaned,
-                       boolean sstFiltered,
-                       long referencedSize,
-                       long referencedReplicatedSize,
-                       long exclusiveSize,
-                       long exclusiveReplicatedSize,
-                       boolean deepCleanedDeletedDir) {
-    this.snapshotId = snapshotId;
-    this.name = name;
-    this.volumeName = volumeName;
-    this.bucketName = bucketName;
-    this.snapshotStatus = snapshotStatus;
-    this.creationTime = creationTime;
-    this.deletionTime = deletionTime;
-    this.pathPreviousSnapshotId = pathPreviousSnapshotId;
-    this.globalPreviousSnapshotId = globalPreviousSnapshotId;
-    this.snapshotPath = snapshotPath;
-    this.checkpointDir = checkpointDir;
-    this.dbTxSequenceNumber = dbTxSequenceNumber;
-    this.deepClean = deepCleaned;
-    this.sstFiltered = sstFiltered;
-    this.referencedSize = referencedSize;
-    this.referencedReplicatedSize = referencedReplicatedSize;
-    this.exclusiveSize = exclusiveSize;
-    this.exclusiveReplicatedSize = exclusiveReplicatedSize;
-    this.deepCleanedDeletedDir = deepCleanedDeletedDir;
+  private SnapshotInfo(Builder b) {
+    this.snapshotId = b.snapshotId;
+    this.name = b.name;
+    this.volumeName = b.volumeName;
+    this.bucketName = b.bucketName;
+    this.snapshotStatus = b.snapshotStatus;
+    this.creationTime = b.creationTime;
+    this.deletionTime = b.deletionTime;
+    this.pathPreviousSnapshotId = b.pathPreviousSnapshotId;
+    this.globalPreviousSnapshotId = b.globalPreviousSnapshotId;
+    this.snapshotPath = b.snapshotPath;
+    this.checkpointDir = b.checkpointDir;
+    this.dbTxSequenceNumber = b.dbTxSequenceNumber;
+    this.deepClean = b.deepClean;
+    this.sstFiltered = b.sstFiltered;
+    this.referencedSize = b.referencedSize;
+    this.referencedReplicatedSize = b.referencedReplicatedSize;
+    this.exclusiveSize = b.exclusiveSize;
+    this.exclusiveReplicatedSize = b.exclusiveReplicatedSize;
+    this.deepCleanedDeletedDir = b.deepCleanedDeletedDir;
+    this.lastTransactionInfo = b.lastTransactionInfo;
   }
 
   public void setName(String name) {
@@ -299,13 +263,15 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
         .setGlobalPreviousSnapshotId(globalPreviousSnapshotId)
         .setSnapshotPath(snapshotPath)
         .setCheckpointDir(checkpointDir)
+        .setDbTxSequenceNumber(dbTxSequenceNumber)
         .setDeepClean(deepClean)
         .setSstFiltered(sstFiltered)
         .setReferencedSize(referencedSize)
         .setReferencedReplicatedSize(referencedReplicatedSize)
         .setExclusiveSize(exclusiveSize)
         .setExclusiveReplicatedSize(exclusiveReplicatedSize)
-        .setDeepCleanedDeletedDir(deepCleanedDeletedDir);
+        .setDeepCleanedDeletedDir(deepCleanedDeletedDir)
+        .setLastTransactionInfo(lastTransactionInfo);
   }
 
   /**
@@ -331,6 +297,7 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
     private long exclusiveSize;
     private long exclusiveReplicatedSize;
     private boolean deepCleanedDeletedDir;
+    private ByteString lastTransactionInfo;
 
     public Builder() {
       // default values
@@ -432,29 +399,14 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
       return this;
     }
 
+    public Builder setLastTransactionInfo(ByteString lastTransactionInfo) {
+      this.lastTransactionInfo = lastTransactionInfo;
+      return this;
+    }
+
     public SnapshotInfo build() {
       Preconditions.checkNotNull(name);
-      return new SnapshotInfo(
-          snapshotId,
-          name,
-          volumeName,
-          bucketName,
-          snapshotStatus,
-          creationTime,
-          deletionTime,
-          pathPreviousSnapshotId,
-          globalPreviousSnapshotId,
-          snapshotPath,
-          checkpointDir,
-          dbTxSequenceNumber,
-          deepClean,
-          sstFiltered,
-          referencedSize,
-          referencedReplicatedSize,
-          exclusiveSize,
-          exclusiveReplicatedSize,
-          deepCleanedDeletedDir
-      );
+      return new SnapshotInfo(this);
     }
   }
 
@@ -484,6 +436,10 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
 
     if (globalPreviousSnapshotId != null) {
       sib.setGlobalPreviousSnapshotID(toProtobuf(globalPreviousSnapshotId));
+    }
+
+    if (lastTransactionInfo != null) {
+      sib.setLastTransactionInfo(lastTransactionInfo);
     }
 
     sib.setSnapshotPath(snapshotPath)
@@ -552,6 +508,10 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
     if (snapshotInfoProto.hasDeepCleanedDeletedDir()) {
       osib.setDeepCleanedDeletedDir(
           snapshotInfoProto.getDeepCleanedDeletedDir());
+    }
+
+    if (snapshotInfoProto.hasLastTransactionInfo()) {
+      osib.setLastTransactionInfo(snapshotInfoProto.getLastTransactionInfo());
     }
 
     osib.setSnapshotPath(snapshotInfoProto.getSnapshotPath())
@@ -646,6 +606,14 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
     this.deepCleanedDeletedDir = deepCleanedDeletedDir;
   }
 
+  public ByteString getLastTransactionInfo() {
+    return lastTransactionInfo;
+  }
+
+  public void setLastTransactionInfo(ByteString lastTransactionInfo) {
+    this.lastTransactionInfo = lastTransactionInfo;
+  }
+
   /**
    * Generate default name of snapshot, (used if user doesn't provide one).
    */
@@ -714,7 +682,8 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
         referencedReplicatedSize == that.referencedReplicatedSize &&
         exclusiveSize == that.exclusiveSize &&
         exclusiveReplicatedSize == that.exclusiveReplicatedSize &&
-        deepCleanedDeletedDir == that.deepCleanedDeletedDir;
+        deepCleanedDeletedDir == that.deepCleanedDeletedDir &&
+        Objects.equals(lastTransactionInfo, that.lastTransactionInfo);
   }
 
   @Override
@@ -725,7 +694,7 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
         globalPreviousSnapshotId, snapshotPath, checkpointDir,
         deepClean, sstFiltered,
         referencedSize, referencedReplicatedSize,
-        exclusiveSize, exclusiveReplicatedSize, deepCleanedDeletedDir);
+        exclusiveSize, exclusiveReplicatedSize, deepCleanedDeletedDir, lastTransactionInfo);
   }
 
   /**
@@ -733,27 +702,7 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
    */
   @Override
   public SnapshotInfo copyObject() {
-    return new Builder()
-        .setSnapshotId(snapshotId)
-        .setName(name)
-        .setVolumeName(volumeName)
-        .setBucketName(bucketName)
-        .setSnapshotStatus(snapshotStatus)
-        .setCreationTime(creationTime)
-        .setDeletionTime(deletionTime)
-        .setPathPreviousSnapshotId(pathPreviousSnapshotId)
-        .setGlobalPreviousSnapshotId(globalPreviousSnapshotId)
-        .setSnapshotPath(snapshotPath)
-        .setCheckpointDir(checkpointDir)
-        .setDbTxSequenceNumber(dbTxSequenceNumber)
-        .setDeepClean(deepClean)
-        .setSstFiltered(sstFiltered)
-        .setReferencedSize(referencedSize)
-        .setReferencedReplicatedSize(referencedReplicatedSize)
-        .setExclusiveSize(exclusiveSize)
-        .setExclusiveReplicatedSize(exclusiveReplicatedSize)
-        .setDeepCleanedDeletedDir(deepCleanedDeletedDir)
-        .build();
+    return this.toBuilder().build();
   }
 
   @Override
@@ -778,6 +727,7 @@ public final class SnapshotInfo implements Auditable, CopyObject<SnapshotInfo> {
         ", exclusiveSize: '" + exclusiveSize + '\'' +
         ", exclusiveReplicatedSize: '" + exclusiveReplicatedSize + '\'' +
         ", deepCleanedDeletedDir: '" + deepCleanedDeletedDir + '\'' +
+        ", lastTransactionInfo: '" + lastTransactionInfo + '\'' +
         '}';
   }
 }

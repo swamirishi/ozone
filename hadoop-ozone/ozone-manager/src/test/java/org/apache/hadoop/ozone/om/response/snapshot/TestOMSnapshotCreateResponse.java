@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
@@ -91,7 +92,8 @@ public class TestOMSnapshotCreateResponse {
         snapshotName,
         snapshotId,
         Time.now());
-
+    snapshotInfo.setLastTransactionInfo(
+        TransactionInfo.valueOf(TransactionInfo.getTermIndex(1L)).toByteString());
     // confirm table is empty
     Assertions.assertEquals(0,
         omMetadataManager
