@@ -321,6 +321,7 @@ public final class OmUtils {
     case CreateSnapshot:
     case DeleteSnapshot:
     case SnapshotMoveDeletedKeys:
+    case SnapshotMoveTableKeys:
     case SnapshotPurge:
     case RecoverLease:
     case SetTimes:

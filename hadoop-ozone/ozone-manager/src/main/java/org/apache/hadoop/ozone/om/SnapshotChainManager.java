@@ -177,7 +177,6 @@ public class SnapshotChainManager {
       // for node removal
       UUID next = globalSnapshotChain.get(snapshotID).getNextSnapshotId();
       UUID prev = globalSnapshotChain.get(snapshotID).getPreviousSnapshotId();
-
       if (prev != null && !globalSnapshotChain.containsKey(prev)) {
         throw new IOException(String.format(
             "Global snapshot chain corruption. " +

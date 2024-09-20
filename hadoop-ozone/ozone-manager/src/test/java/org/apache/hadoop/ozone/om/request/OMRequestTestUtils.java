@@ -19,12 +19,17 @@
 
 package org.apache.hadoop.ozone.om.request;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.client.BlockID;
@@ -32,8 +37,11 @@ import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfigValidator;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos.KeyValue;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
+import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.OzoneAcl;
@@ -42,46 +50,36 @@ import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
+import org.apache.hadoop.ozone.om.helpers.OmDirectoryInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartUpload;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
-import org.apache.hadoop.ozone.om.helpers.OmDirectoryInfo;
 import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AddAclRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.BucketInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CreateTenantRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteTenantRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetS3VolumeContextRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ListTenantRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .MultipartUploadAbortRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .MultipartCommitUploadPartRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .MultipartUploadCompleteRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .KeyArgs;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .MultipartInfoInitiateRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .OMRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartCommitUploadPartRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartInfoInitiateRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartUploadAbortRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartUploadCompleteRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PartKeyInfo;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .SetVolumePropertyRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .AddAclRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .RemoveAclRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .SetAclRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RemoveAclRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetAclRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetVolumePropertyRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantAssignAdminRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantAssignUserAccessIdRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantGetUserInfoRequest;
@@ -92,17 +90,11 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.security.acl.OzoneObj.ResourceType;
 import org.apache.hadoop.ozone.security.acl.OzoneObj.StoreType;
-
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.ozone.storage.proto.OzoneManagerStorageProtos;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Time;
-import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
-import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.when;
+import org.apache.logging.log4j.util.Strings;
 
 /**
  * Helper class to test OMClientRequest classes.
@@ -790,17 +782,17 @@ public final class OMRequestTestUtils {
         .setClientId(UUID.randomUUID().toString());
   }
 
-  public static List< HddsProtos.KeyValue> getMetadataList() {
-    List<HddsProtos.KeyValue> metadataList = new ArrayList<>();
-    metadataList.add(HddsProtos.KeyValue.newBuilder().setKey("key1").setValue(
+  public static List< KeyValue> getMetadataList() {
+    List<KeyValue> metadataList = new ArrayList<>();
+    metadataList.add(KeyValue.newBuilder().setKey("key1").setValue(
         "value1").build());
-    metadataList.add(HddsProtos.KeyValue.newBuilder().setKey("key2").setValue(
+    metadataList.add(KeyValue.newBuilder().setKey("key2").setValue(
         "value2").build());
     return metadataList;
   }
 
-  public static HddsProtos.KeyValue fsoMetadata() {
-    return HddsProtos.KeyValue.newBuilder()
+  public static KeyValue fsoMetadata() {
+    return KeyValue.newBuilder()
         .setKey(OMConfigKeys.OZONE_OM_ENABLE_FILESYSTEM_PATHS)
         .setValue(Boolean.FALSE.toString())
         .build();
@@ -1320,6 +1312,69 @@ public final class OMRequestTestUtils {
     return OMRequest.newBuilder()
         .setCreateSnapshotRequest(createSnapshotRequest)
         .setCmdType(Type.CreateSnapshot)
+        .setClientId(UUID.randomUUID().toString())
+        .setUserInfo(userInfo)
+        .build();
+  }
+
+  public static OMRequest moveSnapshotTableKeyRequest(UUID snapshotId,
+                                                      List<Pair<String, List<OmKeyInfo>>> deletedKeys,
+                                                      List<Pair<String, List<OmKeyInfo>>> deletedDirs,
+                                                      List<Pair<String, String>> renameKeys) {
+    List<OzoneManagerProtocolProtos.SnapshotMoveKeyInfos> deletedMoveKeys = new ArrayList<>();
+    for (Pair<String, List<OmKeyInfo>> deletedKey : deletedKeys) {
+      OzoneManagerProtocolProtos.SnapshotMoveKeyInfos snapshotMoveKeyInfos =
+          OzoneManagerProtocolProtos.SnapshotMoveKeyInfos.newBuilder()
+              .setKey(deletedKey.getKey())
+              .addAllKeyInfos(
+                  deletedKey.getValue().stream()
+                  .map(omKeyInfo -> omKeyInfo.getProtobuf(ClientVersion.CURRENT_VERSION)).collect(Collectors.toList()))
+              .build();
+      deletedMoveKeys.add(snapshotMoveKeyInfos);
+    }
+
+    List<OzoneManagerProtocolProtos.SnapshotMoveKeyInfos> deletedDirMoveKeys = new ArrayList<>();
+    for (Pair<String, List<OmKeyInfo>> deletedKey : deletedDirs) {
+      OzoneManagerProtocolProtos.SnapshotMoveKeyInfos snapshotMoveKeyInfos =
+          OzoneManagerProtocolProtos.SnapshotMoveKeyInfos.newBuilder()
+              .setKey(deletedKey.getKey())
+              .addAllKeyInfos(
+                  deletedKey.getValue().stream()
+                      .map(omKeyInfo -> omKeyInfo.getProtobuf(ClientVersion.CURRENT_VERSION))
+                      .collect(Collectors.toList()))
+              .build();
+      deletedDirMoveKeys.add(snapshotMoveKeyInfos);
+    }
+
+    List<KeyValue> renameKeyList = new ArrayList<>();
+    for (Pair<String, String> renameKey : renameKeys) {
+      KeyValue.Builder keyValue = KeyValue.newBuilder();
+      keyValue.setKey(renameKey.getKey());
+      if (!Strings.isBlank(renameKey.getValue())) {
+        keyValue.setValue(renameKey.getValue());
+      }
+      renameKeyList.add(keyValue.build());
+    }
+
+
+    OzoneManagerProtocolProtos.SnapshotMoveTableKeysRequest snapshotMoveTableKeysRequest =
+        OzoneManagerProtocolProtos.SnapshotMoveTableKeysRequest.newBuilder()
+            .setFromSnapshotID(HddsUtils.toProtobuf(snapshotId))
+            .addAllDeletedKeys(deletedMoveKeys)
+            .addAllDeletedDirs(deletedDirMoveKeys)
+            .addAllRenamedKeys(renameKeyList)
+            .build();
+
+    OzoneManagerProtocolProtos.UserInfo userInfo =
+        OzoneManagerProtocolProtos.UserInfo.newBuilder()
+            .setUserName("user")
+            .setHostName("host")
+            .setRemoteAddress("remote-address")
+            .build();
+
+    return OMRequest.newBuilder()
+        .setSnapshotMoveTableKeysRequest(snapshotMoveTableKeysRequest)
+        .setCmdType(Type.SnapshotMoveTableKeys)
         .setClientId(UUID.randomUUID().toString())
         .setUserInfo(userInfo)
         .build();

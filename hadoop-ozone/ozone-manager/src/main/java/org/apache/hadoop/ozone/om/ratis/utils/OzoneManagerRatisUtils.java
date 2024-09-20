@@ -79,6 +79,7 @@ import org.apache.hadoop.ozone.om.request.security.OMRenewDelegationTokenRequest
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotCreateRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotDeleteRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotMoveDeletedKeysRequest;
+import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotMoveTableKeysRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotPurgeRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotSetPropertyRequest;
 import org.apache.hadoop.ozone.om.request.upgrade.OMCancelPrepareRequest;
@@ -229,6 +230,8 @@ public final class OzoneManagerRatisUtils {
       return new OMSnapshotDeleteRequest(omRequest);
     case SnapshotMoveDeletedKeys:
       return new OMSnapshotMoveDeletedKeysRequest(omRequest);
+    case SnapshotMoveTableKeys:
+      return new OMSnapshotMoveTableKeysRequest(omRequest);
     case SnapshotPurge:
       return new OMSnapshotPurgeRequest(omRequest);
     case SetSnapshotProperty:

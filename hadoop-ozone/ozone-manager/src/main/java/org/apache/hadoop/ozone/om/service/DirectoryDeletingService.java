@@ -302,7 +302,6 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
       } finally {
         taskCount.getAndDecrement();
       }
-
       // place holder by returning empty results of this call back.
       return BackgroundTaskResult.EmptyTaskResult.newResult();
     }

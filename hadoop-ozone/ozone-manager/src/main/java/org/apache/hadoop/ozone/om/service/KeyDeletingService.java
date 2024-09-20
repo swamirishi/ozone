@@ -18,14 +18,12 @@ package org.apache.hadoop.ozone.om.service;
 
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT;
-import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPrefix;
 import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ServiceException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -54,24 +52,6 @@ import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.OmSnapshotManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
-import org.apache.hadoop.ozone.om.helpers.OMRatisHelper;
-import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer;
-import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotSize;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetSnapshotPropertyRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.hdds.utils.BackgroundTask;
-import org.apache.hadoop.hdds.utils.BackgroundTaskQueue;
-import org.apache.hadoop.hdds.utils.BackgroundTaskResult;
-import org.apache.hadoop.hdds.utils.BackgroundTaskResult.EmptyTaskResult;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE;
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK;
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT;
-
 import org.apache.hadoop.ozone.om.PendingKeysDeletion;
 import org.apache.hadoop.ozone.om.SnapshotChainManager;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
@@ -80,12 +60,10 @@ import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
-import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetSnapshotPropertyRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotProperty;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotPurgeRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotSize;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.ratis.protocol.ClientId;
 import org.slf4j.Logger;
@@ -117,6 +95,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
   private final Map<String, Long> exclusiveReplicatedSizeMap;
   private final Set<String> completedExclusiveSizeSet;
   private final Map<String, String> snapshotSeekMap;
+  private AtomicBoolean isRunningOnAOS;
 
   public KeyDeletingService(OzoneManager ozoneManager,
       ScmBlockLocationProtocol scmClient,
@@ -138,6 +117,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     this.exclusiveReplicatedSizeMap = new HashMap<>();
     this.completedExclusiveSizeSet = new HashSet<>();
     this.snapshotSeekMap = new HashMap<>();
+    this.isRunningOnAOS = new AtomicBoolean(false);
   }
 
   /**
@@ -150,10 +130,14 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     return deletedKeyCount;
   }
 
+  public boolean isRunningOnAOS() {
+    return isRunningOnAOS.get();
+  }
+
   @Override
   public BackgroundTaskQueue getTasks() {
     BackgroundTaskQueue queue = new BackgroundTaskQueue();
-    queue.add(new KeyDeletingTask());
+    queue.add(new KeyDeletingTask(this));
     return queue;
   }
 
@@ -188,7 +172,12 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
    * the blocks info in its deletedBlockLog), it removes these keys from the
    * DB.
    */
-  private class KeyDeletingTask implements BackgroundTask {
+  private final class KeyDeletingTask implements BackgroundTask {
+    private final KeyDeletingService deletingService;
+
+    private KeyDeletingTask(KeyDeletingService service) {
+      this.deletingService = service;
+    }
 
     @Override
     public int getPriority() {
@@ -201,7 +190,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
       // task.
       if (shouldRun()) {
         getRunCount().incrementAndGet();
-
+        isRunningOnAOS.set(true);
         int delCount = 0;
         try {
           // TODO: [SNAPSHOT] HDDS-7968. Reclaim eligible key blocks in
@@ -239,6 +228,11 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
         }
 
       }
+      isRunningOnAOS.set(false);
+      synchronized (deletingService) {
+        this.deletingService.notify();
+      }
+
       // By design, no one cares about the results of this call back.
       return EmptyTaskResult.newResult();
     }

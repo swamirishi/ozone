@@ -824,7 +824,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
   /**
    * Given a volume and bucket, return the corresponding DB key.
    *
-   * @param volume - User name
+   * @param volume - Volume name
    * @param bucket - Bucket name
    */
   @Override

@@ -147,6 +147,7 @@ enum Type {
   QuotaRepair = 133;
   GetQuotaRepairStatus = 135;
   StartQuotaRepair = 136;
+  SnapshotMoveTableKeys = 137;
 }
 
 enum SafeMode {
@@ -285,6 +286,7 @@ message OMRequest {
   optional QuotaRepairRequest               QuotaRepairRequest             = 131;
   optional GetQuotaRepairStatusRequest      GetQuotaRepairStatusRequest    = 133;
   optional StartQuotaRepairRequest          StartQuotaRepairRequest        = 134;
+  optional SnapshotMoveTableKeysRequest     SnapshotMoveTableKeysRequest   = 135;
 }
 
 message OMResponse {
@@ -1865,6 +1867,13 @@ message SnapshotMoveDeletedKeysRequest {
   repeated SnapshotMoveKeyInfos reclaimKeys = 3;
   repeated hadoop.hdds.KeyValue renamedKeys = 4;
   repeated string deletedDirsToMove = 5;
+}
+
+message SnapshotMoveTableKeysRequest {
+  optional hadoop.hdds.UUID fromSnapshotID = 1;
+  repeated SnapshotMoveKeyInfos deletedKeys = 2;
+  repeated SnapshotMoveKeyInfos deletedDirs = 3;
+  repeated hadoop.hdds.KeyValue renamedKeys = 4;
 }
 
 message SnapshotMoveKeyInfos {
