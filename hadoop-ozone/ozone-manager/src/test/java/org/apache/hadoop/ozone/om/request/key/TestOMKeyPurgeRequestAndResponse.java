@@ -213,17 +213,11 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
           deletedKey));
     }
 
-    SnapshotInfo fromSnapshotInfo = new SnapshotInfo.Builder()
-        .setVolumeName(volumeName)
-        .setBucketName(bucketName)
-        .setName("snap1")
-        .build();
-
     ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot =
         ozoneManager.getOmSnapshotManager().checkForSnapshot(
-            fromSnapshotInfo.getVolumeName(),
-            fromSnapshotInfo.getBucketName(),
-            getSnapshotPrefix(fromSnapshotInfo.getName()),
+            snapInfo.getVolumeName(),
+            snapInfo.getBucketName(),
+            getSnapshotPrefix(snapInfo.getName()),
             true);
     OmSnapshot omSnapshot = (OmSnapshot) rcOmSnapshot.get();
 
@@ -253,7 +247,7 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
         omMetadataManager.getStore().initBatchOperation()) {
 
       OMKeyPurgeResponse omKeyPurgeResponse = new OMKeyPurgeResponse(
-          omResponse, deletedKeyNames, fromSnapshotInfo, null);
+          omResponse, deletedKeyNames, snapInfo, null);
       omKeyPurgeResponse.addToDBBatch(omMetadataManager, batchOperation);
 
       // Do manual commit and see whether addToBatch is successful or not.

@@ -62,6 +62,7 @@ import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.service.SnapshotDiffCleanupService;
+import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
@@ -227,9 +228,6 @@ public class TestOmSnapshot {
     conf.setBoolean(OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_DISABLE_NATIVE_LIBS,
         disableNativeDiff);
     String omId = UUID.randomUUID().toString();
-    conf.setBoolean(OZONE_OM_ENABLE_FILESYSTEM_PATHS, enabledFileSystemPaths);
-    conf.set(OZONE_DEFAULT_BUCKET_LAYOUT, bucketLayout.name());
-    conf.setBoolean(OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF, forceFullSnapshotDiff);
     conf.setEnum(HDDS_DB_PROFILE, DBProfile.TEST);
     // Enable filesystem snapshot feature for the test regardless of the default
     conf.setBoolean(OMConfigKeys.OZONE_FILESYSTEM_SNAPSHOT_ENABLED_KEY, true);
@@ -1457,10 +1455,8 @@ public class TestOmSnapshot {
     String toSnapshotTableKey =
         SnapshotInfo.getTableKey(volumeName, bucketName, toSnapName);
 
-    UUID fromSnapshotID = ozoneManager.getOmSnapshotManager()
-        .getSnapshotInfo(fromSnapshotTableKey).getSnapshotId();
-    UUID toSnapshotID = ozoneManager.getOmSnapshotManager()
-        .getSnapshotInfo(toSnapshotTableKey).getSnapshotId();
+    UUID fromSnapshotID = SnapshotUtils.getSnapshotInfo(ozoneManager, fromSnapshotTableKey).getSnapshotId();
+    UUID toSnapshotID = SnapshotUtils.getSnapshotInfo(ozoneManager, toSnapshotTableKey).getSnapshotId();
 
     // Construct SnapshotDiffJob table key.
     String snapDiffJobKey = fromSnapshotID + DELIMITER + toSnapshotID;

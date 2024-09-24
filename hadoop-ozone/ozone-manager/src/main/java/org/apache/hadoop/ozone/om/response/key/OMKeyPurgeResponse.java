@@ -78,8 +78,7 @@ public class OMKeyPurgeResponse extends OmKeyResponse {
 
     if (fromSnapshot != null) {
       OmSnapshotManager omSnapshotManager =
-          ((OmMetadataManagerImpl) omMetadataManager)
-              .getOzoneManager().getOmSnapshotManager();
+          ((OmMetadataManagerImpl) omMetadataManager).getOzoneManager().getOmSnapshotManager();
 
       try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmFromSnapshot =
           omSnapshotManager.checkForSnapshot(
