@@ -90,7 +90,7 @@ public class SolrHttpClient {
     }
     try {
       System.setProperty("sun.security.krb5.debug", "true");
-      System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
+      //System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
       Lookup<AuthSchemeProvider> authSchemeRegistry =
           RegistryBuilder.<AuthSchemeProvider>create()
               .register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory(true))
