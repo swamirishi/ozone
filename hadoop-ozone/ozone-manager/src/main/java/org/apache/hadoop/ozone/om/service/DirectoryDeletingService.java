@@ -316,11 +316,21 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
           getOzoneManager().getMetadataManager();
       SnapshotInfo previousSnapshotInfo = SnapshotUtils.getLatestSnapshotInfo(deletedDirInfo.getVolumeName(),
           deletedDirInfo.getBucketName(), getOzoneManager(), metadataManager.getSnapshotChainManager());
-      try (ReferenceCounted<OmSnapshot> rcLatestSnapshot = previousSnapshotInfo != null ?
-               omSnapshotManager.getSnapshot(
-                   deletedDirInfo.getVolumeName(),
-                   deletedDirInfo.getBucketName(),
-                   previousSnapshotInfo.getName()) : null) {
+      if (previousSnapshotInfo == null) {
+        return false;
+      }
+      // previous snapshot is not active or it has not been flushed to disk then don't process the key in this
+      // iteration.
+      if (previousSnapshotInfo.getSnapshotStatus() != SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE ||
+              !OmSnapshotManager.areSnapshotChangesFlushedToDB(getOzoneManager().getMetadataManager(),
+                  previousSnapshotInfo)) {
+        return true;
+      }
+      try (ReferenceCounted<OmSnapshot> rcLatestSnapshot =
+          omSnapshotManager.getSnapshot(
+             deletedDirInfo.getVolumeName(),
+             deletedDirInfo.getBucketName(),
+             previousSnapshotInfo.getName())) {
 
         if (rcLatestSnapshot != null) {
           String dbRenameKey = metadataManager

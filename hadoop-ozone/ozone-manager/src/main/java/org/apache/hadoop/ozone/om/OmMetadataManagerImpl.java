@@ -1574,11 +1574,18 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
           SnapshotInfo previousSnapshotInfo = bucketInfo == null ? null :
               SnapshotUtils.getLatestSnapshotInfo(bucketInfo.getVolumeName(),
               bucketInfo.getBucketName(), ozoneManager, snapshotChainManager);
+          // previous snapshot is not active or it has not been flushed to disk then don't process the key in this
+          // iteration.
+          if (previousSnapshotInfo != null &&
+              (previousSnapshotInfo.getSnapshotStatus() != SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE ||
+                  !OmSnapshotManager.areSnapshotChangesFlushedToDB(ozoneManager.getMetadataManager(),
+                      previousSnapshotInfo))) {
+            continue;
+          }
           // Get the latest snapshot in snapshot path.
-          try (ReferenceCounted<OmSnapshot>
-              rcLatestSnapshot = previousSnapshotInfo != null ?
+          try (ReferenceCounted<OmSnapshot> rcLatestSnapshot = previousSnapshotInfo == null ? null :
               omSnapshotManager.getSnapshot(previousSnapshotInfo.getVolumeName(),
-              previousSnapshotInfo.getBucketName(), previousSnapshotInfo.getName()) : null) {
+                  previousSnapshotInfo.getBucketName(), previousSnapshotInfo.getName())) {
 
             // Multiple keys with the same path can be queued in one DB entry
             RepeatedOmKeyInfo infoList = kv.getValue();

@@ -23,6 +23,7 @@ import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DIRECTORY_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.FILE_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.KEY_TABLE;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_SNAPSHOT_ERROR;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.TIMEOUT;
 
 import java.io.File;
@@ -148,7 +149,6 @@ public final class SnapshotUtils {
     }
   }
 
-
   /**
    * Get the next snapshot in the snapshot chain.
    */
@@ -161,7 +161,7 @@ public final class SnapshotUtils {
     // is removed in-memory but OMDoubleBuffer has not flushed yet.
     if (snapInfo == null) {
       throw new OMException("Provided Snapshot Info argument is null. Cannot get the next snapshot for a null value",
-          FILE_NOT_FOUND);
+          INVALID_SNAPSHOT_ERROR);
     }
     try {
       if (chainManager.hasNextPathSnapshot(snapInfo.getSnapshotPath(),
