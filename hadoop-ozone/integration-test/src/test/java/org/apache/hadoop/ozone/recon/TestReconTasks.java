@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.recon;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -51,6 +52,7 @@ import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_CONTAINER_REPORT_INTERV
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_PIPELINE_REPORT_INTERVAL;
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
 import static org.apache.hadoop.ozone.container.ozoneimpl.TestOzoneContainer.runTestOzoneContainerViaDataNode;
+import static org.apache.hadoop.ozone.recon.ReconConstants.CONTAINER_COUNT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -100,9 +102,6 @@ public class TestReconTasks {
         RatisReplicationConfig.getInstance(
             HddsProtos.ReplicationFactor.ONE), "admin");
     final ContainerInfo container2 = scmContainerManager.allocateContainer(
-        RatisReplicationConfig.getInstance(
-            HddsProtos.ReplicationFactor.ONE), "admin");
-    reconContainerManager.allocateContainer(
         RatisReplicationConfig.getInstance(
             HddsProtos.ReplicationFactor.ONE), "admin");
     scmContainerManager.updateContainerState(container1.containerID(),
@@ -239,6 +238,8 @@ public class TestReconTasks {
     // Bring down the Datanode that had the container replica.
     cluster.shutdownHddsDatanode(pipeline.getFirstNode());
 
+    // Since we no longer add EMPTY_MISSING containers to the table, we should
+    // have zero EMPTY_MISSING containers in the DB but their information will be logged.
     LambdaTestUtils.await(25000, 1000, () -> {
       List<UnhealthyContainers> allEmptyMissingContainers =
           reconContainerManager.getContainerSchemaManager()
@@ -246,7 +247,17 @@ public class TestReconTasks {
                   ContainerSchemaDefinition.UnHealthyContainerStates.
                       EMPTY_MISSING,
                   0, 1000);
-      return (allEmptyMissingContainers.size() == 1);
+
+      // Check if EMPTY_MISSING containers are not added to the DB and their count is logged
+      Map<ContainerSchemaDefinition.UnHealthyContainerStates, Map<String, Long>>
+          unhealthyContainerStateStatsMap = reconScm.getContainerHealthTask()
+          .getUnhealthyContainerStateStatsMap();
+
+      // Return true if the size of the fetched containers is 0 and the log shows 1 for EMPTY_MISSING state
+      return allEmptyMissingContainers.size() == 0 &&
+          unhealthyContainerStateStatsMap.get(
+                  ContainerSchemaDefinition.UnHealthyContainerStates.EMPTY_MISSING)
+              .getOrDefault(CONTAINER_COUNT, 0L) == 1;
     });
 
     // Now add a container to key mapping count as 3. This data is used to
@@ -274,7 +285,17 @@ public class TestReconTasks {
                   ContainerSchemaDefinition.UnHealthyContainerStates.
                       EMPTY_MISSING,
                   0, 1000);
-      return (allEmptyMissingContainers.isEmpty());
+
+
+      Map<ContainerSchemaDefinition.UnHealthyContainerStates, Map<String, Long>>
+          unhealthyContainerStateStatsMap = reconScm.getContainerHealthTask()
+          .getUnhealthyContainerStateStatsMap();
+
+      // Return true if the size of the fetched containers is 0 and the log shows 0 for EMPTY_MISSING state
+      return allEmptyMissingContainers.size() == 0 &&
+          unhealthyContainerStateStatsMap.get(
+                  ContainerSchemaDefinition.UnHealthyContainerStates.EMPTY_MISSING)
+              .getOrDefault(CONTAINER_COUNT, 0L) == 0;
     });
 
     // Now remove keys from container. This data is used to
@@ -285,8 +306,8 @@ public class TestReconTasks {
       reconContainerMetadataManager.commitBatchOperation(rdbBatchOperation);
     }
 
-    // Check existing container state in UNHEALTHY_CONTAINER table
-    // will be updated as EMPTY_MISSING
+    // Since we no longer add EMPTY_MISSING containers to the table, we should
+    // have zero EMPTY_MISSING containers in the DB but their information will be logged.
     LambdaTestUtils.await(25000, 1000, () -> {
       List<UnhealthyContainers> allEmptyMissingContainers =
           reconContainerManager.getContainerSchemaManager()
@@ -294,7 +315,16 @@ public class TestReconTasks {
                   ContainerSchemaDefinition.UnHealthyContainerStates.
                       EMPTY_MISSING,
                   0, 1000);
-      return (allEmptyMissingContainers.size() == 1);
+
+      Map<ContainerSchemaDefinition.UnHealthyContainerStates, Map<String, Long>>
+          unhealthyContainerStateStatsMap = reconScm.getContainerHealthTask()
+          .getUnhealthyContainerStateStatsMap();
+
+      // Return true if the size of the fetched containers is 0 and the log shows 1 for EMPTY_MISSING state
+      return allEmptyMissingContainers.size() == 0 &&
+          unhealthyContainerStateStatsMap.get(
+                  ContainerSchemaDefinition.UnHealthyContainerStates.EMPTY_MISSING)
+              .getOrDefault(CONTAINER_COUNT, 0L) == 1;
     });
 
     // Now restart the cluster and verify the container is no longer missing.

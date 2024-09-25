@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.recon.fsck;
 
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.MockDatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.PlacementPolicy;
@@ -31,7 +32,6 @@ import org.hadoop.ozone.recon.schema.tables.pojos.UnhealthyContainers;
 import org.hadoop.ozone.recon.schema.tables.records.UnhealthyContainersRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +65,7 @@ public class TestContainerHealthTaskRecordGenerator {
   private ContainerInfo container;
   private ContainerInfo emptyContainer;
   private ReconContainerMetadataManager reconContainerMetadataManager;
+  private static final OzoneConfiguration CONF = new OzoneConfiguration();
 
   @BeforeEach
   public void setup() throws IOException {
@@ -70,14 +73,19 @@ public class TestContainerHealthTaskRecordGenerator {
     container = mock(ContainerInfo.class);
     emptyContainer = mock(ContainerInfo.class);
     reconContainerMetadataManager = mock(ReconContainerMetadataManager.class);
+    when(container.getReplicationFactor())
+        .thenReturn(HddsProtos.ReplicationFactor.THREE);
     when(container.getReplicationConfig())
         .thenReturn(
             RatisReplicationConfig
                 .getInstance(HddsProtos.ReplicationFactor.THREE));
+    when(container.getState()).thenReturn(HddsProtos.LifeCycleState.CLOSED);
     when(container.containerID()).thenReturn(ContainerID.valueOf(123456));
     when(container.getContainerID()).thenReturn((long)123456);
     when(reconContainerMetadataManager.getKeyCountForContainer(
         (long) 123456)).thenReturn(5L);
+    when(emptyContainer.getReplicationFactor())
+        .thenReturn(HddsProtos.ReplicationFactor.THREE);
     when(emptyContainer.getReplicationConfig())
         .thenReturn(
             RatisReplicationConfig
@@ -85,7 +93,7 @@ public class TestContainerHealthTaskRecordGenerator {
     when(emptyContainer.containerID()).thenReturn(ContainerID.valueOf(345678));
     when(emptyContainer.getContainerID()).thenReturn((long) 345678);
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(1, 1, 1));
   }
 
@@ -118,6 +126,58 @@ public class TestContainerHealthTaskRecordGenerator {
         .retainOrUpdateRecord(status, missingRecord()
         ));
   }
+
+  @Test
+  public void testEmptyMissingRecordNotInsertedButLogged() {
+    // Create a container that is in EMPTY_MISSING state
+    Set<ContainerReplica> replicas = new HashSet<>();
+    ContainerHealthStatus status = new ContainerHealthStatus(emptyContainer, replicas, placementPolicy,
+            reconContainerMetadataManager);
+
+    // Initialize stats map
+    Map<UnHealthyContainerStates, Map<String, Long>> unhealthyContainerStateStatsMap = new HashMap<>();
+    initializeUnhealthyContainerStateStatsMap(unhealthyContainerStateStatsMap);
+
+    // Generate records for EMPTY_MISSING container
+    List<UnhealthyContainers> records = ContainerHealthTask.ContainerHealthRecords.generateUnhealthyRecords(
+            status, (long) 345678, unhealthyContainerStateStatsMap);
+
+    // Assert that no records are created for EMPTY_MISSING state
+    assertEquals(0, records.size());
+
+    // Assert that the EMPTY_MISSING state is logged
+    assertEquals(1, unhealthyContainerStateStatsMap.get(UnHealthyContainerStates.EMPTY_MISSING)
+        .getOrDefault(CONTAINER_COUNT, 0L));
+  }
+
+  @Test
+  public void testNegativeSizeRecordNotInsertedButLogged() {
+    // Simulate a container with NEGATIVE_SIZE state
+    when(container.getUsedBytes()).thenReturn(-10L); // Negative size
+    Set<ContainerReplica> replicas = generateReplicas(container, CLOSED, CLOSED);
+    ContainerHealthStatus status =
+        new ContainerHealthStatus(container, replicas, placementPolicy, reconContainerMetadataManager);
+
+    // Initialize stats map
+    Map<UnHealthyContainerStates, Map<String, Long>>
+        unhealthyContainerStateStatsMap = new HashMap<>();
+    initializeUnhealthyContainerStateStatsMap(unhealthyContainerStateStatsMap);
+
+    // Generate records for NEGATIVE_SIZE container
+    List<UnhealthyContainers> records =
+        ContainerHealthTask.ContainerHealthRecords.generateUnhealthyRecords(
+            status, (long) 123456, unhealthyContainerStateStatsMap);
+
+    // Assert that none of the records are for negative.
+    records.forEach(record -> assertFalse(record.getContainerState()
+        .equals(UnHealthyContainerStates.NEGATIVE_SIZE.toString())));
+
+
+    // Assert that the NEGATIVE_SIZE state is logged
+    assertEquals(1, unhealthyContainerStateStatsMap.get(
+            UnHealthyContainerStates.NEGATIVE_SIZE).getOrDefault(CONTAINER_COUNT, 0L));
+  }
+
 
   @Test
   public void testUnderReplicatedRecordRetainedAndUpdated() {
@@ -195,7 +255,7 @@ public class TestContainerHealthTaskRecordGenerator {
     Set<ContainerReplica> replicas =
         generateReplicas(container, CLOSED, CLOSED, CLOSED);
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(2, 3, 5));
     ContainerHealthStatus status =
         new ContainerHealthStatus(container, replicas, placementPolicy,
@@ -222,7 +282,7 @@ public class TestContainerHealthTaskRecordGenerator {
 
     // Container is now placed OK - should be removed.
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(3, 3, 5));
     status = new ContainerHealthStatus(container, replicas, placementPolicy,
         reconContainerMetadataManager);
@@ -306,7 +366,7 @@ public class TestContainerHealthTaskRecordGenerator {
     replicas =
         generateReplicas(container, CLOSED, CLOSED);
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(1, 2, 5));
     status =
         new ContainerHealthStatus(container, replicas, placementPolicy,
@@ -354,7 +414,7 @@ public class TestContainerHealthTaskRecordGenerator {
     // it is mis-replicated too
     replicas.clear();
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(1, 2, 5));
     status =
         new ContainerHealthStatus(container, replicas, placementPolicy,
@@ -391,10 +451,6 @@ public class TestContainerHealthTaskRecordGenerator {
     records = ContainerHealthTask.ContainerHealthRecords
         .generateUnhealthyRecords(status, (long) 345678,
             unhealthyContainerStateStatsMap);
-    assertEquals(1, records.size());
-    rec = records.get(0);
-    assertEquals(UnHealthyContainerStates.EMPTY_MISSING.toString(),
-        rec.getContainerState());
 
     assertEquals(3, rec.getExpectedReplicaCount().intValue());
     assertEquals(0, rec.getActualReplicaCount().intValue());
@@ -486,7 +542,7 @@ public class TestContainerHealthTaskRecordGenerator {
     // Under and Mis-Replicated
     replicas = generateReplicas(container, CLOSED, CLOSED);
     when(placementPolicy.validateContainerPlacement(
-        Mockito.anyList(), Mockito.anyInt()))
+        anyList(), anyInt()))
         .thenReturn(new ContainerPlacementStatusDefault(1, 2, 5));
     status = new ContainerHealthStatus(container, replicas, placementPolicy,
         reconContainerMetadataManager);
@@ -574,6 +630,8 @@ public class TestContainerHealthTaskRecordGenerator {
         UnHealthyContainerStates.OVER_REPLICATED, new HashMap<>());
     unhealthyContainerStateStatsMap.put(
         UnHealthyContainerStates.MIS_REPLICATED, new HashMap<>());
+    unhealthyContainerStateStatsMap.put(
+        UnHealthyContainerStates.NEGATIVE_SIZE, new HashMap<>());
   }
 
   private void logUnhealthyContainerStats(
@@ -582,7 +640,7 @@ public class TestContainerHealthTaskRecordGenerator {
     // If any EMPTY_MISSING containers, then it is possible that such
     // containers got stuck in the closing state which never got
     // any replicas created on the datanodes. In this case, we log it as
-    // EMPTY, and insert as EMPTY_MISSING in UNHEALTHY_CONTAINERS table.
+    // EMPTY_MISSING containers, but dont add it to the unhealthy container table.
     unhealthyContainerStateStatsMap.entrySet().forEach(stateEntry -> {
       UnHealthyContainerStates unhealthyContainerState = stateEntry.getKey();
       Map<String, Long> containerStateStatsMap = stateEntry.getValue();
