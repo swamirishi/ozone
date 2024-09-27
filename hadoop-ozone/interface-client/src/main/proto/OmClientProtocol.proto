@@ -143,7 +143,6 @@ enum Type {
   PrintCompactionLogDag = 125;
   AbortExpiredMultiPartUploads = 127;
   QuotaRepair = 133;
-  GetServerDefaults = 134;
   GetQuotaRepairStatus = 135;
   StartQuotaRepair = 136;
 }
@@ -280,7 +279,6 @@ message OMRequest {
 
   optional MultipartUploadsExpiredAbortRequest multipartUploadsExpiredAbortRequest = 126;
   optional QuotaRepairRequest               QuotaRepairRequest             = 131;
-  optional ServerDefaultsRequest            ServerDefaultsRequest          = 132;
   optional GetQuotaRepairStatusRequest      GetQuotaRepairStatusRequest    = 133;
   optional StartQuotaRepairRequest          StartQuotaRepairRequest        = 134;
 }
@@ -401,7 +399,6 @@ message OMResponse {
   optional PrintCompactionLogDagResponse     PrintCompactionLogDagResponse = 125;
   optional MultipartUploadsExpiredAbortResponse multipartUploadsExpiredAbortResponse = 127;
   optional QuotaRepairResponse            QuotaRepairResponse        = 134;
-  optional ServerDefaultsResponse            ServerDefaultsResponse        = 135;
   optional GetQuotaRepairStatusResponse      GetQuotaRepairStatusResponse   = 136;
   optional StartQuotaRepairResponse          StartQuotaRepairResponse       = 137;
 }
@@ -1514,6 +1511,7 @@ message ServiceInfo {
     repeated ServicePort servicePorts = 3;
     optional OMRoleInfo omRole = 4;
     optional int32 OMVersion = 5 [default = 0];
+    optional FsServerDefaultsProto serverDefaults = 6;
 }
 
 message MultipartInfoInitiateRequest {
@@ -2061,15 +2059,8 @@ message BucketQuotaCount {
 message QuotaRepairResponse {
 }
 
-message ServerDefaultsRequest {
-}
-
 message FsServerDefaultsProto {
   optional string keyProviderUri = 1;
-}
-
-message ServerDefaultsResponse {
-  required FsServerDefaultsProto serverDefaults = 1;
 }
 
 message GetQuotaRepairStatusRequest {

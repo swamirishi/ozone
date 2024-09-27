@@ -38,7 +38,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.CallerContext;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneAcl;
-import org.apache.hadoop.ozone.OzoneFsServerDefaults;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.DBUpdates;
 import org.apache.hadoop.ozone.om.helpers.DeleteTenantState;
@@ -172,8 +171,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenewDe
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RevokeS3SecretRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.S3Secret;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SafeMode;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServerDefaultsRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServerDefaultsResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServiceListRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServiceListResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetAclRequest;
@@ -2414,22 +2411,6 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
     SetSafeModeResponse setSafeModeResponse =
         handleError(submitRequest(omRequest)).getSetSafeModeResponse();
     return setSafeModeResponse.getResponse();
-  }
-
-  @Override
-  public OzoneFsServerDefaults getServerDefaults()
-      throws IOException {
-    ServerDefaultsRequest serverDefaultsRequest =
-        ServerDefaultsRequest.newBuilder().build();
-
-    OMRequest omRequest = createOMRequest(Type.GetServerDefaults)
-        .setServerDefaultsRequest(serverDefaultsRequest).build();
-
-    ServerDefaultsResponse serverDefaultsResponse =
-        handleError(submitRequest(omRequest)).getServerDefaultsResponse();
-
-    return OzoneFsServerDefaults.getFromProtobuf(
-        serverDefaultsResponse.getServerDefaults());
   }
 
   @Override

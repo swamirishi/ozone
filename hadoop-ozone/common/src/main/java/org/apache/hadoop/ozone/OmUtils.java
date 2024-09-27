@@ -271,7 +271,6 @@ public final class OmUtils {
     case TransferLeadership:
     case SetSafeMode:
     case PrintCompactionLogDag:
-    case GetServerDefaults:
     case GetQuotaRepairStatus:
     case StartQuotaRepair:
       return true;
