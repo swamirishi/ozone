@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -146,7 +147,7 @@ class TestContainerImporter {
         ContainerUtils.getContainerTarName(containerId));
     try (FileOutputStream output = new FileOutputStream(tarFile)) {
       TarArchiveOutputStream archive = new TarArchiveOutputStream(output);
-      ArchiveEntry entry = archive.createArchiveEntry(yamlFile,
+      TarArchiveEntry entry = archive.createArchiveEntry(yamlFile,
           "container.yaml");
       archive.putArchiveEntry(entry);
       try (InputStream input = new FileInputStream(yamlFile)) {
