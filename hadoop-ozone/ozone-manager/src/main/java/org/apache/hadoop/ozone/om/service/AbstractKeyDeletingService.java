@@ -252,7 +252,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     try {
       submitRequest(omRequest);
     } catch (ServiceException e) {
-      LOG.error("PurgeKey request failed. Will retry at next run.");
+      LOG.error("PurgeKey request failed. Will retry at next run.", e);
       return 0;
     }
 
