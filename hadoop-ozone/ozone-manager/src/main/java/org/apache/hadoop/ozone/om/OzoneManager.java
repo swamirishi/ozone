@@ -4192,10 +4192,16 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   }
 
   public ResolvedBucket resolveBucketLink(Pair<String, String> requested,
-                                          boolean allowDanglingBuckets)
+                                          boolean allowDanglingBuckets) throws IOException {
+    return resolveBucketLink(requested, allowDanglingBuckets, isAclEnabled);
+  }
+
+  public ResolvedBucket resolveBucketLink(Pair<String, String> requested,
+                                          boolean allowDanglingBuckets,
+                                          boolean aclEnabled)
       throws IOException {
     OmBucketInfo resolved;
-    if (isAclEnabled) {
+    if (aclEnabled) {
       UserGroupInformation ugi = getRemoteUser();
       if (getS3Auth() != null) {
         ugi = UserGroupInformation.createRemoteUser(
@@ -4206,13 +4212,24 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
           ugi,
           remoteIp != null ? remoteIp : omRpcAddress.getAddress(),
           remoteIp != null ? remoteIp.getHostName() :
-              omRpcAddress.getHostName(), allowDanglingBuckets);
+              omRpcAddress.getHostName(), allowDanglingBuckets, aclEnabled);
     } else {
       resolved = resolveBucketLink(requested, new HashSet<>(),
-          null, null, null, allowDanglingBuckets);
+          null, null, null, allowDanglingBuckets, aclEnabled);
     }
     return new ResolvedBucket(requested.getLeft(), requested.getRight(),
         resolved);
+  }
+
+  private OmBucketInfo resolveBucketLink(
+      Pair<String, String> volumeAndBucket,
+      Set<Pair<String, String>> visited,
+      UserGroupInformation userGroupInformation,
+      InetAddress remoteAddress,
+      String hostName,
+      boolean allowDanglingBuckets) throws IOException {
+    return resolveBucketLink(volumeAndBucket, visited, userGroupInformation, remoteAddress, hostName,
+        allowDanglingBuckets, isAclEnabled);
   }
 
   /**
@@ -4232,7 +4249,8 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
       UserGroupInformation userGroupInformation,
       InetAddress remoteAddress,
       String hostName,
-      boolean allowDanglingBuckets) throws IOException {
+      boolean allowDanglingBuckets,
+      boolean aclEnabled) throws IOException {
 
     String volumeName = volumeAndBucket.getLeft();
     String bucketName = volumeAndBucket.getRight();
@@ -4255,7 +4273,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
           DETECTED_LOOP_IN_BUCKET_LINKS);
     }
 
-    if (isAclEnabled) {
+    if (aclEnabled) {
       final ACLType type = ACLType.READ;
       checkAcls(ResourceType.BUCKET, StoreType.OZONE, type,
           volumeName, bucketName, null, userGroupInformation,
@@ -4266,7 +4284,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     return resolveBucketLink(
         Pair.of(info.getSourceVolume(), info.getSourceBucket()),
         visited, userGroupInformation, remoteAddress, hostName,
-        allowDanglingBuckets);
+        allowDanglingBuckets, aclEnabled);
   }
 
   @VisibleForTesting
