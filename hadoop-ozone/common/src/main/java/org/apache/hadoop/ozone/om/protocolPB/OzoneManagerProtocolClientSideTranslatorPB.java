@@ -971,12 +971,22 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
    */
   @Override
   public List<OmKeyInfo> listKeys(String volumeName, String bucketName,
-      String startKey, String prefix, int maxKeys) throws IOException {
+                                  String startKey, String prefix, int maxKeys) throws IOException {
+    return listKeys(volumeName, bucketName, startKey, prefix, maxKeys, false);
+  }
+
+  /**
+   * List keys in a bucket.
+   */
+  @Override
+  public List<OmKeyInfo> listKeys(String volumeName, String bucketName,
+      String startKey, String prefix, int maxKeys, boolean lite) throws IOException {
     List<OmKeyInfo> keys = new ArrayList<>();
     ListKeysRequest.Builder reqBuilder = ListKeysRequest.newBuilder();
     reqBuilder.setVolumeName(volumeName);
     reqBuilder.setBucketName(bucketName);
     reqBuilder.setCount(maxKeys);
+    reqBuilder.setLite(lite);
 
     if (startKey != null) {
       reqBuilder.setStartKey(startKey);

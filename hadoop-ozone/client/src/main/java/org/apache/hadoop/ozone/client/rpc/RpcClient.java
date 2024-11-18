@@ -1566,7 +1566,7 @@ public class RpcClient implements ClientProtocol {
                                  int maxListResult)
       throws IOException {
     List<OmKeyInfo> keys = ozoneManagerClient.listKeys(
-        volumeName, bucketName, prevKey, keyPrefix, maxListResult);
+        volumeName, bucketName, prevKey, keyPrefix, maxListResult, true);
     return keys.stream().map(key -> new OzoneKey(
         key.getVolumeName(),
         key.getBucketName(),

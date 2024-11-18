@@ -2870,19 +2870,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public List<OmKeyInfo> listKeys(String volumeName, String bucketName,
-      String startKey, String keyPrefix, int maxKeys) throws IOException {
-    try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcReader =
-        getReader(volumeName, bucketName, keyPrefix)) {
-      return rcReader.get().listKeys(
-          volumeName, bucketName, startKey, keyPrefix, maxKeys);
-    }
-  }
-
   @Override
   public List<RepeatedOmKeyInfo> listTrash(String volumeName,
       String bucketName, String startKeyName, String keyPrefix, int maxKeys)
@@ -3587,6 +3574,25 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcReader =
         getReader(args)) {
       return rcReader.get().lookupFile(args);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public List<OmKeyInfo> listKeys(String volumeName, String bucketName,
+                                  String startKey, String keyPrefix, int maxKeys) throws IOException {
+    return listKeys(volumeName, bucketName, startKey, keyPrefix, maxKeys, false);
+  }
+
+  @Override
+  public List<OmKeyInfo> listKeys(String volumeName, String bucketName, String startKey, String keyPrefix, int maxKeys,
+                                  boolean lite) throws IOException {
+    try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcReader =
+             getReader(volumeName, bucketName, keyPrefix)) {
+      return rcReader.get().listKeys(
+          volumeName, bucketName, startKey, keyPrefix, maxKeys);
     }
   }
 

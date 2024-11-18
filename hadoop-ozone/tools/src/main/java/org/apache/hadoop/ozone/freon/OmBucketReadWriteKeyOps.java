@@ -128,7 +128,7 @@ public class OmBucketReadWriteKeyOps extends AbstractOmBucketReadWriteOps {
   @Override
   protected int getReadCount(int readCount, String readPath)
       throws IOException {
-    List<OzoneFileStatus> ozoneFileStatusList = bucket.listStatus(
+    List<OzoneFileStatus> ozoneFileStatusList = bucket.listStatusLight(
         OzoneConsts.OM_KEY_PREFIX + readPath + OzoneConsts.OM_KEY_PREFIX, true,
         "/", keyCountForRead);
     readCount += ozoneFileStatusList.size();

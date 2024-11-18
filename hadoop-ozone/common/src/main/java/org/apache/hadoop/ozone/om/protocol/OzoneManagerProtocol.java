@@ -879,6 +879,29 @@ public interface OzoneManagerProtocol
   OmKeyInfo lookupFile(OmKeyArgs keyArgs) throws IOException;
 
   /**
+   * Returns a list of keys represented by {@link OmKeyInfo}
+   * in the given bucket. Argument volumeName, bucketName is required,
+   * others are optional.
+   *
+   * @param volumeName
+   *   the name of the volume.
+   * @param bucketName
+   *   the name of the bucket.
+   * @param startKey
+   *   the start key name, only the keys whose name is
+   *   after this value will be included in the result.
+   * @param keyPrefix
+   *   key name prefix, only the keys whose name has
+   *   this prefix will be included in the result.
+   * @param maxKeys
+   *   the maximum number of keys to return. It ensures
+   *   the size of the result will not exceed this limit.
+   * @return a list of keys.
+   */
+  List<OmKeyInfo> listKeys(String volumeName, String bucketName,
+                           String startKey, String keyPrefix, int maxKeys, boolean lite)
+      throws IOException;
+  /**
    * List the status for a file or a directory and its contents.
    *
    * @param keyArgs    Key args
