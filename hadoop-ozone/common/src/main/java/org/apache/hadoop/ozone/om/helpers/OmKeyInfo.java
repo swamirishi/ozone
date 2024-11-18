@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -47,6 +48,8 @@ import org.apache.hadoop.util.Time;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.hadoop.ozone.OzoneConsts.ETAG;
 
 /**
  * Args for key block. The block instance for the key requested in putKey.
@@ -603,13 +606,21 @@ public final class OmKeyInfo extends WithParentObjectId
   }
 
   /**
+   * For network transmit.
+   * @return
+   */
+  public KeyInfo getProtobuf(int clientVersion, boolean lite) {
+    return getProtobuf(false, null, clientVersion, false, lite);
+  }
+
+  /**
    * For network transmit to return KeyInfo.
    * @param clientVersion
    * @param latestVersion
    * @return key info.
    */
   public KeyInfo getNetworkProtobuf(int clientVersion, boolean latestVersion) {
-    return getProtobuf(false, null, clientVersion, latestVersion);
+    return getProtobuf(false, null, clientVersion, latestVersion, false);
   }
 
   /**
@@ -622,7 +633,7 @@ public final class OmKeyInfo extends WithParentObjectId
    */
   public KeyInfo getNetworkProtobuf(String fullKeyName, int clientVersion,
       boolean latestVersion) {
-    return getProtobuf(false, fullKeyName, clientVersion, latestVersion);
+    return getProtobuf(false, fullKeyName, clientVersion, latestVersion, false);
   }
 
   /**
@@ -631,7 +642,16 @@ public final class OmKeyInfo extends WithParentObjectId
    * @return
    */
   public KeyInfo getProtobuf(boolean ignorePipeline, int clientVersion) {
-    return getProtobuf(ignorePipeline, null, clientVersion, false);
+    return getProtobuf(ignorePipeline, clientVersion, false);
+  }
+
+  /**
+   *
+   * @param ignorePipeline true for persist to DB, false for network transmit.
+   * @return
+   */
+  public KeyInfo getProtobuf(boolean ignorePipeline, int clientVersion, boolean lite) {
+    return getProtobuf(ignorePipeline, null, clientVersion, false, lite);
   }
 
   /**
@@ -642,20 +662,23 @@ public final class OmKeyInfo extends WithParentObjectId
    * @return key info object
    */
   private KeyInfo getProtobuf(boolean ignorePipeline, String fullKeyName,
-                              int clientVersion, boolean latestVersionBlocks) {
+                              int clientVersion, boolean latestVersionBlocks,
+                              boolean lite) {
     long latestVersion = keyLocationVersions.size() == 0 ? -1 :
         keyLocationVersions.get(keyLocationVersions.size() - 1).getVersion();
 
     List<KeyLocationList> keyLocations = new ArrayList<>();
-    if (!latestVersionBlocks) {
-      for (OmKeyLocationInfoGroup locationInfoGroup : keyLocationVersions) {
-        keyLocations.add(locationInfoGroup.getProtobuf(
-            ignorePipeline, clientVersion));
-      }
-    } else {
-      if (latestVersion != -1) {
-        keyLocations.add(keyLocationVersions.get(keyLocationVersions.size() - 1)
-            .getProtobuf(ignorePipeline, clientVersion));
+    if (!lite) {
+      if (!latestVersionBlocks) {
+        for (OmKeyLocationInfoGroup locationInfoGroup : keyLocationVersions) {
+          keyLocations.add(locationInfoGroup.getProtobuf(
+              ignorePipeline, clientVersion));
+        }
+      } else {
+        if (latestVersion != -1) {
+          keyLocations.add(keyLocationVersions.get(keyLocationVersions.size() - 1)
+              .getProtobuf(ignorePipeline, clientVersion));
+        }
       }
     }
 
@@ -670,27 +693,32 @@ public final class OmKeyInfo extends WithParentObjectId
     } else {
       kb.setFactor(ReplicationConfig.getLegacyFactor(replicationConfig));
     }
-    kb.setLatestVersion(latestVersion)
-        .addAllKeyLocationList(keyLocations)
-        .setCreationTime(creationTime)
-        .setModificationTime(modificationTime)
-        .addAllMetadata(KeyValueUtil.toProtobuf(metadata))
-        .addAllAcls(OzoneAclUtil.toProtobuf(acls))
-        .setObjectID(objectID)
-        .setUpdateID(updateID)
-        .setParentID(parentObjectID);
-
-    FileChecksumProto fileChecksumProto = OMPBHelper.convert(fileChecksum);
-    if (fileChecksumProto != null) {
-      kb.setFileChecksum(fileChecksumProto);
+    kb.setCreationTime(creationTime)
+        .setModificationTime(modificationTime);
+    if (!lite) {
+      kb.setLatestVersion(latestVersion)
+          .addAllKeyLocationList(keyLocations).addAllMetadata(KeyValueUtil.toProtobuf(metadata))
+          .addAllAcls(OzoneAclUtil.toProtobuf(acls))
+          .setObjectID(objectID)
+          .setUpdateID(updateID)
+          .setParentID(parentObjectID);
+      FileChecksumProto fileChecksumProto = OMPBHelper.convert(fileChecksum);
+      if (fileChecksumProto != null) {
+        kb.setFileChecksum(fileChecksumProto);
+      }
+      if (encInfo != null) {
+        kb.setFileEncryptionInfo(OMPBHelper.convert(encInfo));
+      }
+    } else {
+      kb.addAllMetadata(KeyValueUtil.toProtobuf(metadata.entrySet().stream().filter(kv -> kv.getKey().equals(ETAG))
+          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))));
     }
+
+
     if (StringUtils.isNotBlank(fullKeyName)) {
       kb.setKeyName(fullKeyName);
     } else {
       kb.setKeyName(keyName);
-    }
-    if (encInfo != null) {
-      kb.setFileEncryptionInfo(OMPBHelper.convert(encInfo));
     }
     kb.setIsFile(isFile);
     return kb.build();

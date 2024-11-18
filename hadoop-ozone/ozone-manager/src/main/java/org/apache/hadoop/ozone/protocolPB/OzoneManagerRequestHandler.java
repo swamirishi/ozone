@@ -709,7 +709,7 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         request.getPrefix(),
         request.getCount());
     for (OmKeyInfo key : keys) {
-      resp.addKeyInfo(key.getProtobuf(true, clientVersion));
+      resp.addKeyInfo(key.getProtobuf(true, clientVersion, request.hasLite() && request.getLite()));
     }
 
     return resp.build();
@@ -1178,7 +1178,8 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         listStatusResponseBuilder =
         ListStatusResponse.newBuilder();
     for (OzoneFileStatus status : statuses) {
-      listStatusResponseBuilder.addStatuses(status.getProtobuf(clientVersion));
+      listStatusResponseBuilder.addStatuses(status.getProtobuf(clientVersion,
+          request.hasLite() && request.getLite()));
     }
     return listStatusResponseBuilder.build();
   }

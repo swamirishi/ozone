@@ -762,7 +762,7 @@ public class BasicRootedOzoneClientAdapterImpl
    */
   private List<FileStatusAdapter> listStatusRoot(
       boolean recursive, String startPath, long numEntries,
-      URI uri, Path workingDir, String username) throws IOException {
+      URI uri, Path workingDir, String username, boolean lite) throws IOException {
 
     OFSPath ofsStartPath = new OFSPath(startPath, config);
     // list volumes
@@ -775,7 +775,7 @@ public class BasicRootedOzoneClientAdapterImpl
       if (recursive) {
         String pathStrNextVolume = volume.getName();
         res.addAll(listStatus(pathStrNextVolume, recursive, startPath,
-            numEntries - res.size(), uri, workingDir, username));
+            numEntries - res.size(), uri, workingDir, username, lite));
       }
     }
     return res;
@@ -784,9 +784,10 @@ public class BasicRootedOzoneClientAdapterImpl
   /**
    * Helper for OFS listStatus on a volume.
    */
+  @SuppressWarnings("checkstyle:ParameterNumber")
   private List<FileStatusAdapter> listStatusVolume(String volumeStr,
       boolean recursive, String startPath, long numEntries,
-      URI uri, Path workingDir, String username) throws IOException {
+      URI uri, Path workingDir, String username, boolean lite) throws IOException {
 
     OFSPath ofsStartPath = new OFSPath(startPath, config);
     // list buckets in the volume
@@ -804,7 +805,7 @@ public class BasicRootedOzoneClientAdapterImpl
       if (recursive) {
         String pathStrNext = volumeStr + OZONE_URI_DELIMITER + bucket.getName();
         res.addAll(listStatus(pathStrNext, recursive, startPath,
-            numEntries - res.size(), uri, workingDir, username));
+            numEntries - res.size(), uri, workingDir, username, lite));
       }
     }
     return res;
@@ -857,13 +858,15 @@ public class BasicRootedOzoneClientAdapterImpl
    *                   Used in making the return path qualified.
    * @param username User name.
    *                 Used in making the return path qualified.
+   * @param lite true if lightweight response needs to be returned otherwise false.
    * @return A list of FileStatusAdapter.
    * @throws IOException Bucket exception or FileNotFoundException.
    */
+  @SuppressWarnings("checkstyle:ParameterNumber")
   @Override
   public List<FileStatusAdapter> listStatus(String pathStr, boolean recursive,
       String startPath, long numEntries, URI uri,
-      Path workingDir, String username) throws IOException {
+      Path workingDir, String username, boolean lite) throws IOException {
 
     incrementCounter(Statistic.OBJECTS_LIST, 1);
     // Remove authority from startPath if it exists
@@ -882,44 +885,45 @@ public class BasicRootedOzoneClientAdapterImpl
     OFSPath ofsPath = new OFSPath(pathStr, config);
     if (ofsPath.isRoot()) {
       return listStatusRoot(
-          recursive, startPath, numEntries, uri, workingDir, username);
+          recursive, startPath, numEntries, uri, workingDir, username, lite);
     }
     OFSPath ofsStartPath = new OFSPath(startPath, config);
     if (ofsPath.isVolume()) {
       String startBucket = ofsStartPath.getBucketName();
       return listStatusVolume(ofsPath.getVolumeName(),
-          recursive, startBucket, numEntries, uri, workingDir, username);
+          recursive, startBucket, numEntries, uri, workingDir, username, lite);
     }
 
     if (ofsPath.isSnapshotPath()) {
       return listStatusBucketSnapshot(ofsPath.getVolumeName(),
           ofsPath.getBucketName(), uri);
     }
-
+    List<FileStatusAdapter> result = new ArrayList<>();
     String keyName = ofsPath.getKeyName();
     // Internally we need startKey to be passed into bucket.listStatus
     String startKey = ofsStartPath.getKeyName();
     try {
       OzoneBucket bucket = getBucket(ofsPath, false);
-      List<OzoneFileStatus> statuses;
+      List<OzoneFileStatus> statuses = new ArrayList<>();
       if (bucket.isSourcePathExist()) {
-        statuses = bucket
-            .listStatus(keyName, recursive, startKey, numEntries);
+        if (lite) {
+          statuses.addAll(bucket.listStatusLight(keyName, recursive, startKey, numEntries));
+        } else {
+          statuses.addAll(bucket.listStatus(keyName, recursive, startKey, numEntries));
+        }
+
       } else {
         LOG.warn("Source Bucket does not exist, link bucket {} is orphan " +
             "and returning empty list of files inside it", bucket.getName());
-        statuses = Collections.emptyList();
       }
       
       // Note: result in statuses above doesn't have volume/bucket path since
       //  they are from the server.
       String ofsPathPrefix = ofsPath.getNonKeyPath();
-
-      List<FileStatusAdapter> result = new ArrayList<>();
       for (OzoneFileStatus status : statuses) {
-        result.add(toFileStatusAdapter(status, username, uri, workingDir,
-            ofsPathPrefix));
+        result.add(toFileStatusAdapter(status, username, uri, workingDir, ofsPathPrefix));
       }
+
       return result;
     } catch (OMException e) {
       if (e.getResult() == OMException.ResultCodes.FILE_NOT_FOUND) {

@@ -2144,7 +2144,14 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
 
   @Override
   public List<OzoneFileStatus> listStatus(OmKeyArgs args, boolean recursive,
-      String startKey, long numEntries, boolean allowPartialPrefixes)
+                                          String startKey, long numEntries, boolean allowPartialPrefixes)
+      throws IOException {
+    return listStatus(args, recursive, startKey, numEntries, allowPartialPrefixes, false);
+  }
+
+  @Override
+  public List<OzoneFileStatus> listStatus(OmKeyArgs args, boolean recursive,
+      String startKey, long numEntries, boolean allowPartialPrefixes, boolean lite)
       throws IOException {
     KeyArgs keyArgs = KeyArgs.newBuilder()
         .setVolumeName(args.getVolumeName())
@@ -2158,7 +2165,8 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
             .setKeyArgs(keyArgs)
             .setRecursive(recursive)
             .setStartKey(startKey)
-            .setNumEntries(numEntries);
+            .setNumEntries(numEntries)
+            .setLite(lite);
 
     if (allowPartialPrefixes) {
       listStatusRequestBuilder.setAllowPartialPrefix(allowPartialPrefixes);

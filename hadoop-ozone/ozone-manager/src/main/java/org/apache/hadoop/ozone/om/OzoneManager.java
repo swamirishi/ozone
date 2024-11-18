@@ -3603,8 +3603,16 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   public List<OzoneFileStatus> listStatus(OmKeyArgs args, boolean recursive,
       String startKey, long numEntries, boolean allowPartialPrefixes)
       throws IOException {
+    return listStatus(args, recursive, startKey, numEntries, allowPartialPrefixes, false);
+  }
+
+  @Override
+  public List<OzoneFileStatus> listStatus(OmKeyArgs args, boolean recursive,
+                                          String startKey, long numEntries, boolean allowPartialPrefixes,
+                                          boolean lite)
+      throws IOException {
     try (ReferenceCounted<IOmMetadataReader, SnapshotCache> rcReader =
-        getReader(args)) {
+             getReader(args)) {
       return rcReader.get().listStatus(
           args, recursive, startKey, numEntries, allowPartialPrefixes);
     }

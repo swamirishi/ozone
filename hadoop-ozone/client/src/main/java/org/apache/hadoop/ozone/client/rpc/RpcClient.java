@@ -2058,10 +2058,18 @@ public class RpcClient implements ClientProtocol {
   public List<OzoneFileStatus> listStatus(String volumeName, String bucketName,
       String keyName, boolean recursive, String startKey,
       long numEntries, boolean allowPartialPrefixes) throws IOException {
+    return listStatus(volumeName, bucketName, keyName, recursive, startKey, numEntries, allowPartialPrefixes, false);
+  }
+
+  @Override
+  public List<OzoneFileStatus> listStatus(String volumeName, String bucketName,
+                                          String keyName, boolean recursive, String startKey,
+                                          long numEntries, boolean allowPartialPrefixes,
+                                          boolean lite) throws IOException {
     OmKeyArgs keyArgs = prepareOmKeyArgs(volumeName, bucketName, keyName);
     return ozoneManagerClient
         .listStatus(keyArgs, recursive, startKey, numEntries,
-            allowPartialPrefixes);
+            allowPartialPrefixes, lite);
   }
 
   /**

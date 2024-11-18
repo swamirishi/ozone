@@ -18,7 +18,9 @@
 
 package org.apache.hadoop.fs.ozone;
 
+import org.apache.commons.lang.RandomStringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -26,6 +28,7 @@ import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.InvalidPathException;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
@@ -1779,5 +1782,57 @@ public class TestOzoneFileSystem {
     fileStatus = fs.getFileStatus(path);
     // verify that mtime is NOT updated as expected.
     Assert.assertEquals(mtime, fileStatus.getModificationTime());
+  }
+
+  @Test
+  public void testOzoneManagerListLocatedStatusAndListStatus() throws IOException {
+    String data = RandomStringUtils.randomAlphanumeric(20);
+    String directory = RandomStringUtils.randomAlphanumeric(5);
+    String filePath = RandomStringUtils.randomAlphanumeric(5);
+    Path path = new Path("/" + directory + "/" + filePath);
+    Path dir1Path = new Path("/" + directory + "/" + RandomStringUtils.randomAlphanumeric(5));
+    try (FSDataOutputStream stream = fs.create(path)) {
+      stream.writeBytes(data);
+    }
+    fs.mkdirs(dir1Path);
+    RemoteIterator<LocatedFileStatus> listLocatedStatus = fs.listLocatedStatus(new Path("/" + directory));
+    int dirCount = 0;
+    int count = 0;
+    while (listLocatedStatus.hasNext()) {
+      LocatedFileStatus locatedFileStatus = listLocatedStatus.next();
+      if (locatedFileStatus.isDirectory()) {
+        dirCount++;
+      } else {
+        assertTrue(locatedFileStatus.getBlockLocations().length >= 1);
+      }
+      count++;
+    }
+    assertEquals(1, dirCount);
+    assertEquals(2, count);
+    listLocatedStatus = fs.listLocatedStatus(path);
+    count = 0;
+    while (listLocatedStatus.hasNext()) {
+      LocatedFileStatus locatedFileStatus = listLocatedStatus.next();
+      assertTrue(locatedFileStatus.getBlockLocations().length >= 1);
+
+      for (BlockLocation blockLocation : locatedFileStatus.getBlockLocations()) {
+        assertTrue(blockLocation.getNames().length >= 1);
+        assertTrue(blockLocation.getHosts().length >= 1);
+      }
+      count++;
+    }
+    assertEquals(1, count);
+    count = 0;
+    RemoteIterator<FileStatus> listStatus = fs.listStatusIterator(path);
+    while (listStatus.hasNext()) {
+      FileStatus fileStatus = listStatus.next();
+      assertFalse(fileStatus instanceof LocatedFileStatus);
+      count++;
+    }
+    assertEquals(1, count);
+    FileStatus[] fileStatuses = fs.listStatus(path.getParent());
+    assertEquals(2, fileStatuses.length);
+    assertFalse(fileStatuses[0] instanceof LocatedFileStatus);
+    assertFalse(fileStatuses[1] instanceof LocatedFileStatus);
   }
 }

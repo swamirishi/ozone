@@ -54,6 +54,7 @@ import org.apache.hadoop.security.token.Token;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -511,6 +512,13 @@ public class ClientProtocolStub implements ClientProtocol {
                                           String keyName, boolean recursive,
                                           String startKey, long numEntries,
                                           boolean allowPartialPrefixes)
+      throws IOException {
+    return null;
+  }
+
+  @Override
+  public List<OzoneFileStatus> listStatus(String volumeName, String bucketName, String keyName, boolean recursive,
+                                          String startKey, long numEntries, boolean allowPartialPrefixes, boolean lite)
       throws IOException {
     return null;
   }

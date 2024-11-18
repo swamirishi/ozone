@@ -415,13 +415,16 @@ public class BasicOzoneClientAdapterImpl implements OzoneClientAdapter {
   @Override
   public List<FileStatusAdapter> listStatus(String keyName, boolean recursive,
       String startKey, long numEntries, URI uri,
-      Path workingDir, String username) throws IOException {
+      Path workingDir, String username, boolean lite) throws IOException {
     try {
       incrementCounter(Statistic.OBJECTS_LIST, 1);
-      List<OzoneFileStatus> statuses = bucket
-          .listStatus(keyName, recursive, startKey, numEntries);
-
       List<FileStatusAdapter> result = new ArrayList<>();
+      List<OzoneFileStatus> statuses = new ArrayList<>();
+      if (lite) {
+        statuses.addAll(bucket.listStatusLight(keyName, recursive, startKey, numEntries));
+      } else {
+        statuses.addAll(bucket.listStatus(keyName, recursive, startKey, numEntries));
+      }
       for (OzoneFileStatus status : statuses) {
         result.add(toFileStatusAdapter(status, username, uri, workingDir));
       }

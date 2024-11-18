@@ -50,6 +50,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_PIPELINE_OWNER_CONTAINER_COUNT;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_KEY_LATEST_VERSION_LOCATION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 
 /**
@@ -188,7 +190,7 @@ public class TestOzoneRpcClientWithKeyLatestVersion {
     try (OzoneInputStream is = ozoneBucket.readKey(keyName)) {
       is.read(fileContent);
     }
-    Assert.assertEquals(value, new String(fileContent, UTF_8));
+    assertEquals(value, new String(fileContent, UTF_8));
   }
 
   private void testListStatus(String volumeName, String bucketName,
@@ -197,14 +199,44 @@ public class TestOzoneRpcClientWithKeyLatestVersion {
     OzoneBucket ozoneBucket = volume.getBucket(bucketName);
     List<OzoneFileStatus> ozoneFileStatusList = ozoneBucket.listStatus(keyName,
         false, "", 1);
-    Assert.assertNotNull(ozoneFileStatusList);
-    Assert.assertEquals(1, ozoneFileStatusList.size());
+    assertNotNull(ozoneFileStatusList);
+    assertEquals(1, ozoneFileStatusList.size());
     if (!getLatestVersion && versioning) {
-      Assert.assertEquals(2, ozoneFileStatusList.get(0).getKeyInfo()
+      assertEquals(2, ozoneFileStatusList.get(0).getKeyInfo()
           .getKeyLocationVersions().size());
     } else {
-      Assert.assertEquals(1, ozoneFileStatusList.get(0).getKeyInfo()
+      assertEquals(1, ozoneFileStatusList.get(0).getKeyInfo()
           .getKeyLocationVersions().size());
     }
+
+    ozoneFileStatusList = ozoneBucket.listStatusLight(keyName, false, "", 1);
+    assertNotNull(ozoneFileStatusList);
+    assertEquals(1, ozoneFileStatusList.size());
+    if (!getLatestVersion && versioning) {
+      assertEquals(0, ozoneFileStatusList.get(0).getKeyInfo()
+          .getKeyLocationVersions().size());
+    } else {
+      assertEquals(0, ozoneFileStatusList.get(0).getKeyInfo()
+          .getKeyLocationVersions().size());
+    }
+  }
+
+  private void assertListStatus(OzoneBucket bucket, String keyName,
+      int expectedVersionCount) throws Exception {
+    List<OzoneFileStatus> files = bucket.listStatus(keyName, false, "", 1);
+
+    assertNotNull(files);
+    assertEquals(1, files.size());
+
+    List<?> versions = files.get(0).getKeyInfo().getKeyLocationVersions();
+    assertEquals(expectedVersionCount, versions.size());
+
+    List<OzoneFileStatus> lightFiles = bucket.listStatusLight(keyName, false, "", 1);
+
+    assertNotNull(lightFiles);
+    assertEquals(1, lightFiles.size());
+    versions = files.get(0).getKeyInfo().getKeyLocationVersions();
+    assertEquals(0, versions.size());
+
   }
 }

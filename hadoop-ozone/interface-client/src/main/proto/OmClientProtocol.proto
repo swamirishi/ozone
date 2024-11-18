@@ -1146,6 +1146,7 @@ message ListStatusRequest {
     required string startKey = 3;
     required uint64 numEntries = 4;
     optional bool allowPartialPrefix = 5;
+    optional bool lite = 6;
 }
 
 message ListStatusResponse {
@@ -1354,6 +1355,7 @@ message ListKeysRequest {
     optional string startKey = 3;
     optional string prefix = 4;
     optional int32 count = 5;
+    optional bool lite = 6;
 }
 
 message ListKeysResponse {
