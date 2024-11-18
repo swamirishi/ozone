@@ -85,6 +85,7 @@ import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.ozone.om.protocolPB.OzoneManagerProtocolClientSideTranslatorPB;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
+import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
 import org.apache.hadoop.ozone.storage.proto
     .OzoneManagerStorageProtos.PersistedUserVolumeInfo;
@@ -1486,11 +1487,15 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
           String[] keySplit = kv.getKey().split(OM_KEY_PREFIX);
           String bucketKey = getBucketKey(keySplit[1], keySplit[2]);
           OmBucketInfo bucketInfo = getBucketTable().get(bucketKey);
-
+          // If Bucket deleted bucketInfo would be null, thus making previous snapshot also null.
+          SnapshotInfo previousSnapshotInfo = bucketInfo == null ? null :
+              SnapshotUtils.getLatestSnapshotInfo(bucketInfo.getVolumeName(),
+              bucketInfo.getBucketName(), ozoneManager, snapshotChainManager);
           // Get the latest snapshot in snapshot path.
           try (ReferenceCounted<IOmMetadataReader, SnapshotCache>
-              rcLatestSnapshot = getLatestActiveSnapshot(
-                  keySplit[1], keySplit[2], omSnapshotManager)) {
+              rcLatestSnapshot = previousSnapshotInfo != null ?
+              omSnapshotManager.checkForSnapshot(previousSnapshotInfo.getVolumeName(),
+              previousSnapshotInfo.getBucketName(), getSnapshotPrefix(previousSnapshotInfo.getName()), true) : null) {
 
             // Multiple keys with the same path can be queued in one DB entry
             RepeatedOmKeyInfo infoList = kv.getValue();
@@ -1568,17 +1573,24 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
 
             List<OmKeyInfo> notReclaimableKeyInfoList =
                 notReclaimableKeyInfo.getOmKeyInfoList();
+            // If Bucket deleted bucketInfo would be null, thus making previous snapshot also null.
+            SnapshotInfo newPreviousSnapshotInfo = bucketInfo == null ? null :
+                SnapshotUtils.getLatestSnapshotInfo(bucketInfo.getVolumeName(),
+                bucketInfo.getBucketName(), ozoneManager, snapshotChainManager);
+            // Check if the previous snapshot in the chain hasn't changed.
+            if (Objects.equals(Optional.ofNullable(newPreviousSnapshotInfo).map(SnapshotInfo::getSnapshotId),
+                Optional.ofNullable(previousSnapshotInfo).map(SnapshotInfo::getSnapshotId))) {
+              // If all the versions are not reclaimable, then do nothing.
+              if (notReclaimableKeyInfoList.size() > 0 &&
+                  notReclaimableKeyInfoList.size() !=
+                      infoList.getOmKeyInfoList().size()) {
+                keysToModify.put(kv.getKey(), notReclaimableKeyInfo);
+              }
 
-            // If all the versions are not reclaimable, then do nothing.
-            if (notReclaimableKeyInfoList.size() > 0 &&
-                notReclaimableKeyInfoList.size() !=
-                    infoList.getOmKeyInfoList().size()) {
-              keysToModify.put(kv.getKey(), notReclaimableKeyInfo);
-            }
-
-            if (notReclaimableKeyInfoList.size() !=
-                infoList.getOmKeyInfoList().size()) {
-              keyBlocksList.addAll(blockGroupList);
+              if (notReclaimableKeyInfoList.size() !=
+                  infoList.getOmKeyInfoList().size()) {
+                keyBlocksList.addAll(blockGroupList);
+              }
             }
           }
         }
@@ -1593,57 +1605,6 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
         info.getObjectID() == omKeyInfo.getObjectID() &&
         isBlockLocationInfoSame(omKeyInfo, info)) ||
         delOmKeyInfo != null;
-  }
-
-  /**
-   * Get the latest OmSnapshot for a snapshot path.
-   */
-  public ReferenceCounted<
-      IOmMetadataReader, SnapshotCache> getLatestActiveSnapshot(
-          String volumeName, String bucketName,
-          OmSnapshotManager snapshotManager)
-      throws IOException {
-
-    String snapshotPath = volumeName + OM_KEY_PREFIX + bucketName;
-    Optional<UUID> latestPathSnapshot = Optional.ofNullable(
-        snapshotChainManager.getLatestPathSnapshotId(snapshotPath));
-
-    Optional<SnapshotInfo> snapshotInfo = Optional.empty();
-
-    while (latestPathSnapshot.isPresent()) {
-      Optional<String> snapTableKey = latestPathSnapshot
-          .map(uuid -> snapshotChainManager.getTableKey(uuid));
-
-      snapshotInfo = snapTableKey.isPresent() ?
-          Optional.ofNullable(getSnapshotInfoTable().get(snapTableKey.get())) :
-          Optional.empty();
-
-      if (snapshotInfo.isPresent() && snapshotInfo.get().getSnapshotStatus() ==
-          SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE) {
-        break;
-      }
-
-      // Update latestPathSnapshot if current snapshot is deleted.
-      if (snapshotChainManager.hasPreviousPathSnapshot(snapshotPath,
-          latestPathSnapshot.get())) {
-        latestPathSnapshot = Optional.ofNullable(snapshotChainManager
-            .previousPathSnapshot(snapshotPath, latestPathSnapshot.get()));
-      } else {
-        latestPathSnapshot = Optional.empty();
-      }
-    }
-
-    Optional<ReferenceCounted<IOmMetadataReader, SnapshotCache>> rcOmSnapshot =
-        snapshotInfo.isPresent() ?
-            Optional.ofNullable(
-                snapshotManager.checkForSnapshot(volumeName,
-                    bucketName,
-                    getSnapshotPrefix(snapshotInfo.get().getName()),
-                    true)
-            ) :
-            Optional.empty();
-
-    return rcOmSnapshot.orElse(null);
   }
 
   @Override

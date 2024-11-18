@@ -78,6 +78,10 @@ public class OMDirectoriesPurgeResponseWithFSO extends OmKeyResponse {
     this.fromSnapshotInfo = fromSnapshotInfo;
   }
 
+  public OMDirectoriesPurgeResponseWithFSO(OMResponse omResponse) {
+    super(omResponse);
+  }
+
   @Override
   public void addToDBBatch(OMMetadataManager metadataManager,
       BatchOperation batchOp) throws IOException {

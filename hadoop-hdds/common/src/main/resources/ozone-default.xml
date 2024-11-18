@@ -511,6 +511,7 @@
       Deleting Service per snapshot run.
     </description>
   </property>
+
   <property>
     <name>ozone.om.service.ids</name>
     <value/>
@@ -3458,6 +3459,25 @@
     <description>
       The time interval between successive SnapshotDeletingService
       thread run.
+    </description>
+  </property>
+
+  <property>
+    <name>ozone.snapshot.deep.cleaning.enabled</name>
+    <value>true</value>
+    <tag>OZONE, PERFORMANCE, OM</tag>
+    <description>
+      Flag to enable/disable snapshot deep cleaning.
+    </description>
+  </property>
+
+  <property>
+    <name>ozone.snapshot.ordered.deletion.enabled</name>
+    <value>false</value>
+    <tag>OM, SNAPSHOT</tag>
+    <description>
+      Purge snapshot only in an order i.e. a snapshot for a bucket which is in the middle of the chain even though
+      deleted would be only purged from the system when all the older snapshots for that bucket gets purged.
     </description>
   </property>
 

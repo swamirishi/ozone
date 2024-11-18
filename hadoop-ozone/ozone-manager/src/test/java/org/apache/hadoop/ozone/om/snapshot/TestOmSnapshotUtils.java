@@ -31,6 +31,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -88,9 +89,9 @@ public class TestOmSnapshotUtils {
 
   private static Stream<Arguments> testCasesForIgnoreSnapshotGc() {
     SnapshotInfo filteredSnapshot =
-        SnapshotInfo.newBuilder().setSstFiltered(true).setName("snap1").build();
+        SnapshotInfo.newBuilder().setSstFiltered(true).setName("snap1").setPathPreviousSnapshotId(null).build();
     SnapshotInfo unFilteredSnapshot =
-        SnapshotInfo.newBuilder().setSstFiltered(false).setName("snap1")
+        SnapshotInfo.newBuilder().setSstFiltered(false).setName("snap1").setPathPreviousSnapshotId(UUID.randomUUID())
             .build();
     // {IsSnapshotFiltered,isSnapshotDeleted,IsSstServiceEnabled = ShouldIgnore}
     return Stream.of(Arguments.of(filteredSnapshot,
@@ -101,6 +102,22 @@ public class TestOmSnapshotUtils {
             SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, true, true),
         Arguments.of(unFilteredSnapshot,
             SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE, true, true),
+        Arguments.of(filteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, true, false),
+        Arguments.of(unFilteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, true, true),
+        Arguments.of(unFilteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE, true, true),
+        Arguments.of(filteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE, true, true),
+        Arguments.of(filteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, false, false),
+        Arguments.of(filteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE, false, true),
+        Arguments.of(unFilteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, false, false),
+        Arguments.of(unFilteredSnapshot,
+            SnapshotInfo.SnapshotStatus.SNAPSHOT_ACTIVE, false, true),
         Arguments.of(filteredSnapshot,
             SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED, false, false),
         Arguments.of(unFilteredSnapshot,
@@ -114,8 +131,8 @@ public class TestOmSnapshotUtils {
   @ParameterizedTest
   @MethodSource("testCasesForIgnoreSnapshotGc")
   public void testProcessSnapshotLogicInSDS(SnapshotInfo snapshotInfo, SnapshotInfo.SnapshotStatus status,
-                                            boolean expectedOutcome) {
+                                            boolean orderedSnapshotDeletion, boolean expectedOutcome) {
     snapshotInfo.setSnapshotStatus(status);
-    assertEquals(expectedOutcome, SnapshotDeletingService.shouldIgnoreSnapshot(snapshotInfo));
+    assertEquals(expectedOutcome, SnapshotDeletingService.shouldIgnoreSnapshot(snapshotInfo, orderedSnapshotDeletion));
   }
 }

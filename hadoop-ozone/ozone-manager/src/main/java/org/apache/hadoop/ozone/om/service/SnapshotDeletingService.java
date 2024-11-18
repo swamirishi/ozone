@@ -52,6 +52,7 @@ import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
+import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PurgePathRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotMoveDeletedKeysRequest;
@@ -76,6 +77,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_KEY_DELETING_LIMIT_PER_TASK;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_KEY_DELETING_LIMIT_PER_TASK_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_ORDERED_DELETION_ENABLED;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_ORDERED_DELETION_ENABLED_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.SNAPSHOT_DELETING_LIMIT_PER_TASK;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.SNAPSHOT_DELETING_LIMIT_PER_TASK_DEFAULT;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPrefix;
@@ -103,6 +106,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
   private final long snapshotDeletionPerTask;
   private final int keyLimitPerSnapshot;
   private final int ratisByteLimit;
+  private final boolean orderedSnapshotDeletion;
 
   public SnapshotDeletingService(long interval, long serviceTimeout,
       OzoneManager ozoneManager, ScmBlockLocationProtocol scmClient)
@@ -130,6 +134,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
     this.keyLimitPerSnapshot = conf.getInt(
         OZONE_SNAPSHOT_KEY_DELETING_LIMIT_PER_TASK,
         OZONE_SNAPSHOT_KEY_DELETING_LIMIT_PER_TASK_DEFAULT);
+    this.orderedSnapshotDeletion = conf.getBoolean(
+        OZONE_SNAPSHOT_ORDERED_DELETION_ENABLED,
+        OZONE_SNAPSHOT_ORDERED_DELETION_ENABLED_DEFAULT);
   }
 
   private class SnapshotDeletingTask implements BackgroundTask {
@@ -157,10 +164,11 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
         long snapshotLimit = snapshotDeletionPerTask;
 
         while (iterator.hasNext() && snapshotLimit > 0) {
-          SnapshotInfo snapInfo = iterator.next().getValue();
+          //Get snapshot info from cache.
+          SnapshotInfo snapInfo = snapshotInfoTable.get(iterator.next().getKey());
 
           // Only Iterate in deleted snapshot
-          if (shouldIgnoreSnapshot(snapInfo)) {
+          if (snapInfo == null || shouldIgnoreSnapshot(snapInfo, orderedSnapshotDeletion)) {
             continue;
           }
 
@@ -214,7 +222,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
           }
 
           //TODO: [SNAPSHOT] Add lock to deletedTable and Active DB.
-          SnapshotInfo previousSnapshot = getPreviousActiveSnapshot(snapInfo, chainManager);
+          SnapshotInfo previousSnapshot = SnapshotUtils.getPreviousSnapshot(ozoneManager, chainManager, snapInfo);
           Table<String, OmKeyInfo> previousKeyTable = null;
           Table<String, OmDirectoryInfo> previousDirTable = null;
           OmSnapshot omPreviousSnapshot = null;
@@ -309,7 +317,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
 
             // Delete keys From deletedTable
             processKeyDeletes(keysToPurge, omSnapshot.getKeyManager(),
-                null, snapInfo.getTableKey());
+                null, snapInfo.getTableKey(), null);
             successRunCount.incrementAndGet();
           } catch (IOException ex) {
             LOG.error("Error while running Snapshot Deleting Service for " +
@@ -447,7 +455,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
         remainNum = optimizeDirDeletesAndSubmitRequest(remainNum, dirNum,
             subDirNum, subFileNum, allSubDirList, purgePathRequestList,
             snapInfo.getTableKey(), startTime, ratisByteLimit - consumedSize,
-            omSnapshot.getKeyManager());
+            omSnapshot.getKeyManager(), null);
       } catch (IOException e) {
         LOG.error("Error while running delete directories and files for " +
             "snapshot " + snapInfo.getTableKey() + " in snapshot deleting " +
@@ -595,8 +603,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
   }
 
   @VisibleForTesting
-  public static boolean shouldIgnoreSnapshot(SnapshotInfo snapInfo) {
-    return snapInfo.getSnapshotStatus() != SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED;
+  public static boolean shouldIgnoreSnapshot(SnapshotInfo snapInfo, boolean orderedSnapshotDeletion) {
+    return snapInfo.getSnapshotStatus() != SnapshotInfo.SnapshotStatus.SNAPSHOT_DELETED
+        || (orderedSnapshotDeletion && snapInfo.getPathPreviousSnapshotId() != null);
   }
 
   // TODO: Move this util class.
