@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.om;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -95,6 +96,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -118,6 +120,7 @@ import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.KEY_
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
 import static org.apache.hadoop.ozone.om.helpers.BucketLayout.FILE_SYSTEM_OPTIMIZED;
 import static org.apache.hadoop.ozone.om.helpers.BucketLayout.OBJECT_STORE;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.VOLUME_NOT_FOUND;
 import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType.USER;
 import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.WRITE;
 import static org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse.CancelMessage.CANCEL_ALREADY_CANCELLED_JOB;
@@ -170,21 +173,27 @@ public class TestOmSnapshot {
   private static final String SNAPSHOT_KEY_PATTERN_STRING = "(.+)/(.+)/(.+)";
   private static Pattern snapshotKeyPattern =
       Pattern.compile(SNAPSHOT_KEY_PATTERN_STRING);
+  private static boolean createLinkedBucket;
+  private static Map<String, String> linkedBuckets = new HashMap<>();
 
   @Rule
   public Timeout timeout = new Timeout(300, TimeUnit.SECONDS);
 
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
-    return Arrays.asList(new Object[]{OBJECT_STORE, false, false, false},
-        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, false},
-        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, true},
-        new Object[]{BucketLayout.LEGACY, true, true, false});
+    return Arrays.asList(new Object[]{OBJECT_STORE, false, false, false, true},
+        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, false, true},
+        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, true, true},
+        new Object[]{BucketLayout.LEGACY, true, true, false, true},
+        new Object[]{OBJECT_STORE, false, false, false, false},
+        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, false, false},
+        new Object[]{FILE_SYSTEM_OPTIMIZED, false, false, true, false},
+        new Object[]{BucketLayout.LEGACY, true, true, false, false});
   }
 
   public TestOmSnapshot(BucketLayout newBucketLayout,
       boolean newEnableFileSystemPaths, boolean forceFullSnapDiff,
-      boolean disableNativeDiff)
+      boolean disableNativeDiff, boolean createLinkedBucket)
       throws Exception {
     // Checking whether 'newBucketLayout' and
     // 'newEnableFileSystemPaths' flags represents next parameter
@@ -195,9 +204,10 @@ public class TestOmSnapshot {
             TestOmSnapshot.bucketLayout != newBucketLayout ||
             TestOmSnapshot.forceFullSnapshotDiff != forceFullSnapDiff ||
             TestOmSnapshot.disableNativeDiff
-                != disableNativeDiff) {
+                != disableNativeDiff ||
+            TestOmSnapshot.createLinkedBucket != createLinkedBucket) {
       setConfig(newBucketLayout, newEnableFileSystemPaths,
-          forceFullSnapDiff, disableNativeDiff);
+          forceFullSnapDiff, disableNativeDiff, createLinkedBucket);
       tearDown();
       init();
     }
@@ -205,11 +215,13 @@ public class TestOmSnapshot {
 
   private static void setConfig(BucketLayout newBucketLayout,
       boolean newEnableFileSystemPaths, boolean forceFullSnapDiff,
-      boolean forceNonNativeSnapDiff) {
+      boolean forceNonNativeSnapDiff, boolean createLinkedBucket) {
     TestOmSnapshot.enabledFileSystemPaths = newEnableFileSystemPaths;
     TestOmSnapshot.bucketLayout = newBucketLayout;
     TestOmSnapshot.forceFullSnapshotDiff = forceFullSnapDiff;
     TestOmSnapshot.disableNativeDiff = forceNonNativeSnapDiff;
+    TestOmSnapshot.createLinkedBucket = createLinkedBucket;
+    TestOmSnapshot.linkedBuckets = new HashMap<>();
   }
 
   /**
@@ -244,8 +256,10 @@ public class TestOmSnapshot {
     cluster.waitForClusterToBeReady();
     client = cluster.newClient();
     // create a volume and a bucket to be used by OzoneFileSystem
-    ozoneBucket = TestDataUtil
-        .createVolumeAndBucket(client, bucketLayout);
+    ozoneBucket = TestDataUtil.createVolumeAndBucket(client, bucketLayout, createLinkedBucket);
+    if (createLinkedBucket) {
+      this.linkedBuckets.put(ozoneBucket.getName(), ozoneBucket.getSourceBucket());
+    }
     volumeName = ozoneBucket.getVolumeName();
     bucketName = ozoneBucket.getName();
     ozoneManager = cluster.getOzoneManager();
@@ -254,14 +268,29 @@ public class TestOmSnapshot {
     store = client.getObjectStore();
     writeClient = store.getClientProxy().getOzoneManagerClient();
 
-    KeyManagerImpl keyManager = (KeyManagerImpl) HddsWhiteboxTestUtils
-        .getInternalState(ozoneManager, "keyManager");
     counter = new AtomicInteger(0);
     // stop the deletion services so that keys can still be read
-    keyManager.stop();
-//    preFinalizationChecks();
+    stopKeyManager();
+    preFinalizationChecks();
     finalizeOMUpgrade();
     counter = new AtomicInteger();
+  }
+
+  private void createBucket(OzoneVolume volume, String bucketVal) throws IOException {
+    if (createLinkedBucket) {
+      String sourceBucketName = linkedBuckets.computeIfAbsent(bucketVal, (k) -> bucketVal + counter.incrementAndGet());
+      volume.createBucket(sourceBucketName);
+      TestDataUtil.createLinkedBucket(client, volume.getName(), sourceBucketName, bucketVal);
+      this.linkedBuckets.put(bucketVal, sourceBucketName);
+    } else {
+      volume.createBucket(bucketVal);
+    }
+  }
+
+  private void stopKeyManager() throws IOException {
+    KeyManagerImpl keyManager = (KeyManagerImpl) HddsWhiteboxTestUtils
+        .getInternalState(ozoneManager, "keyManager");
+    keyManager.stop();
   }
 
   private static void expectFailurePreFinalization(LambdaTestUtils.
@@ -344,10 +373,10 @@ public class TestOmSnapshot {
     store.createVolume(volumeB);
     OzoneVolume volA = store.getVolume(volumeA);
     OzoneVolume volB = store.getVolume(volumeB);
-    volA.createBucket(bucketA);
-    volA.createBucket(bucketB);
-    volB.createBucket(bucketA);
-    volB.createBucket(bucketB);
+    createBucket(volA, bucketA);
+    createBucket(volA, bucketB);
+    createBucket(volB, bucketA);
+    createBucket(volB, bucketB);
     OzoneBucket volAbucketA = volA.getBucket(bucketA);
     OzoneBucket volAbucketB = volA.getBucket(bucketB);
     OzoneBucket volBbucketA = volB.getBucket(bucketA);
@@ -426,7 +455,7 @@ public class TestOmSnapshot {
     String bucket = "buc-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume vol = store.getVolume(volume);
-    vol.createBucket(bucket);
+    createBucket(vol, bucket);
     String snapshotKeyPrefix = createSnapshot(volume, bucket);
     OzoneBucket buc = vol.getBucket(bucket);
     Iterator<? extends OzoneKey> keys = buc.listKeys(snapshotKeyPrefix);
@@ -505,7 +534,7 @@ public class TestOmSnapshot {
     String bucket = "buc-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume vol = store.getVolume(volume);
-    vol.createBucket(bucket);
+    createBucket(vol, bucket);
     OzoneBucket volBucket = vol.getBucket(bucket);
 
     String key = "key-";
@@ -530,7 +559,7 @@ public class TestOmSnapshot {
     String bucket = "buc-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume vol = store.getVolume(volume);
-    vol.createBucket(bucket);
+    createBucket(vol, bucket);
     OzoneBucket bucket1 = vol.getBucket(bucket);
 
     String key1 = "key-1-";
@@ -580,7 +609,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -624,11 +653,11 @@ public class TestOmSnapshot {
   private OmKeyInfo getOmKeyInfo(String volume, String bucket,
                                  String key) throws IOException {
     ResolvedBucket resolvedBucket = new ResolvedBucket(volume, bucket,
-        volume, bucket, "", bucketLayout);
+        volume, this.linkedBuckets.getOrDefault(bucket, bucket), "", bucketLayout);
     return cluster.getOzoneManager().getKeyManager()
             .getKeyInfo(new OmKeyArgs.Builder()
                 .setVolumeName(volume)
-                .setBucketName(bucket)
+                .setBucketName(this.linkedBuckets.getOrDefault(bucket, bucket))
                 .setKeyName(key).build(),
                 resolvedBucket, null);
   }
@@ -648,7 +677,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -686,7 +715,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -733,7 +762,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -787,7 +816,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -832,7 +861,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket" + counter.incrementAndGet();
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -891,7 +920,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -935,7 +964,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String snap1 = "snap1";
     createSnapshot(testVolumeName, testBucketName, snap1);
@@ -969,7 +998,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String snap1 = "snap1";
     String key1 = "k1";
@@ -1011,7 +1040,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String snap1 = "snap1";
     String key1 = "k1";
@@ -1069,7 +1098,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String snap1 = "snap1";
     String key1 = "k1";
@@ -1105,7 +1134,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String snap1 = "snap1";
     String key1 = "k1";
@@ -1137,7 +1166,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket" + counter.incrementAndGet();
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     String rootPath = String.format("%s://%s.%s/",
         OzoneConsts.OZONE_URI_SCHEME, testBucketName, testVolumeName);
     try (FileSystem fs = FileSystem.get(new URI(rootPath), cluster.getConf())) {
@@ -1180,7 +1209,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket" + counter.incrementAndGet();
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     String rootPath = String.format("%s://%s.%s/",
         OzoneConsts.OZONE_URI_SCHEME, testBucketName, testVolumeName);
     try (FileSystem fs = FileSystem.get(new URI(rootPath), cluster.getConf())) {
@@ -1223,7 +1252,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket" + counter.incrementAndGet();
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     String rootPath = String.format("%s://%s.%s/",
         OzoneConsts.OZONE_URI_SCHEME, testBucketName, testVolumeName);
     try (FileSystem fs = FileSystem.get(new URI(rootPath), cluster.getConf())) {
@@ -1266,8 +1295,8 @@ public class TestOmSnapshot {
     String bucket2 = "buc-" + counter.incrementAndGet();
     store.createVolume(volume1);
     OzoneVolume volume = store.getVolume(volume1);
-    volume.createBucket(bucket1);
-    volume.createBucket(bucket2);
+    createBucket(volume, bucket1);
+    createBucket(volume, bucket2);
     OzoneBucket bucketWithSnapshot = volume.getBucket(bucket1);
     OzoneBucket bucketWithoutSnapshot = volume.getBucket(bucket2);
     String key = "key-";
@@ -1277,7 +1306,7 @@ public class TestOmSnapshot {
     deleteKeys(bucketWithSnapshot);
     deleteKeys(bucketWithoutSnapshot);
     OMException omException = Assertions.assertThrows(OMException.class,
-        () -> volume.deleteBucket(bucket1));
+        () -> volume.deleteBucket(linkedBuckets.getOrDefault(bucket1, bucket1)));
     Assertions.assertEquals(CONTAINS_SNAPSHOT, omException.getResult());
     // TODO: Delete snapshot then delete bucket1 when deletion is implemented
     // no exception for bucket without snapshot
@@ -1291,7 +1320,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     bucket1.createDirectory("dir1");
     String snap1 = "snap1";
@@ -1313,7 +1342,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1451,9 +1480,9 @@ public class TestOmSnapshot {
     assertEquals(CANCELLED, response.getJobStatus());
 
     String fromSnapshotTableKey =
-        SnapshotInfo.getTableKey(volumeName, bucketName, fromSnapName);
+        SnapshotInfo.getTableKey(volumeName, linkedBuckets.getOrDefault(bucketName, bucketName), fromSnapName);
     String toSnapshotTableKey =
-        SnapshotInfo.getTableKey(volumeName, bucketName, toSnapName);
+        SnapshotInfo.getTableKey(volumeName, linkedBuckets.getOrDefault(bucketName, bucketName), toSnapName);
 
     UUID fromSnapshotID = SnapshotUtils.getSnapshotInfo(ozoneManager, fromSnapshotTableKey).getSnapshotId();
     UUID toSnapshotID = SnapshotUtils.getSnapshotInfo(ozoneManager, toSnapshotTableKey).getSnapshotId();
@@ -1545,7 +1574,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1577,7 +1606,7 @@ public class TestOmSnapshot {
     String bucketb = "buck-" + counter.incrementAndGet();
     store.createVolume(volumea);
     OzoneVolume volume1 = store.getVolume(volumea);
-    volume1.createBucket(bucketa);
+    createBucket(volume1, bucketa);
     OzoneBucket bucket1 = volume1.getBucket(bucketa);
     // Create Key1 and take 2 snapshots
     String key1 = "key-1-";
@@ -1588,18 +1617,18 @@ public class TestOmSnapshot {
     createSnapshot(volumea, bucketa, snap2);
     // Bucket is nonexistent
     LambdaTestUtils.intercept(OMException.class,
-            "KEY_NOT_FOUND",
+            "BUCKET_NOT_FOUND",
             () -> store.snapshotDiff(volumea, bucketb, snap1, snap2,
                 null, 0, forceFullSnapshotDiff, disableNativeDiff));
     // Volume is nonexistent
     LambdaTestUtils.intercept(OMException.class,
-            "KEY_NOT_FOUND",
+            "VOLUME_NOT_FOUND",
             () -> store.snapshotDiff(volumeb, bucketa, snap2, snap1,
                 null, 0, forceFullSnapshotDiff,
                 disableNativeDiff));
     // Both volume and bucket are nonexistent
     LambdaTestUtils.intercept(OMException.class,
-            "KEY_NOT_FOUND",
+            "VOLUME_NOT_FOUND",
             () -> store.snapshotDiff(volumeb, bucketb, snap2, snap1,
                 null, 0, forceFullSnapshotDiff,
                 disableNativeDiff));
@@ -1619,7 +1648,7 @@ public class TestOmSnapshot {
     String testBucketName = "bucket1";
     store.createVolume(testVolumeName);
     OzoneVolume volume = store.getVolume(testVolumeName);
-    volume.createBucket(testBucketName);
+    createBucket(volume, testBucketName);
     OzoneBucket bucket = volume.getBucket(testBucketName);
     String key1 = "k1";
     key1 = createFileKeyWithPrefix(bucket, key1);
@@ -1644,7 +1673,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1681,8 +1710,8 @@ public class TestOmSnapshot {
     String bucketName2 = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucketName1);
-    volume1.createBucket(bucketName2);
+    createBucket(volume1, bucketName1);
+    createBucket(volume1, bucketName2);
     OzoneBucket bucket1 = volume1.getBucket(bucketName1);
     OzoneBucket bucket2 = volume1.getBucket(bucketName2);
     // Create Key1 and take snapshot
@@ -1707,19 +1736,18 @@ public class TestOmSnapshot {
     String volume = "vol-" + RandomStringUtils.randomNumeric(5);
     String bucket = "buck-" + RandomStringUtils.randomNumeric(5);
 
-    String volBucketErrorMessage = "Provided volume name " + volume +
-        " or bucket name " + bucket + " doesn't exist";
+    String volErrorMessage = "Volume not found: " + volume;
 
     Exception volBucketEx = Assertions.assertThrows(OMException.class,
         () -> store.listSnapshotDiffJobs(volume, bucket,
             "", true));
-    Assertions.assertEquals(volBucketErrorMessage,
+    Assertions.assertEquals(volErrorMessage,
         volBucketEx.getMessage());
 
     // Create the volume and the bucket.
     store.createVolume(volume);
     OzoneVolume ozVolume = store.getVolume(volume);
-    ozVolume.createBucket(bucket);
+    createBucket(ozVolume, bucket);
 
     Assertions.assertDoesNotThrow(() ->
         store.listSnapshotDiffJobs(volume, bucket, "", true));
@@ -1769,8 +1797,8 @@ public class TestOmSnapshot {
     String bucketName2 = "buck2";
     store.createVolume(volumeName1);
     OzoneVolume volume1 = store.getVolume(volumeName1);
-    volume1.createBucket(bucketName1);
-    volume1.createBucket(bucketName2);
+    createBucket(volume1, bucketName1);
+    createBucket(volume1, bucketName2);
     OzoneBucket bucket1 = volume1.getBucket(bucketName1);
     OzoneBucket bucket2 = volume1.getBucket(bucketName2);
     String keyPrefix = "key-";
@@ -1808,7 +1836,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1829,7 +1857,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1854,7 +1882,7 @@ public class TestOmSnapshot {
     String bucket = "buck-" + counter.incrementAndGet();
     store.createVolume(volume);
     OzoneVolume volume1 = store.getVolume(volume);
-    volume1.createBucket(bucket);
+    createBucket(volume1, bucket);
     OzoneBucket bucket1 = volume1.getBucket(bucket);
     // Create Key1 and take snapshot
     String key1 = "key-1-";
@@ -1907,7 +1935,7 @@ public class TestOmSnapshot {
         OmSnapshotManager.getSnapshotPrefix(snapshotName);
     SnapshotInfo snapshotInfo = ozoneManager.getMetadataManager()
         .getSnapshotInfoTable()
-        .get(SnapshotInfo.getTableKey(volName, buckName, snapshotName));
+        .get(SnapshotInfo.getTableKey(volName, linkedBuckets.getOrDefault(buckName, buckName), snapshotName));
     String snapshotDirName =
         OmSnapshotManager.getSnapshotPath(ozoneManager.getConfiguration(),
             snapshotInfo) + OM_KEY_PREFIX + "CURRENT";
@@ -2112,7 +2140,7 @@ public class TestOmSnapshot {
     String bucketA = "buc-a-" + RandomStringUtils.randomNumeric(5);
     store.createVolume(volumeA);
     OzoneVolume volA = store.getVolume(volumeA);
-    volA.createBucket(bucketA);
+    createBucket(volA, bucketA);
     OzoneBucket volAbucketA = volA.getBucket(bucketA);
 
     int latestDayIndex = 0;
@@ -2234,7 +2262,7 @@ public class TestOmSnapshot {
       // Validate keys metadata in active Ozone namespace
       OzoneKeyDetails ozoneKeyDetails = ozoneBucketClient.getKey(keyName);
       Assert.assertEquals(keyName, ozoneKeyDetails.getName());
-      Assert.assertEquals(ozoneBucketClient.getName(),
+      Assert.assertEquals(linkedBuckets.getOrDefault(ozoneBucketClient.getName(), ozoneBucketClient.getName()),
           ozoneKeyDetails.getBucketName());
       Assert.assertEquals(ozoneBucketClient.getVolumeName(),
           ozoneKeyDetails.getVolumeName());

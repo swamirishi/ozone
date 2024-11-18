@@ -36,6 +36,7 @@ import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.client.OzoneClient;
 import org.apache.hadoop.ozone.client.OzoneKey;
+import org.apache.hadoop.ozone.client.OzoneSnapshot;
 import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.client.io.OzoneInputStream;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
@@ -67,9 +68,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -97,6 +100,7 @@ public class TestOmSnapshotFileSystem {
   private static OzoneConfiguration conf;
   private static String volumeName;
   private static String bucketName;
+  private static boolean createLinkedBuckets;
   private static FileSystem fs;
   private static OzoneFileSystem o3fs;
   private static OzoneManagerProtocol writeClient;
@@ -104,6 +108,7 @@ public class TestOmSnapshotFileSystem {
   private static boolean enabledFileSystemPaths;
   private static OzoneManager ozoneManager;
   private static String keyPrefix;
+  private static Map<String, String> linkedBucketMaps = new HashMap<>();
 
   private static final Logger LOG =
       LoggerFactory.getLogger(TestOmSnapshot.class);
@@ -114,12 +119,14 @@ public class TestOmSnapshotFileSystem {
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(
-        new Object[]{BucketLayout.FILE_SYSTEM_OPTIMIZED, false},
-        new Object[]{BucketLayout.LEGACY, true});
+        new Object[]{BucketLayout.FILE_SYSTEM_OPTIMIZED, false, false},
+        new Object[]{BucketLayout.LEGACY, true, false},
+        new Object[]{BucketLayout.FILE_SYSTEM_OPTIMIZED, false, true},
+        new Object[]{BucketLayout.LEGACY, true, true});
   }
 
   public TestOmSnapshotFileSystem(BucketLayout newBucketLayout,
-      boolean newEnableFileSystemPaths) throws Exception {
+      boolean newEnableFileSystemPaths, boolean newCreateLinkedBuckets) throws Exception {
     // Checking whether 'newBucketLayout' and
     // 'newEnableFileSystemPaths' flags represents next parameter
     // index values. This is to ensure that initialize init() function
@@ -127,17 +134,20 @@ public class TestOmSnapshotFileSystem {
     // Parameterized.Parameters.
     if (TestOmSnapshotFileSystem.enabledFileSystemPaths !=
         newEnableFileSystemPaths ||
-        TestOmSnapshotFileSystem.bucketLayout != newBucketLayout) {
-      setConfig(newBucketLayout, newEnableFileSystemPaths);
+        TestOmSnapshotFileSystem.bucketLayout != newBucketLayout ||
+        TestOmSnapshotFileSystem.createLinkedBuckets != newCreateLinkedBuckets) {
+      setConfig(newBucketLayout, newEnableFileSystemPaths, newCreateLinkedBuckets);
       tearDown();
       init();
     }
   }
 
   private static void setConfig(BucketLayout newBucketLayout,
-      boolean newEnableFileSystemPaths) {
+      boolean newEnableFileSystemPaths, boolean newCreateLinkedBuckets) {
     TestOmSnapshotFileSystem.enabledFileSystemPaths = newEnableFileSystemPaths;
     TestOmSnapshotFileSystem.bucketLayout = newBucketLayout;
+    TestOmSnapshotFileSystem.createLinkedBuckets = newCreateLinkedBuckets;
+    linkedBucketMaps = new HashMap<>();
   }
 
   /**
@@ -157,11 +167,12 @@ public class TestOmSnapshotFileSystem {
     cluster.waitForClusterToBeReady();
     client = cluster.newClient();
     // create a volume and a bucket to be used by OzoneFileSystem
-    OzoneBucket bucket = TestDataUtil
-        .createVolumeAndBucket(client, bucketLayout);
+    OzoneBucket bucket = TestDataUtil.createVolumeAndBucket(client, bucketLayout, createLinkedBuckets);
     volumeName = bucket.getVolumeName();
     bucketName = bucket.getName();
-
+    if (createLinkedBuckets) {
+      linkedBucketMaps.put(bucketName, bucket.getSourceBucket());
+    }
     String rootPath = String
         .format("%s://%s.%s/", OzoneConsts.OZONE_URI_SCHEME, bucket.getName(),
         bucket.getVolumeName());
@@ -230,7 +241,7 @@ public class TestOmSnapshotFileSystem {
 
 
     setKeyPrefix(createSnapshot().substring(1));
-   
+
     // Delete the active fs so that we don't inadvertently read it
     deleteRootDir();
     // Root level listing keys
@@ -706,7 +717,7 @@ public class TestOmSnapshotFileSystem {
     // wait till the snapshot directory exists
     SnapshotInfo snapshotInfo = ozoneManager.getMetadataManager()
         .getSnapshotInfoTable()
-        .get(SnapshotInfo.getTableKey(volumeName, bucketName, snapshotName));
+        .get(SnapshotInfo.getTableKey(volumeName, linkedBucketMaps.getOrDefault(bucketName, bucketName), snapshotName));
     String snapshotDirName = getSnapshotPath(conf, snapshotInfo) +
         OM_KEY_PREFIX + "CURRENT";
     GenericTestUtils.waitFor(() -> new File(snapshotDirName).exists(),

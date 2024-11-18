@@ -21,4 +21,5 @@
 /**
  * Unit tests for Node related functions in SCM.
  */
+
 package org.apache.hadoop.ozone.scm.node;
