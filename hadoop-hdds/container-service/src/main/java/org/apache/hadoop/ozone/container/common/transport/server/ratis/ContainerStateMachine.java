@@ -59,6 +59,7 @@ import org.apache.hadoop.hdds.utils.Cache;
 import org.apache.hadoop.hdds.utils.ResourceCache;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.common.utils.BufferUtils;
+import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.keyvalue.impl.KeyValueStreamDataChannel;
@@ -73,6 +74,7 @@ import org.apache.ratis.proto.RaftProtos.RoleInfoProto;
 import org.apache.ratis.proto.RaftProtos.StateMachineLogEntryProto;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientRequest;
+import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftGroupMemberId;
 import org.apache.ratis.protocol.RaftPeerId;
@@ -179,6 +181,7 @@ public class ContainerStateMachine extends BaseStateMachine {
 
   private final Semaphore applyTransactionSemaphore;
   private final boolean waitOnBothFollowers;
+  private final AtomicBoolean peersValidated;
   /**
    * CSM metrics.
    */
@@ -225,6 +228,7 @@ public class ContainerStateMachine extends BaseStateMachine {
             DFS_CONTAINER_RATIS_STATEMACHINE_MAX_PENDING_APPLY_TXNS_DEFAULT);
     applyTransactionSemaphore = new Semaphore(maxPendingApplyTransactions);
     stateMachineHealthy = new AtomicBoolean(true);
+    this.peersValidated = new AtomicBoolean(false);
 
     this.executor = Executors.newFixedThreadPool(numContainerOpExecutors,
         new ThreadFactoryBuilder()
@@ -234,6 +238,19 @@ public class ContainerStateMachine extends BaseStateMachine {
     this.waitOnBothFollowers = conf.getObject(
         DatanodeConfiguration.class).waitOnAllFollowers();
 
+  }
+
+  private void validatePeers() throws IOException {
+    if (this.peersValidated.get()) {
+      return;
+    }
+    final RaftGroup group = ratisServer.getServerDivision(getGroupId()).getGroup();
+    final RaftPeerId selfId = ratisServer.getServer().getId();
+    if (group.getPeer(selfId) == null) {
+      throw new StorageContainerException("Current datanode " + selfId + " is not a member of " + group,
+          ContainerProtos.Result.INVALID_CONFIG);
+    }
+    peersValidated.set(true);
   }
 
   @Override
@@ -854,6 +871,11 @@ public class ContainerStateMachine extends BaseStateMachine {
     final CheckedSupplier<ContainerCommandResponseProto, Exception> task
         = () -> {
           try {
+            try {
+              this.validatePeers();
+            } catch (StorageContainerException e) {
+              return ContainerUtils.logAndReturnError(LOG, e, request);
+            }
             return dispatchCommand(request, context);
           } catch (Exception e) {
             exceptionHandler.accept(e);

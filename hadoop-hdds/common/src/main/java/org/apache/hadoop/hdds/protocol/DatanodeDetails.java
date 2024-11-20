@@ -553,6 +553,20 @@ public class DatanodeDetails extends NodeImpl implements
         uuid.equals(((DatanodeDetails) obj).uuid);
   }
 
+
+  /**
+   * Checks hostname, ipAddress and port of the 2 nodes are the same.
+   * @param datanodeDetails dnDetails object to compare with.
+   * @return true if the values match otherwise false.
+   */
+  public boolean compareNodeValues(DatanodeDetails datanodeDetails) {
+    if (this == datanodeDetails || super.equals(datanodeDetails)) {
+      return true;
+    }
+    return Objects.equals(ipAddress, datanodeDetails.ipAddress)
+        && Objects.equals(hostName, datanodeDetails.hostName) && Objects.equals(ports, datanodeDetails.ports);
+  }
+
   @Override
   public int hashCode() {
     return uuid.hashCode();
