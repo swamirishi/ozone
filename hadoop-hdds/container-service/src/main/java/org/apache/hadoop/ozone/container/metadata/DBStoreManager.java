@@ -17,47 +17,55 @@
  */
 package org.apache.hadoop.ozone.container.metadata;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
-import org.apache.hadoop.hdds.utils.MetadataKeyFilters.KeyPrefixFilter;
 import org.apache.hadoop.hdds.utils.db.BatchOperationHandler;
 import org.apache.hadoop.hdds.utils.db.DBStore;
-import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.ozone.container.common.helpers.BlockData;
-import org.apache.hadoop.ozone.container.common.helpers.ChunkInfoList;
-import org.apache.hadoop.ozone.container.common.interfaces.BlockIterator;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Interface for interacting with datanode databases.
  */
-public interface DatanodeStore extends DBStoreManager {
+public interface DBStoreManager extends Closeable {
 
   /**
-   * A Table that keeps the block data.
+   * Start datanode manager.
    *
-   * @return Table
+   * @param configuration - Configuration
+   * @throws IOException - Unable to start datanode store.
    */
-  Table<String, BlockData> getBlockDataTable();
+  void start(ConfigurationSource configuration) throws IOException;
 
   /**
-   * A Table that keeps the metadata.
-   *
-   * @return Table
+   * Stop datanode manager.
    */
-  Table<String, Long> getMetadataTable();
+  void stop() throws Exception;
 
   /**
-   * A Table that keeps IDs of blocks deleted from the block data table.
+   * Get datanode store.
    *
-   * @return Table
+   * @return datanode store.
    */
-  Table<String, ChunkInfoList> getDeletedBlocksTable();
+  DBStore getStore();
 
-  BlockIterator<BlockData> getBlockIterator(long containerID)
-      throws IOException;
+  /**
+   * Helper to create and write batch transactions.
+   */
+  BatchOperationHandler getBatchHandler();
 
-  BlockIterator<BlockData> getBlockIterator(long containerID,
-      KeyPrefixFilter filter) throws IOException;
+  void flushLog(boolean sync) throws IOException;
+
+  void flushDB() throws IOException;
+
+  void compactDB() throws IOException;
+
+  /**
+   * Returns if the underlying DB is closed. This call is thread safe.
+   * @return true if the DB is closed.
+   */
+  boolean isClosed();
+
+  default void compactionIfNeeded() throws Exception {
+  }
 }

@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.container.ozoneimpl;
 
 
 import com.google.common.base.Preconditions;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.BlockID;
@@ -61,7 +62,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.HashMap;
 import java.util.List;
@@ -141,7 +144,7 @@ public class TestOzoneContainer {
       volume.format(clusterId);
       commitSpaceMap.put(getVolumeKey(volume), Long.valueOf(0));
     }
-
+    List<KeyValueContainerData> containerDatas = new ArrayList<>();
     // Add containers to disk
     for (int i = 0; i < numTestContainers; i++) {
       long freeBytes = 0;
@@ -154,6 +157,7 @@ public class TestOzoneContainer {
           layout,
           maxCap, UUID.randomUUID().toString(),
           datanodeDetails.getUuidString());
+      containerDatas.add(keyValueContainerData);
       keyValueContainer = new KeyValueContainer(
           keyValueContainerData, conf);
       keyValueContainer.create(volumeSet, volumeChoosingPolicy, clusterId);
@@ -183,8 +187,22 @@ public class TestOzoneContainer {
     ozoneContainer.buildContainerSet();
     ContainerSet containerset = ozoneContainer.getContainerSet();
     assertEquals(numTestContainers, containerset.containerCount());
-
     verifyCommittedSpace(ozoneContainer);
+    Set<Long> missingContainers = new HashSet<>();
+    for (int i = 0; i < numTestContainers; i++) {
+      if (i % 2 == 0) {
+        missingContainers.add(containerDatas.get(i).getContainerID());
+        FileUtils.deleteDirectory(new File(containerDatas.get(i).getContainerPath()));
+      }
+    }
+    ozoneContainer.stop();
+    ozoneContainer = ContainerTestUtils.getOzoneContainer(datanodeDetails, conf);
+    ozoneContainer.buildContainerSet();
+    containerset = ozoneContainer.getContainerSet();
+    assertEquals(numTestContainers / 2, containerset.containerCount());
+    assertEquals(numTestContainers / 2 + numTestContainers % 2, containerset.getMissingContainerSet().size());
+    assertEquals(missingContainers, containerset.getMissingContainerSet());
+    ozoneContainer.stop();
   }
 
   @Test
