@@ -50,6 +50,7 @@ import org.apache.hadoop.ozone.om.ratis.helpers.DoubleBufferEntry;
 import org.apache.hadoop.ozone.om.ratis.metrics.OzoneManagerDoubleBufferMetrics;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.util.Daemon;
 import org.apache.hadoop.util.Time;
@@ -400,8 +401,12 @@ public final class OzoneManagerDoubleBuffer {
    * in RocksDB callback flush. If multiple operations are flushed in one
    * specific batch, we are not sure at the flush of which specific operation
    * the callback is coming.
-   * There could be a possibility of race condition that is exposed to rocksDB
-   * behaviour for the batch.
+   * PurgeSnapshot is also considered a barrier, since purgeSnapshot transaction on a standalone basis is an
+   * idempotent operation. Once the directory gets deleted the previous transactions that have been performed on the
+   * snapshotted rocksdb would start failing on replay since those transactions have not been committed but the
+   * directory could have been partially deleted/ fully deleted. This could also lead to inconsistencies in the DB
+   * reads from the purged rocksdb if operations are not performed consciously.
+   * There could be a possibility of race condition that is exposed to rocksDB behaviour for the batch.
    * Hence, we treat createSnapshot as separate batch flush.
    *
    * e.g. requestBuffer = [request1, request2, snapshotRequest1,
@@ -409,7 +414,7 @@ public final class OzoneManagerDoubleBuffer {
    * response = [[request1, request2], [snapshotRequest1], [request3],
    * [snapshotRequest2], [request4]]
    */
-  private List<Queue<DoubleBufferEntry<OMClientResponse>>>
+  private synchronized List<Queue<DoubleBufferEntry<OMClientResponse>>>
       splitReadyBufferAtCreateSnapshot() {
     List<Queue<DoubleBufferEntry<OMClientResponse>>> response =
         new ArrayList<>();
@@ -423,11 +428,10 @@ public final class OzoneManagerDoubleBuffer {
       OMResponse omResponse = entry.getResponse().getOMResponse();
       // New queue gets created in three conditions:
       // 1. It is first element in the response,
-      // 2. Current request is createSnapshot request.
-      // 3. Previous request was createSnapshot request.
-      if (response.isEmpty() || omResponse.hasCreateSnapshotResponse()
-          || (previousOmResponse != null &&
-          previousOmResponse.hasCreateSnapshotResponse())) {
+      // 2. Current request is createSnapshot/purgeSnapshot request.
+      // 3. Previous request was createSnapshot/purgeSnapshot request.
+      if (response.isEmpty() || isStandaloneBatchCmdTypes(omResponse)
+          || isStandaloneBatchCmdTypes(previousOmResponse)) {
         response.add(new LinkedList<>());
       }
 
@@ -436,6 +440,15 @@ public final class OzoneManagerDoubleBuffer {
     }
 
     return response;
+  }
+
+  private static boolean isStandaloneBatchCmdTypes(OMResponse response) {
+    if (response == null) {
+      return false;
+    }
+    final OzoneManagerProtocolProtos.Type type = response.getCmdType();
+    return type == OzoneManagerProtocolProtos.Type.SnapshotPurge
+        || type == OzoneManagerProtocolProtos.Type.CreateSnapshot;
   }
 
   private void addCleanupEntry(DoubleBufferEntry entry, Map<String,
@@ -641,7 +654,7 @@ public final class OzoneManagerDoubleBuffer {
   }
 
   @VisibleForTesting
-  int getReadyBufferSize() {
+  synchronized int getReadyBufferSize() {
     return readyBuffer.size();
   }
 
