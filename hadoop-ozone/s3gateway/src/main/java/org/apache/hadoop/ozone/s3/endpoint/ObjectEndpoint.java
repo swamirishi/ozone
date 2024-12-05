@@ -114,6 +114,7 @@ import static org.apache.hadoop.ozone.s3.S3GatewayConfigKeys.OZONE_S3G_FSO_DIREC
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.ENTITY_TOO_SMALL;
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.INVALID_ARGUMENT;
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.INVALID_REQUEST;
+import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.NOT_IMPLEMENTED;
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.NO_SUCH_UPLOAD;
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.PRECOND_FAILED;
 import static org.apache.hadoop.ozone.s3.exception.S3ErrorTable.newError;
@@ -201,6 +202,7 @@ public class ObjectEndpoint extends EndpointBase {
       @HeaderParam("Content-Length") long length,
       @QueryParam("partNumber")  int partNumber,
       @QueryParam("uploadId") @DefaultValue("") String uploadID,
+      @QueryParam("acl") String aclMarker,
       InputStream body) throws IOException, OS3Exception {
     long startNanos = Time.monotonicNowNanos();
     S3GAction s3GAction = S3GAction.CREATE_KEY;
@@ -208,6 +210,10 @@ public class ObjectEndpoint extends EndpointBase {
     boolean auditSuccess = true;
     String copyHeader = null, storageType = null;
     try {
+      if (aclMarker != null) {
+        s3GAction = S3GAction.PUT_OBJECT_ACL;
+        throw newError(NOT_IMPLEMENTED, keyPath);
+      }
       OzoneVolume volume = getVolume();
       if (uploadID != null && !uploadID.equals("")) {
         s3GAction = S3GAction.CREATE_MULTIPART_KEY;
@@ -313,7 +319,9 @@ public class ObjectEndpoint extends EndpointBase {
     } catch (Exception ex) {
       auditSuccess = false;
       auditWriteFailure(s3GAction, ex);
-      if (copyHeader != null) {
+      if (aclMarker != null) {
+        getMetrics().updatePutObjectAclFailureStats(startNanos);
+      } else if (copyHeader != null) {
         getMetrics().updateCopyObjectFailureStats(startNanos);
       } else {
         getMetrics().updateCreateKeyFailureStats(startNanos);

@@ -76,17 +76,17 @@ public class TestListParts {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 2, uploadID, body);
+        content.length(), 2, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 3, uploadID, body);
+        content.length(), 3, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
   }

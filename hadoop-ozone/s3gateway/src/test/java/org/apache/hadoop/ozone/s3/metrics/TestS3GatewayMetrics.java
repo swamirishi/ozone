@@ -335,7 +335,7 @@ public class TestS3GatewayMetrics {
         new ByteArrayInputStream(CONTENT.getBytes(UTF_8));
     // Create the file
     keyEndpoint.put(bucketName, keyName, CONTENT
-        .length(), 1, null, body);
+        .length(), 1, null, null, body);
     body.close();
     long curMetric = metrics.getCreateKeySuccess();
     assertEquals(1L, curMetric - oriMetric);
@@ -348,7 +348,7 @@ public class TestS3GatewayMetrics {
     // Create the file in a bucket that does not exist
     try {
       keyEndpoint.put("unknownBucket", keyName, CONTENT
-          .length(), 1, null, null);
+          .length(), 1, null, null, null);
       fail();
     } catch (OS3Exception ex) {
       assertEquals(S3ErrorTable.NO_SUCH_BUCKET.getCode(), ex.getCode());
@@ -390,7 +390,7 @@ public class TestS3GatewayMetrics {
         new ByteArrayInputStream(CONTENT.getBytes(UTF_8));
     // Create the file
     keyEndpoint.put(bucketName, keyName, CONTENT
-        .length(), 1, null, body);
+        .length(), 1, null, null, body);
     // GET the key from the bucket
     Response response = keyEndpoint.get(bucketName, keyName, null, 0, null);
     StreamingOutput stream = (StreamingOutput) response.getEntity();
@@ -510,7 +510,7 @@ public class TestS3GatewayMetrics {
     ByteArrayInputStream body =
         new ByteArrayInputStream(CONTENT.getBytes(UTF_8));
     keyEndpoint.put(bucketName, keyName, CONTENT.length(),
-        1, uploadID, body);
+        1, uploadID, null, body);
     long curMetric = metrics.getCreateMultipartKeySuccess();
     assertEquals(1L, curMetric - oriMetric);
   }
@@ -520,7 +520,7 @@ public class TestS3GatewayMetrics {
     long oriMetric = metrics.getCreateMultipartKeyFailure();
     try {
       keyEndpoint.put(bucketName, keyName, CONTENT.length(),
-          1, "randomId", null);
+          1, "randomId", null, null);
     } catch (OS3Exception ex) {
       assertEquals(S3ErrorTable.NO_SUCH_UPLOAD.getCode(), ex.getCode());
     }
@@ -574,14 +574,14 @@ public class TestS3GatewayMetrics {
         new ByteArrayInputStream(CONTENT.getBytes(UTF_8));
 
     keyEndpoint.put(bucketName, keyName,
-        CONTENT.length(), 1, null, body);
+        CONTENT.length(), 1, null, null, body);
 
     // Add copy header, and then call put
     when(headers.getHeaderString(COPY_SOURCE_HEADER)).thenReturn(
         bucketName + "/" + urlEncode(keyName));
 
     keyEndpoint.put(destBucket, destKey, CONTENT.length(), 1,
-        null, body);
+        null, null, body);
     long curMetric = metrics.getCopyObjectSuccess();
     assertEquals(1L, curMetric - oriMetric);
 
@@ -590,7 +590,7 @@ public class TestS3GatewayMetrics {
     // source and dest same
     try {
       when(headers.getHeaderString(STORAGE_CLASS_HEADER)).thenReturn("");
-      keyEndpoint.put(bucketName, keyName, CONTENT.length(), 1, null, body);
+      keyEndpoint.put(bucketName, keyName, CONTENT.length(), 1, null, null, body);
       fail("Test for CopyObjectMetric failed");
     } catch (OS3Exception ex) {
       Assert.assertTrue(ex.getErrorMessage().contains("This copy request is " +

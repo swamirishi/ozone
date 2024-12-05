@@ -92,7 +92,7 @@ public class TestPartUploadWithStream {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     response = REST.put(S3BUCKET, S3KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
@@ -113,7 +113,7 @@ public class TestPartUploadWithStream {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     response = REST.put(S3BUCKET, S3KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
@@ -122,7 +122,7 @@ public class TestPartUploadWithStream {
     // Upload part again with same part Number, the ETag should be changed.
     content = "Multipart Upload Changed";
     response = REST.put(S3BUCKET, S3KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
     assertNotNull(response.getHeaderString("ETag"));
     assertNotEquals(eTag, response.getHeaderString("ETag"));
 
@@ -135,7 +135,7 @@ public class TestPartUploadWithStream {
       ByteArrayInputStream body =
           new ByteArrayInputStream(content.getBytes(UTF_8));
       REST.put(S3BUCKET, S3KEY, content.length(), 1,
-          "random", body);
+          "random", null, body);
       fail("testPartUploadWithIncorrectUploadID failed");
     } catch (OS3Exception ex) {
       assertEquals("NoSuchUpload", ex.getCode());

@@ -92,7 +92,7 @@ public class TestMultipartUploadComplete {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     Response response = REST.put(OzoneConsts.S3_BUCKET, key, content.length(),
-        partNumber, uploadID, body);
+        partNumber, uploadID, null, body);
     assertEquals(200, response.getStatus());
     assertNotNull(response.getHeaderString("ETag"));
     Part part = new Part();

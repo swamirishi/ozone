@@ -286,7 +286,7 @@ public class TestPermissionCheck {
     objectEndpoint.setOzoneConfiguration(conf);
 
     try {
-      objectEndpoint.put("bucketName", "keyPath", 1024, 0, null, null);
+      objectEndpoint.put("bucketName", "keyPath", 1024, 0, null, null, null);
       Assert.fail("Should fail");
     } catch (Exception e) {
       Assert.assertTrue(e instanceof OS3Exception);

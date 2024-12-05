@@ -89,6 +89,8 @@ public final class S3GatewayMetrics implements MetricsSource {
   private @Metric MutableCounterLong copyObjectSuccessLength;
   private @Metric MutableCounterLong putKeySuccessLength;
   private @Metric MutableCounterLong getKeySuccessLength;
+  private @Metric MutableCounterLong putObjectAclSuccess;
+  private @Metric MutableCounterLong putObjectAclFailure;
 
   // S3 Gateway Latency Metrics
   // BucketEndpoint
@@ -357,6 +359,8 @@ public final class S3GatewayMetrics implements MetricsSource {
     putKeySuccessLength.snapshot(recordBuilder, true);
     getKeySuccessLength.snapshot(recordBuilder, true);
     listKeyCount.snapshot(recordBuilder, true);
+    putObjectAclSuccess.snapshot(recordBuilder, true);
+    putObjectAclFailure.snapshot(recordBuilder, true);
   }
 
   // INC and UPDATE
@@ -577,6 +581,14 @@ public final class S3GatewayMetrics implements MetricsSource {
 
   public void incGetKeySuccessLength(long bytes) {
     getKeySuccessLength.incr(bytes);
+  }
+
+  public void updatePutObjectAclSuccessStats(long startNanos) {
+    this.putObjectAclSuccess.incr();
+  }
+
+  public void updatePutObjectAclFailureStats(long startNanos) {
+    this.putObjectAclFailure.incr();
   }
 
   // GET

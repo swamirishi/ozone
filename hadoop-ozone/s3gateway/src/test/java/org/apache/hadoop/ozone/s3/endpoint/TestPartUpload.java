@@ -89,7 +89,7 @@ public class TestPartUpload {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
@@ -111,7 +111,7 @@ public class TestPartUpload {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
 
     assertNotNull(response.getHeaderString("ETag"));
 
@@ -120,7 +120,7 @@ public class TestPartUpload {
     // Upload part again with same part Number, the ETag should be changed.
     content = "Multipart Upload Changed";
     response = REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY,
-        content.length(), 1, uploadID, body);
+        content.length(), 1, uploadID, null, body);
     assertNotNull(response.getHeaderString("ETag"));
     assertNotEquals(eTag, response.getHeaderString("ETag"));
 
@@ -134,7 +134,7 @@ public class TestPartUpload {
       ByteArrayInputStream body =
           new ByteArrayInputStream(content.getBytes(UTF_8));
       REST.put(OzoneConsts.S3_BUCKET, OzoneConsts.KEY, content.length(), 1,
-          "random", body);
+          "random", null, body);
       fail("testPartUploadWithIncorrectUploadID failed");
     } catch (OS3Exception ex) {
       assertEquals("NoSuchUpload", ex.getCode());
@@ -170,7 +170,7 @@ public class TestPartUpload {
     long contentLength = chunkedContent.length();
 
     objectEndpoint.put(OzoneConsts.S3_BUCKET, keyName, contentLength, 1,
-        uploadID, new ByteArrayInputStream(chunkedContent.getBytes(UTF_8)));
+        uploadID, null, new ByteArrayInputStream(chunkedContent.getBytes(UTF_8)));
     assertContentLength(uploadID, keyName, 15);
   }
 
@@ -193,7 +193,7 @@ public class TestPartUpload {
     ByteArrayInputStream body =
         new ByteArrayInputStream(content.getBytes(UTF_8));
     REST.put(OzoneConsts.S3_BUCKET, keyName,
-        contentLength, 1, uploadID, body);
+        contentLength, 1, uploadID, null, body);
     assertContentLength(uploadID, keyName, content.length());
   }
 

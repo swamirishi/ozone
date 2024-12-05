@@ -45,7 +45,8 @@ public enum S3GAction implements AuditAction {
   COMPLETE_MULTIPART_UPLOAD,
   ABORT_MULTIPART_UPLOAD,
   DELETE_KEY,
-  CREATE_DIRECTORY;
+  CREATE_DIRECTORY,
+  PUT_OBJECT_ACL;
 
   @Override
   public String getAction() {
