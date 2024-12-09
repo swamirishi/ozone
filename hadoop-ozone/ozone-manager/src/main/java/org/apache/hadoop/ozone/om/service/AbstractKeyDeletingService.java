@@ -43,6 +43,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
+import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeletedKeys;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
@@ -251,7 +252,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     // Submit PurgeKeys request to OM
     try {
       RaftClientRequest raftClientRequest =
-          createRaftClientRequestForPurge(omRequest);
+          createRaftClientRequestForPurge(omRequest, runCount.get());
       ozoneManager.getOmRatisServer().submitRequest(omRequest,
           raftClientRequest);
     } catch (ServiceException e) {
@@ -263,12 +264,12 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
   }
 
   protected RaftClientRequest createRaftClientRequestForPurge(
-      OMRequest omRequest) {
+      OMRequest omRequest, long rnCnt) {
     return RaftClientRequest.newBuilder()
         .setClientId(clientId)
         .setServerId(ozoneManager.getOmRatisServer().getRaftPeerId())
         .setGroupId(ozoneManager.getOmRatisServer().getRaftGroupId())
-        .setCallId(runCount.get())
+        .setCallId(rnCnt)
         .setMessage(
             Message.valueOf(
                 OMRatisHelper.convertRequestToByteString(omRequest)))
@@ -295,7 +296,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
 
   protected void submitPurgePaths(List<PurgePathRequest> requests,
                                   String snapTableKey,
-                                  UUID expectedPreviousSnapshotId) {
+                                  UUID expectedPreviousSnapshotId, long rnCnt) {
     OzoneManagerProtocolProtos.PurgeDirectoriesRequest.Builder purgeDirRequest =
         OzoneManagerProtocolProtos.PurgeDirectoriesRequest.newBuilder();
 
@@ -321,7 +322,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     // Submit Purge paths request to OM
     try {
       RaftClientRequest raftClientRequest =
-          createRaftClientRequestForPurge(omRequest);
+          createRaftClientRequestForPurge(omRequest, rnCnt);
       ozoneManager.getOmRatisServer().submitRequest(omRequest,
           raftClientRequest);
     } catch (ServiceException e) {
@@ -418,7 +419,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       List<PurgePathRequest> purgePathRequestList,
       String snapTableKey, long startTime,
       int remainingBufLimit, KeyManager keyManager,
-      UUID expectedPreviousSnapshotId) {
+      UUID expectedPreviousSnapshotId, long rnCnt) {
 
     long limit = remainNum;
     // Optimization to handle delete sub-dir and keys to remove quickly
@@ -460,9 +461,8 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       }
     }
 
-    // TODO: need to handle delete with non-ratis
-    if (isRatisEnabled() && !purgePathRequestList.isEmpty()) {
-      submitPurgePaths(purgePathRequestList, snapTableKey, expectedPreviousSnapshotId);
+    if (!purgePathRequestList.isEmpty()) {
+      submitPurgePaths(purgePathRequestList, snapTableKey, expectedPreviousSnapshotId, rnCnt);
     }
 
     if (dirNum != 0 || subDirNum != 0 || subFileNum != 0) {
@@ -477,7 +477,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
               "DeletedDirectoryTable, iteration elapsed: {}ms, " +
               " totalRunCount: {}",
           dirNum, subdirDelNum, subFileNum, (subDirNum - subdirDelNum),
-          timeTakenInIteration, getRunCount());
+          timeTakenInIteration, rnCnt);
       metrics.incrementDirectoryDeletionTotalMetrics(dirNum + subdirDelNum, subDirNum, subFileNum);
       perfMetrics.setDirectoryDeletingServiceLatencyMs(timeTakenInIteration);
     }

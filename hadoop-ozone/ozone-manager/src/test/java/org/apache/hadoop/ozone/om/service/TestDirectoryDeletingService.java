@@ -50,6 +50,10 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_DIR_DELETING_SERVICE_INTERVAL;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_PATH_DELETING_LIMIT_PER_TASK_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_PATH_DELETING_LIMIT_PER_TASK;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_THREAD_NUMBER_DIR_DELETION_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_THREAD_NUMBER_DIR_DELETION;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test Directory Deleting Service.
@@ -200,14 +204,19 @@ public class TestDirectoryDeletingService {
             HddsProtos.ReplicationFactor.ONE))
         .setDataSize(0).setRecursive(true).build();
     writeClient.deleteKey(delArgs);
+    int pathDelLimit = conf.getInt(OZONE_PATH_DELETING_LIMIT_PER_TASK,
+        OZONE_PATH_DELETING_LIMIT_PER_TASK_DEFAULT);
+    int numThread = conf.getInt(OZONE_THREAD_NUMBER_DIR_DELETION,
+        OZONE_THREAD_NUMBER_DIR_DELETION_DEFAULT);
 
     // check if difference between each run should not cross the directory deletion limit
     // and wait till all dir is removed
     GenericTestUtils.waitFor(() -> {
       delDirCnt[1] = dirDeletingService.getDeletedDirsCount();
-      Assert.assertTrue("base: " + delDirCnt[0] + ", new: " + delDirCnt[1],
-          delDirCnt[1] - delDirCnt[0] <= OZONE_PATH_DELETING_LIMIT_PER_TASK_DEFAULT);
-      delDirCnt[0] =  delDirCnt[1];
+      assertTrue(
+          delDirCnt[1] - delDirCnt[0] <= ((long) pathDelLimit * numThread),
+          "base: " + delDirCnt[0] + ", new: " + delDirCnt[1]);
+      delDirCnt[0] = delDirCnt[1];
       return dirDeletingService.getDeletedDirsCount() >= dirCreatesCount;
     }, 500, 300000);
   }

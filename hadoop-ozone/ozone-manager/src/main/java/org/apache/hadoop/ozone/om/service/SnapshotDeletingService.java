@@ -150,7 +150,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
         return BackgroundTaskResult.EmptyTaskResult.newResult();
       }
 
-      getRunCount().incrementAndGet();
+      long rnCnt = getRunCount().incrementAndGet();
 
       ReferenceCounted<IOmMetadataReader, SnapshotCache> rcOmSnapshot =
           null;
@@ -254,7 +254,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
 
           long remainNum = handleDirectoryCleanUp(snapshotDeletedDirTable,
               previousDirTable, renamedTable, dbBucketKeyForDir, snapInfo,
-              omSnapshot, dirsToMove, renamedList);
+              omSnapshot, dirsToMove, renamedList, rnCnt);
           int deletionCount = 0;
 
           try (TableIterator<String, ? extends Table.KeyValue<String,
@@ -390,7 +390,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
         Table<String, String> renamedTable,
         String dbBucketKeyForDir, SnapshotInfo snapInfo,
         OmSnapshot omSnapshot, List<String> dirsToMove,
-        List<HddsProtos.KeyValue> renamedList) {
+        List<HddsProtos.KeyValue> renamedList, long rnCnt) {
 
       long dirNum = 0L;
       long subDirNum = 0L;
@@ -456,7 +456,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
         remainNum = optimizeDirDeletesAndSubmitRequest(remainNum, dirNum,
             subDirNum, subFileNum, allSubDirList, purgePathRequestList,
             snapInfo.getTableKey(), startTime, ratisByteLimit - consumedSize,
-            omSnapshot.getKeyManager(), null);
+            omSnapshot.getKeyManager(), null, rnCnt);
       } catch (IOException e) {
         LOG.error("Error while running delete directories and files for " +
             "snapshot " + snapInfo.getTableKey() + " in snapshot deleting " +
