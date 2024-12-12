@@ -116,6 +116,7 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_ENABLE_FILESYSTEM
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_FORCE_FULL_DIFF;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.DELIMITER;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.CONTAINS_SNAPSHOT;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.KEY_NOT_FOUND;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
 import static org.apache.hadoop.ozone.om.helpers.BucketLayout.FILE_SYSTEM_OPTIMIZED;
@@ -1587,13 +1588,13 @@ public class TestOmSnapshot {
     OMException omException = assertThrows(OMException.class,
         () -> store.snapshotDiff(volume, bucket, snap1, snap2,
             null, 0, false, disableNativeDiff));
-    assertEquals(KEY_NOT_FOUND, omException.getResult());
+    assertEquals(FILE_NOT_FOUND, omException.getResult());
     // From snapshot is invalid
     omException = assertThrows(OMException.class,
         () -> store.snapshotDiff(volume, bucket, snap2, snap1,
             null, 0, false, disableNativeDiff));
 
-    assertEquals(KEY_NOT_FOUND, omException.getResult());
+    assertEquals(FILE_NOT_FOUND, omException.getResult());
   }
 
   @Test
@@ -1685,12 +1686,12 @@ public class TestOmSnapshot {
     String nullstr = "";
     // Destination snapshot is empty
     LambdaTestUtils.intercept(OMException.class,
-            "KEY_NOT_FOUND",
+            "FILE_NOT_FOUND",
             () -> store.snapshotDiff(volume, bucket, snap1, nullstr,
                 null, 0, forceFullSnapshotDiff, disableNativeDiff));
     // From snapshot is empty
     LambdaTestUtils.intercept(OMException.class,
-            "KEY_NOT_FOUND",
+            "FILE_NOT_FOUND",
             () -> store.snapshotDiff(volume, bucket, nullstr, snap1,
                 null, 0, forceFullSnapshotDiff, disableNativeDiff));
     // Bucket is empty

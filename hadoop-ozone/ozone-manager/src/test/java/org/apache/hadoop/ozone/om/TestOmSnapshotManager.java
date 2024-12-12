@@ -28,6 +28,7 @@ import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.RDBBatchOperation;
 import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
@@ -330,6 +331,28 @@ public class TestOmSnapshotManager {
         getINode(f1File.toPath()), getINode(f1FileLink.toPath()));
   }
 
+  @Test
+  public void testGetSnapshotInfo() throws IOException {
+    SnapshotInfo s1 = createSnapshotInfo("vol", "buck");
+    UUID latestGlobalSnapId =
+        ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager()
+            .getLatestGlobalSnapshotId();
+    UUID latestPathSnapId =
+        ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager()
+            .getLatestPathSnapshotId(String.join("/", "vol", "buck"));
+    s1.setPathPreviousSnapshotId(latestPathSnapId);
+    s1.setGlobalPreviousSnapshotId(latestGlobalSnapId);
+    ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager()
+        .addSnapshot(s1);
+    OMException ome = Assert.assertThrows(OMException.class,
+        () -> om.getOmSnapshotManager().getSnapshotCache().get(s1.getName()));
+    Assert.assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
+    // not present in snapshot chain too
+    SnapshotInfo s2 = createSnapshotInfo("vol", "buck");
+    ome = Assert.assertThrows(OMException.class,
+        () -> om.getOmSnapshotManager().getSnapshotCache().get(s2.getName()));
+    Assert.assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
+  }
   /*
    * Test that exclude list is generated correctly.
    */
