@@ -30,8 +30,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -129,7 +127,6 @@ import org.apache.hadoop.ozone.om.helpers.OmRenameKeys;
 import org.apache.hadoop.ozone.om.helpers.OmTenantArgs;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.OpenKeySession;
-import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.helpers.OzoneFileStatus;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
@@ -148,9 +145,6 @@ import org.apache.hadoop.ozone.om.protocolPB.OzoneManagerProtocolClientSideTrans
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRoleInfo;
 import org.apache.hadoop.ozone.security.GDPRSymmetricKey;
 import org.apache.hadoop.ozone.security.OzoneTokenIdentifier;
-import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType;
-import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
-import org.apache.hadoop.ozone.security.acl.OzoneAclConfig;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
@@ -164,14 +158,12 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
-import static org.apache.hadoop.ozone.OzoneAcl.AclScope.ACCESS;
+import static org.apache.hadoop.ozone.OzoneAcl.LINK_BUCKET_DEFAULT_ACL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_KEY_PROVIDER_CACHE_EXPIRY;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_KEY_PROVIDER_CACHE_EXPIRY_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CLIENT_REQUIRED_OM_VERSION_MIN_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.OLD_QUOTA_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConsts.OZONE_MAXIMUM_ACCESS_ID_LENGTH;
-import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.READ;
-import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.WRITE;
 
 import org.apache.ratis.protocol.ClientId;
 import org.jetbrains.annotations.NotNull;
@@ -197,8 +189,6 @@ public class RpcClient implements ClientProtocol {
   private final OzoneManagerClientProtocol ozoneManagerClient;
   private final XceiverClientFactory xceiverClientManager;
   private final UserGroupInformation ugi;
-  private final ACLType userRights;
-  private final ACLType groupRights;
   private final ClientId clientId = ClientId.randomId();
   private final boolean unsafeByteBufferConversion;
   private Text dtService;
@@ -226,11 +216,6 @@ public class RpcClient implements ClientProtocol {
     Preconditions.checkNotNull(conf);
     this.conf = conf;
     this.ugi = UserGroupInformation.getCurrentUser();
-    // Get default acl rights for user and group.
-    OzoneAclConfig aclConfig = this.conf.getObject(OzoneAclConfig.class);
-    this.userRights = aclConfig.getUserDefaultRights();
-    this.groupRights = aclConfig.getGroupDefaultRights();
-
     this.clientConfig = conf.getObject(OzoneClientConfig.class);
 
     OmTransport omTransport = createOmTransport(omServiceId);
@@ -427,19 +412,6 @@ public class RpcClient implements ClientProtocol {
         ugi.getShortUserName() : volArgs.getOwner();
     long quotaInNamespace = volArgs.getQuotaInNamespace();
     long quotaInBytes = volArgs.getQuotaInBytes();
-    List<OzoneAcl> listOfAcls = new ArrayList<>();
-    //User ACL
-    listOfAcls.add(new OzoneAcl(ACLIdentityType.USER,
-        owner, userRights, ACCESS));
-    //Group ACLs of the User
-    List<String> userGroups = Arrays.asList(UserGroupInformation
-        .createRemoteUser(owner).getGroupNames());
-    userGroups.stream().forEach((group) -> listOfAcls.add(
-        new OzoneAcl(ACLIdentityType.GROUP, group, groupRights, ACCESS)));
-    //ACLs from VolumeArgs
-    if (volArgs.getAcls() != null) {
-      listOfAcls.addAll(volArgs.getAcls());
-    }
 
     OmVolumeArgs.Builder builder = OmVolumeArgs.newBuilder();
     builder.setVolume(volumeName);
@@ -449,11 +421,14 @@ public class RpcClient implements ClientProtocol {
     builder.setQuotaInNamespace(quotaInNamespace);
     builder.setUsedNamespace(0L);
     builder.addAllMetadata(volArgs.getMetadata());
-
-    //Remove duplicates and add ACLs
-    for (OzoneAcl ozoneAcl :
-        listOfAcls.stream().distinct().collect(Collectors.toList())) {
-      builder.addOzoneAcls(ozoneAcl);
+    //ACLs from VolumeArgs
+    List<OzoneAcl> volumeAcls = volArgs.getAcls();
+    if (volumeAcls != null) {
+      //Remove duplicates and add ACLs
+      for (OzoneAcl ozoneAcl :
+          volumeAcls.stream().distinct().collect(Collectors.toList())) {
+        builder.addOzoneAcls(ozoneAcl);
+      }
     }
 
     if (volArgs.getQuotaInBytes() == 0) {
@@ -644,17 +619,6 @@ public class RpcClient implements ClientProtocol {
           .setKeyName(bucketArgs.getEncryptionKey()).build();
     }
 
-    List<OzoneAcl> listOfAcls = getAclList();
-    //ACLs from BucketArgs
-    if (bucketArgs.getAcls() != null) {
-      listOfAcls.addAll(bucketArgs.getAcls());
-    }
-    // Link bucket default acl
-    if (bucketArgs.getSourceVolume() != null
-        && bucketArgs.getSourceBucket() != null) {
-      listOfAcls.add(linkBucketDefaultAcl());
-    }
-
     OmBucketInfo.Builder builder = OmBucketInfo.newBuilder();
     builder.setVolumeName(volumeName)
         .setBucketName(bucketName)
@@ -665,9 +629,18 @@ public class RpcClient implements ClientProtocol {
         .setSourceBucket(bucketArgs.getSourceBucket())
         .setQuotaInBytes(bucketArgs.getQuotaInBytes())
         .setQuotaInNamespace(bucketArgs.getQuotaInNamespace())
-        .setAcls(listOfAcls.stream().distinct().collect(Collectors.toList()))
         .setBucketLayout(bucketLayout)
         .setOwner(owner);
+
+    if (bucketArgs.getAcls() != null) {
+      builder.setAcls(bucketArgs.getAcls());
+    }
+
+    // Link bucket default acl
+    if (bucketArgs.getSourceVolume() != null
+        && bucketArgs.getSourceBucket() != null) {
+      builder.addAcl(LINK_BUCKET_DEFAULT_ACL);
+    }
 
     if (bek != null) {
       builder.setBucketEncryptionKey(bek);
@@ -727,38 +700,6 @@ public class RpcClient implements ClientProtocol {
       throw new IllegalArgumentException("Invalid values for quota : " +
           "space quota is :" + quota + ".");
     }
-  }
-
-  /**
-   * Helper function to get default acl list for current user.
-   *
-   * @return listOfAcls
-   * */
-  private List<OzoneAcl> getAclList() {
-    if (ozoneManagerClient.getThreadLocalS3Auth() != null) {
-      UserGroupInformation aclUgi =
-          UserGroupInformation.createRemoteUser(
-             ozoneManagerClient.getThreadLocalS3Auth().getAccessID());
-      return OzoneAclUtil.getAclList(
-          aclUgi.getUserName(),
-          aclUgi.getGroupNames(),
-         userRights, groupRights);
-    }
-    return OzoneAclUtil.getAclList(ugi.getUserName(), ugi.getGroupNames(),
-        userRights, groupRights);
-  }
-
-  /**
-   * Link bucket default acl defined [world::rw]
-   * which is similar to Linux POSIX symbolic.
-   *
-   * @return OzoneAcl
-   */
-  private OzoneAcl linkBucketDefaultAcl() {
-    BitSet aclRights = new BitSet();
-    aclRights.set(READ.ordinal());
-    aclRights.set(WRITE.ordinal());
-    return new OzoneAcl(ACLIdentityType.WORLD, "", aclRights, ACCESS);
   }
 
   /**
@@ -1342,7 +1283,6 @@ public class RpcClient implements ClientProtocol {
         .setDataSize(size)
         .setReplicationConfig(replicationConfig)
         .addAllMetadataGdpr(metadata)
-        .setAcls(getAclList())
         .setLatestVersionLocation(getLatestVersionLocation);
 
     OpenKeySession openKey = ozoneManagerClient.openKey(builder.build());
@@ -1375,8 +1315,7 @@ public class RpcClient implements ClientProtocol {
         .setKeyName(keyName)
         .setDataSize(size)
         .setReplicationConfig(replicationConfig)
-        .addAllMetadataGdpr(metadata)
-        .setAcls(getAclList());
+        .addAllMetadataGdpr(metadata);
 
     OpenKeySession openKey = ozoneManagerClient.openKey(builder.build());
     return createDataStreamOutput(openKey);
@@ -1731,7 +1670,6 @@ public class RpcClient implements ClientProtocol {
         .setBucketName(bucketName)
         .setKeyName(keyName)
         .setReplicationConfig(replicationConfig)
-        .setAcls(getAclList())
         .build();
     OmMultipartInfo multipartInfo = ozoneManagerClient
         .initiateMultipartUpload(keyArgs);
@@ -1759,7 +1697,6 @@ public class RpcClient implements ClientProtocol {
         .setIsMultipartKey(true)
         .setMultipartUploadID(uploadID)
         .setMultipartUploadPartNumber(partNumber)
-        .setAcls(getAclList())
         .build();
     return ozoneManagerClient.openKey(keyArgs);
   }
@@ -1828,7 +1765,6 @@ public class RpcClient implements ClientProtocol {
         .setBucketName(bucketName)
         .setKeyName(keyName)
         .setMultipartUploadID(uploadID)
-        .setAcls(getAclList())
         .build();
 
     OmMultipartUploadCompleteList
@@ -1928,7 +1864,6 @@ public class RpcClient implements ClientProtocol {
     OmKeyArgs keyArgs = new OmKeyArgs.Builder().setVolumeName(volumeName)
         .setBucketName(bucketName)
         .setKeyName(keyName)
-        .setAcls(getAclList())
         .build();
     ozoneManagerClient.createDirectory(keyArgs);
   }
@@ -2007,7 +1942,6 @@ public class RpcClient implements ClientProtocol {
         .setKeyName(keyName)
         .setDataSize(size)
         .setReplicationConfig(replicationConfig)
-        .setAcls(getAclList())
         .setLatestVersionLocation(getLatestVersionLocation)
         .build();
     OpenKeySession keySession =
@@ -2037,7 +1971,6 @@ public class RpcClient implements ClientProtocol {
         .setKeyName(keyName)
         .setDataSize(size)
         .setReplicationConfig(replicationConfig)
-        .setAcls(getAclList())
         .setLatestVersionLocation(getLatestVersionLocation)
         .build();
     OpenKeySession keySession =

@@ -22,21 +22,13 @@ import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.hdds.client.ECReplicationConfig;
-import org.apache.hadoop.hdds.client.ReplicationConfig;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.OmUtils;
-import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
-import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
-import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -77,7 +69,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
 import org.apache.hadoop.util.Time;
 
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_ALREADY_EXISTS;
-import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_KEY_NAME;
 import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
 import static org.apache.hadoop.ozone.om.request.file.OMFileRequest.OMDirectoryResult.DIRECTORY_EXISTS_IN_GIVENPATH;
 import static org.apache.hadoop.ozone.om.request.file.OMFileRequest.OMDirectoryResult.FILE_EXISTS_IN_GIVENPATH;
@@ -91,11 +82,6 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(OMDirectoryCreateRequest.class);
-
-  // The maximum number of directories which can be created through a single
-  // transaction (recursive directory creations) is 2^8 - 1 as only 8
-  // bits are set aside for this in ObjectID.
-  private static final long MAX_NUM_OF_RECURSIVE_DIRS = 255;
 
   /**
    * Stores the result of request execution in
@@ -207,9 +193,8 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
         long baseObjId = ozoneManager.getObjectIdFromTxId(trxnLogIndex);
         List<OzoneAcl> inheritAcls = omPathInfo.getAcls();
 
-        dirKeyInfo = createDirectoryKeyInfoWithACL(keyName, keyArgs, baseObjId,
-            OzoneAclUtil.fromProtobuf(keyArgs.getAclsList()), trxnLogIndex,
-            ozoneManager.getDefaultReplicationConfig());
+        dirKeyInfo = createDirectoryKeyInfoWithACL(keyName, keyArgs, baseObjId, inheritAcls, trxnLogIndex,
+            ozoneManager.getDefaultReplicationConfig(), ozoneManager.getConfiguration());
 
         missingParentInfos = getAllParentInfo(ozoneManager, keyArgs,
             missingParents, inheritAcls, trxnLogIndex);
@@ -255,61 +240,6 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
     return omClientResponse;
   }
 
-  /**
-   * Construct OmKeyInfo for every parent directory in missing list.
-   * @param ozoneManager
-   * @param keyArgs
-   * @param missingParents list of parent directories to be created
-   * @param inheritAcls ACLs to be assigned to each new parent dir
-   * @param trxnLogIndex
-   * @return
-   * @throws IOException
-   */
-  public static List<OmKeyInfo> getAllParentInfo(OzoneManager ozoneManager,
-      KeyArgs keyArgs, List<String> missingParents, List<OzoneAcl> inheritAcls,
-      long trxnLogIndex) throws IOException {
-    OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
-    List<OmKeyInfo> missingParentInfos = new ArrayList<>();
-
-    // The base id is left shifted by 8 bits for creating space to
-    // create (2^8 - 1) object ids in every request.
-    // maxObjId represents the largest object id allocation possible inside
-    // the transaction.
-    long baseObjId = ozoneManager.getObjectIdFromTxId(trxnLogIndex);
-    long maxObjId = baseObjId + MAX_NUM_OF_RECURSIVE_DIRS;
-    long objectCount = 1; // baseObjID is used by the leaf directory
-
-    String volumeName = keyArgs.getVolumeName();
-    String bucketName = keyArgs.getBucketName();
-    String keyName = keyArgs.getKeyName();
-
-    for (String missingKey : missingParents) {
-      long nextObjId = baseObjId + objectCount;
-      if (nextObjId > maxObjId) {
-        throw new OMException("Too many directories in path. Exceeds limit of "
-            + MAX_NUM_OF_RECURSIVE_DIRS + ". Unable to create directory: "
-            + keyName + " in volume/bucket: " + volumeName + "/" + bucketName,
-            INVALID_KEY_NAME);
-      }
-
-      LOG.debug("missing parent {} getting added to KeyTable", missingKey);
-      // what about keyArgs for parent directories? TODO
-      OmKeyInfo parentKeyInfo =
-          createDirectoryKeyInfoWithACL(missingKey, keyArgs, nextObjId,
-              inheritAcls, trxnLogIndex,
-              ozoneManager.getDefaultReplicationConfig());
-      objectCount++;
-
-      missingParentInfos.add(parentKeyInfo);
-      omMetadataManager.getKeyTable(BucketLayout.DEFAULT).addCacheEntry(
-          omMetadataManager.getOzoneKey(
-              volumeName, bucketName, parentKeyInfo.getKeyName()),
-          parentKeyInfo, trxnLogIndex);
-    }
-
-    return missingParentInfos;
-  }
-
   private void logResult(CreateDirectoryRequest createDirectoryRequest,
       KeyArgs keyArgs, OMMetrics omMetrics, Result result,
       Exception exception, int numMissingParents) {
@@ -342,64 +272,6 @@ public class OMDirectoryCreateRequest extends OMKeyRequest {
       LOG.error("Unrecognized Result for OMDirectoryCreateRequest: {}",
           createDirectoryRequest);
     }
-  }
-
-  /**
-   * fill in a KeyInfo for a new directory entry in OM database.
-   * without initializing ACLs from the KeyArgs - used for intermediate
-   * directories which get created internally/recursively during file
-   * and directory create.
-   * @param keyName
-   * @param keyArgs
-   * @param objectId
-   * @param transactionIndex
-   * @param serverDefaultReplConfig
-   * @return the OmKeyInfo structure
-   */
-  public static OmKeyInfo createDirectoryKeyInfoWithACL(String keyName,
-      KeyArgs keyArgs, long objectId, List<OzoneAcl> inheritAcls,
-      long transactionIndex, ReplicationConfig serverDefaultReplConfig) {
-    return dirKeyInfoBuilderNoACL(keyName, keyArgs, objectId,
-        serverDefaultReplConfig).setAcls(inheritAcls)
-        .setUpdateID(transactionIndex).build();
-  }
-
-  private static OmKeyInfo.Builder dirKeyInfoBuilderNoACL(String keyName,
-      KeyArgs keyArgs, long objectId,
-      ReplicationConfig serverDefaultReplConfig) {
-    String dirName = OzoneFSUtils.addTrailingSlashIfNeeded(keyName);
-
-    OmKeyInfo.Builder keyInfoBuilder =
-        new OmKeyInfo.Builder()
-            .setVolumeName(keyArgs.getVolumeName())
-            .setBucketName(keyArgs.getBucketName())
-            .setKeyName(dirName)
-            .setOmKeyLocationInfos(Collections.singletonList(
-                new OmKeyLocationInfoGroup(0, new ArrayList<>())))
-            .setCreationTime(keyArgs.getModificationTime())
-            .setModificationTime(keyArgs.getModificationTime())
-            .setDataSize(0);
-    if (keyArgs.getFactor() != null && keyArgs
-        .getFactor() != HddsProtos.ReplicationFactor.ZERO && keyArgs
-        .getType() != HddsProtos.ReplicationType.EC) {
-      // Factor available and not an EC replication config.
-      keyInfoBuilder.setReplicationConfig(ReplicationConfig
-          .fromProtoTypeAndFactor(keyArgs.getType(), keyArgs.getFactor()));
-    } else if (keyArgs.getType() == HddsProtos.ReplicationType.EC) {
-      // Found EC type
-      keyInfoBuilder.setReplicationConfig(
-          new ECReplicationConfig(keyArgs.getEcReplicationConfig()));
-    } else {
-      // default type
-      keyInfoBuilder.setReplicationConfig(serverDefaultReplConfig);
-    }
-
-    keyInfoBuilder.setObjectID(objectId);
-    return keyInfoBuilder;
-  }
-
-  static long getMaxNumOfRecursiveDirs() {
-    return MAX_NUM_OF_RECURSIVE_DIRS;
   }
 
   @RequestFeatureValidator(

@@ -24,6 +24,7 @@ import com.google.protobuf.ByteString;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneAclInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneAclInfo.OzoneAclScope;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneAclInfo.OzoneAclType;
+import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 
@@ -32,6 +33,10 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.apache.hadoop.ozone.OzoneAcl.AclScope.ACCESS;
+import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.READ;
+import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.WRITE;
 
 /**
  * OzoneACL classes define bucket ACLs used in OZONE.
@@ -53,6 +58,13 @@ public class OzoneAcl {
   private AclScope aclScope;
   private static final List<ACLType> EMPTY_LIST = new ArrayList<>(0);
   public static final BitSet ZERO_BITSET = new BitSet(0);
+
+  /**
+   * Link bucket default acl defined [world::rw]
+   * which is similar to Linux POSIX symbolic.
+   */
+  public static final OzoneAcl LINK_BUCKET_DEFAULT_ACL =
+      new OzoneAcl(IAccessAuthorizer.ACLIdentityType.WORLD, "", ACCESS, READ, WRITE);
 
   /**
    * Default constructor.
@@ -113,6 +125,31 @@ public class OzoneAcl {
     this.aclBitSet = (BitSet) acls.clone();
 
     this.name = name;
+    this.type = type;
+    if (type == ACLIdentityType.WORLD || type == ACLIdentityType.ANONYMOUS) {
+      if (!name.equals(ACLIdentityType.WORLD.name()) &&
+          !name.equals(ACLIdentityType.ANONYMOUS.name()) &&
+          name.length() != 0) {
+        throw new IllegalArgumentException("Unexpected name:{" + name +
+            "} for type WORLD, ANONYMOUS. It should be WORLD & " +
+            "ANONYMOUS respectively.");
+      }
+      // For type WORLD and ANONYMOUS we allow only one acl to be set.
+      this.name = type.name();
+    }
+    if (((type == ACLIdentityType.USER) || (type == ACLIdentityType.GROUP))
+        && (name.length() == 0)) {
+      throw new IllegalArgumentException("User or group name is required");
+    }
+    aclScope = scope;
+  }
+
+  public OzoneAcl(ACLIdentityType type, String name, AclScope scope, ACLType... acls) {
+    this.name = name;
+    this.aclBitSet = new BitSet(ACLType.getNoOfAcls());
+    for (ACLType acl : acls) {
+      this.aclBitSet.set(acl.ordinal(), true);
+    }
     this.type = type;
     if (type == ACLIdentityType.WORLD || type == ACLIdentityType.ANONYMOUS) {
       if (!name.equals(ACLIdentityType.WORLD.name()) &&

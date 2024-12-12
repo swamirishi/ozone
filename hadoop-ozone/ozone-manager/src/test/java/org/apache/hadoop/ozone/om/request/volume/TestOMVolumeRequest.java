@@ -80,6 +80,7 @@ public class TestOMVolumeRequest {
     auditLogger = mock(AuditLogger.class);
     when(ozoneManager.getAuditLogger()).thenReturn(auditLogger);
     Mockito.doNothing().when(auditLogger).logWrite(any(AuditMessage.class));
+    when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
   }
 
   @After

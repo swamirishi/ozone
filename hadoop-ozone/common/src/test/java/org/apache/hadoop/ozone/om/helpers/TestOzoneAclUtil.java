@@ -179,15 +179,15 @@ public class TestOzoneAclUtil {
     }
 
     OzoneAclConfig aclConfig = newInstanceOf(OzoneAclConfig.class);
-    IAccessAuthorizer.ACLType userRights = aclConfig.getUserDefaultRights();
-    IAccessAuthorizer.ACLType groupRights = aclConfig.getGroupDefaultRights();
+    IAccessAuthorizer.ACLType[] userRights = aclConfig.getUserDefaultRights();
+    IAccessAuthorizer.ACLType[] groupRights = aclConfig.getGroupDefaultRights();
 
     OzoneAclUtil.addAcl(ozoneAcls, new OzoneAcl(USER,
-        ugi.getUserName(), userRights, ACCESS));
+        ugi.getUserName(), ACCESS, userRights));
     //Group ACLs of the User
     List<String> userGroups = Arrays.asList(ugi.getGroupNames());
     userGroups.stream().forEach((group) -> OzoneAclUtil.addAcl(ozoneAcls,
-        new OzoneAcl(GROUP, group, groupRights, ACCESS)));
+        new OzoneAcl(GROUP, group, ACCESS, groupRights)));
     return ozoneAcls;
   }
 

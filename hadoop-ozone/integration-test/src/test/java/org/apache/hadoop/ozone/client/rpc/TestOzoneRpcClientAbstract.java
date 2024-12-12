@@ -143,6 +143,8 @@ import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NO_S
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.PARTIAL_RENAME;
 import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType.GROUP;
 import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLIdentityType.USER;
+import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.ALL;
+import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.LIST;
 import static org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType.READ;
 
 import org.junit.Assert;
@@ -828,6 +830,71 @@ public abstract class TestOzoneRpcClientAbstract {
     List<OzoneAcl> aclsAfterSet = newBucket.getAcls();
     Assert.assertEquals(currentAcls, aclsAfterSet);
 
+  }
+
+  @Test
+  public void testAclDeDuplication()
+      throws IOException {
+    String volumeName = UUID.randomUUID().toString();
+    String bucketName = UUID.randomUUID().toString();
+    OzoneAcl userAcl1 = new OzoneAcl(USER, "test", DEFAULT, READ);
+    UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
+    OzoneAcl currentUserAcl = new OzoneAcl(USER, currentUser.getShortUserName(), ACCESS, ALL);
+    OzoneAcl currentUserPrimaryGroupAcl = new OzoneAcl(GROUP, currentUser.getPrimaryGroupName(), ACCESS, READ, LIST);
+    List<OzoneAcl> acls = new ArrayList<>();
+    acls.add(userAcl1);
+    acls.add(currentUserAcl);
+    acls.add(currentUserPrimaryGroupAcl);
+    VolumeArgs createVolumeArgs = VolumeArgs.newBuilder()
+        .setOwner(currentUser.getShortUserName())
+        .setAdmin(currentUser.getShortUserName())
+        .setAcls(acls)
+        .build();
+
+    store.createVolume(volumeName, createVolumeArgs);
+    OzoneVolume volume = store.getVolume(volumeName);
+    List<OzoneAcl> volumeAcls = volume.getAcls();
+    assertEquals(3, volumeAcls.size());
+    assertTrue(volumeAcls.contains(userAcl1));
+    assertTrue(volumeAcls.contains(currentUserAcl));
+    assertTrue(volumeAcls.contains(currentUserPrimaryGroupAcl));
+
+    // normal bucket
+    acls.clear();
+    acls.add(currentUserAcl);
+    acls.add(currentUserPrimaryGroupAcl);
+    BucketArgs.Builder builder = BucketArgs.newBuilder().setAcls(acls);
+    volume.createBucket(bucketName, builder.build());
+    OzoneBucket bucket = volume.getBucket(bucketName);
+    List<OzoneAcl> bucketAcls = bucket.getAcls();
+    assertEquals(bucketName, bucket.getName());
+    assertEquals(3, bucketAcls.size());
+    assertTrue(bucketAcls.contains(currentUserAcl));
+    assertTrue(bucketAcls.contains(currentUserPrimaryGroupAcl));
+    assertTrue(bucketAcls.get(2).getName().equals(userAcl1.getName()));
+    assertTrue(bucketAcls.get(2).getAclList().equals(userAcl1.getAclList()));
+    assertTrue(bucketAcls.get(2).getAclScope().equals(ACCESS));
+
+    // link bucket
+    OzoneAcl userAcl2 = new OzoneAcl(USER, "test-link", DEFAULT, READ);
+    String linkBucketName =  "link-" + bucketName;
+    acls.clear();
+    acls.add(currentUserAcl);
+    acls.add(currentUserPrimaryGroupAcl);
+    acls.add(userAcl2);
+    builder = BucketArgs.newBuilder().setSourceVolume(volumeName).setSourceBucket(bucketName).setAcls(acls);
+    volume.createBucket(linkBucketName, builder.build());
+    OzoneBucket linkBucket = volume.getBucket(linkBucketName);
+    List<OzoneAcl> linkBucketAcls = linkBucket.getAcls();
+    assertEquals(linkBucketName, linkBucket.getName());
+    assertEquals(5, linkBucketAcls.size());
+    assertTrue(linkBucketAcls.contains(currentUserAcl));
+    assertTrue(linkBucketAcls.contains(currentUserPrimaryGroupAcl));
+    assertTrue(linkBucketAcls.contains(userAcl2));
+    assertTrue(linkBucketAcls.contains(OzoneAcl.LINK_BUCKET_DEFAULT_ACL));
+    assertTrue(linkBucketAcls.get(4).getName().equals(userAcl1.getName()));
+    assertTrue(linkBucketAcls.get(4).getAclList().equals(userAcl1.getAclList()));
+    assertTrue(linkBucketAcls.get(4).getAclScope().equals(ACCESS));
   }
 
   @Test
@@ -3599,15 +3666,12 @@ public abstract class TestOzoneRpcClientAbstract {
     //User ACL
     UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
     OzoneAclConfig aclConfig = conf.getObject(OzoneAclConfig.class);
-    ACLType userRights = aclConfig.getUserDefaultRights();
-    ACLType groupRights = aclConfig.getGroupDefaultRights();
+    ACLType[] userRights = aclConfig.getUserDefaultRights();
+    ACLType[] groupRights = aclConfig.getGroupDefaultRights();
 
-    listOfAcls.add(new OzoneAcl(USER,
-        ugi.getUserName(), userRights, ACCESS));
-    //Group ACLs of the User
-    List<String> userGroups = Arrays.asList(ugi.getGroupNames());
-    userGroups.stream().forEach((group) -> listOfAcls.add(
-        new OzoneAcl(GROUP, group, groupRights, ACCESS)));
+    listOfAcls.add(new OzoneAcl(USER, ugi.getShortUserName(), ACCESS, userRights));
+    //Group ACL of the User
+    listOfAcls.add(new OzoneAcl(GROUP, ugi.getPrimaryGroupName(), ACCESS, groupRights));
     return listOfAcls;
   }
 

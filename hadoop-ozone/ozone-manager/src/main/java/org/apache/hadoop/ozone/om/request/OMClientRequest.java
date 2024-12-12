@@ -397,6 +397,11 @@ public abstract class OMClientRequest implements RequestAuditor {
     return ugi;
   }
 
+  @VisibleForTesting
+  public void setUGI(UserGroupInformation ugi) {
+    this.userGroupInformation = ugi;
+  }
+
   /**
    * Return InetAddress created from OMRequest userInfo. If userInfo is not
    * set, returns null.

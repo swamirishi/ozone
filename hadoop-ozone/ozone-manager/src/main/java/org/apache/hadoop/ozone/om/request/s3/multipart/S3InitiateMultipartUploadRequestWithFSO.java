@@ -119,9 +119,8 @@ public class S3InitiateMultipartUploadRequestWithFSO
       checkDirectoryResult(keyName, pathInfoFSO.getDirectoryResult());
 
       // add all missing parents to dir table
-      missingParentInfos = OMDirectoryCreateRequestWithFSO
-          .getAllMissingParentDirInfo(ozoneManager, keyArgs, pathInfoFSO,
-              transactionLogIndex);
+      missingParentInfos = getAllMissingParentDirInfo(ozoneManager, keyArgs,
+              pathInfoFSO, transactionLogIndex);
 
       // We are adding uploadId to key, because if multiple users try to
       // perform multipart upload on the same key, each will try to upload, who
@@ -182,8 +181,9 @@ public class S3InitiateMultipartUploadRequestWithFSO
           .setModificationTime(keyArgs.getModificationTime())
           .setReplicationConfig(replicationConfig)
           .setOmKeyLocationInfos(Collections.singletonList(
-              new OmKeyLocationInfoGroup(0, new ArrayList<>())))
-          .setAcls(OzoneAclUtil.fromProtobuf(keyArgs.getAclsList()))
+              new OmKeyLocationInfoGroup(0, new ArrayList<>(), true)))
+          .setAcls(getAclsForKey(keyArgs, bucketInfo,
+              ozoneManager.getPrefixManager(), ozoneManager.getConfiguration()))
           .setObjectID(pathInfoFSO.getLeafNodeObjectId())
           .setUpdateID(transactionLogIndex)
           .setFileEncryptionInfo(keyArgs.hasFileEncryptionInfo() ?

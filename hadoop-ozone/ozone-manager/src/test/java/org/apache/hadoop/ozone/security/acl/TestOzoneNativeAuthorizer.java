@@ -169,8 +169,7 @@ public class TestOzoneNativeAuthorizer {
         .setReplicationConfig(StandaloneReplicationConfig
             .getInstance(HddsProtos.ReplicationFactor.ONE))
         .setDataSize(0)
-        .setAcls(OzoneAclUtil.getAclList(testUgi.getUserName(),
-            testUgi.getGroupNames(), ALL, ALL))
+        .setAcls(OzoneAclUtil.getAclList(testUgi, ALL, ALL))
         .build();
 
     if (keyName.split(OZONE_URI_DELIMITER).length > 1) {

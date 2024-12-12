@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -104,6 +105,9 @@ public class TestBucketLayoutWithOlderClient {
                             OzoneManagerProtocolProtos.StorageTypeProto.DISK)
                             .build())
                     .build()).build();
+    createBucketReq = createBucketReq.toBuilder()
+        .setUserInfo(OzoneManagerProtocolProtos.UserInfo.newBuilder()
+            .setUserName(UserGroupInformation.getCurrentUser().getShortUserName()).build()).build();
 
     OzoneManagerProtocolProtos.OMResponse
         omResponse = cluster.getOzoneManager().getOmServerProtocol()

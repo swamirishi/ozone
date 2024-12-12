@@ -29,6 +29,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import java.util.UUID;
 
@@ -140,7 +141,7 @@ public class TestOMBucketCreateRequestWithFSO
     Assert.assertNull(omMetadataManager.getBucketTable().get(bucketKey));
     OMBucketCreateRequest omBucketCreateRequest =
         new OMBucketCreateRequest(modifiedRequest);
-
+    omBucketCreateRequest.setUGI(UserGroupInformation.getCurrentUser());
 
     OMClientResponse omClientResponse =
         omBucketCreateRequest.validateAndUpdateCache(ozoneManager, 1);
@@ -163,8 +164,7 @@ public class TestOMBucketCreateRequestWithFSO
         dbBucketInfo.getCreationTime());
     Assert.assertEquals(bucketInfoFromProto.getModificationTime(),
         dbBucketInfo.getModificationTime());
-    Assert.assertEquals(bucketInfoFromProto.getAcls(),
-        dbBucketInfo.getAcls());
+    Assert.assertTrue(dbBucketInfo.getAcls().containsAll(bucketInfoFromProto.getAcls()));
     Assert.assertEquals(bucketInfoFromProto.getIsVersionEnabled(),
         dbBucketInfo.getIsVersionEnabled());
     Assert.assertEquals(bucketInfoFromProto.getStorageType(),

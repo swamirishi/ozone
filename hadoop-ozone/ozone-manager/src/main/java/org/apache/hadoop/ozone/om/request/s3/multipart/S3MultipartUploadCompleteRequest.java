@@ -31,7 +31,6 @@ import java.util.Map;
 
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.ozone.om.OzoneConfigUtil;
-import org.apache.hadoop.ozone.om.request.file.OMDirectoryCreateRequestWithFSO;
 import org.apache.hadoop.ozone.om.request.file.OMFileRequest;
 import org.apache.hadoop.ozone.protocolPB.OMPBHelper;
 import org.apache.ratis.server.protocol.TermIndex;
@@ -161,9 +160,8 @@ public class S3MultipartUploadCompleteRequest extends OMKeyRequest {
       OMFileRequest.OMPathInfoWithFSO pathInfoFSO = OMFileRequest
           .verifyDirectoryKeysInPath(omMetadataManager, volumeName, bucketName,
               keyName, Paths.get(keyName));
-      missingParentInfos = OMDirectoryCreateRequestWithFSO
-          .getAllMissingParentDirInfo(ozoneManager, keyArgs,
-              pathInfoFSO, trxnLogIndex);
+      missingParentInfos = getAllMissingParentDirInfo(ozoneManager, keyArgs,
+          pathInfoFSO, trxnLogIndex);
 
       if (missingParentInfos != null) {
         final long volumeId = omMetadataManager.getVolumeId(volumeName);
@@ -210,7 +208,7 @@ public class S3MultipartUploadCompleteRequest extends OMKeyRequest {
               .setOmKeyLocationInfos(Collections.singletonList(
                   new OmKeyLocationInfoGroup(0, new ArrayList<>(), true)))
               .setAcls(getAclsForKey(keyArgs, omBucketInfo,
-                  ozoneManager.getPrefixManager()))
+                  ozoneManager.getPrefixManager(), ozoneManager.getConfiguration()))
               .setObjectID(pathInfoFSO.getLeafNodeObjectId())
               .setUpdateID(trxnLogIndex)
               .setFileEncryptionInfo(keyArgs.hasFileEncryptionInfo() ?

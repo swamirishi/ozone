@@ -335,8 +335,7 @@ public class TestKeyManagerImpl {
         .setKeyName(KEY_NAME)
         .setDataSize(1000)
         .setReplicationConfig(RatisReplicationConfig.getInstance(THREE))
-        .setAcls(OzoneAclUtil.getAclList(ugi.getUserName(), ugi.getGroupNames(),
-            ALL, ALL))
+        .setAcls(OzoneAclUtil.getAclList(ugi, ALL, ALL))
         .build();
     LambdaTestUtils.intercept(OMException.class,
         "SafeModePrecheck failed for allocateBlock", () -> {
@@ -1716,8 +1715,7 @@ public class TestKeyManagerImpl {
         .setDataSize(0)
         .setReplicationConfig(
             StandaloneReplicationConfig.getInstance(ONE))
-        .setAcls(OzoneAclUtil.getAclList(ugi.getUserName(), ugi.getGroupNames(),
-            ALL, ALL))
+        .setAcls(OzoneAclUtil.getAclList(ugi, ALL, ALL))
         .setVolumeName(VOLUME_NAME);
   }
 

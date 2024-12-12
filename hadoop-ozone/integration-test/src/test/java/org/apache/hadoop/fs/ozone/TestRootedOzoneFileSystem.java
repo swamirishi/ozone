@@ -1245,7 +1245,7 @@ public class TestRootedOzoneFileSystem {
     ClientProtocol proxy = objectStore.getClientProxy();
     // Get default acl rights for user
     OzoneAclConfig aclConfig = conf.getObject(OzoneAclConfig.class);
-    ACLType userRights = aclConfig.getUserDefaultRights();
+    ACLType[] userRights = aclConfig.getUserDefaultRights();
     // Construct ACL for world access
     // ACL admin owner, world read+write
     BitSet aclRights = new BitSet();
@@ -1254,8 +1254,7 @@ public class TestRootedOzoneFileSystem {
     List<OzoneAcl> objectAcls = new ArrayList<>();
     objectAcls.add(new OzoneAcl(ACLIdentityType.WORLD, "",
         aclRights, ACCESS));
-    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", userRights,
-        ACCESS));
+    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", ACCESS, userRights));
     // volume acls have all access to admin and read+write access to world
 
     // Construct VolumeArgs
@@ -1294,14 +1293,12 @@ public class TestRootedOzoneFileSystem {
 
     // set acls for shared tmp mount under the tmp volume
     objectAcls.clear();
-    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", userRights,
-        ACCESS));
+    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", ACCESS, userRights));
     aclRights.clear(DELETE.ordinal());
     aclRights.set(LIST.ordinal());
     objectAcls.add(new OzoneAcl(ACLIdentityType.WORLD, "",
         aclRights, ACCESS));
-    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", userRights,
-        ACCESS));
+    objectAcls.add(new OzoneAcl(ACLIdentityType.USER, "admin", ACCESS, userRights));
     // bucket acls have all access to admin and read+write+list access to world
 
     BucketArgs bucketArgs = new BucketArgs.Builder()
@@ -1363,10 +1360,9 @@ public class TestRootedOzoneFileSystem {
     ClientProtocol proxy = objectStore.getClientProxy();
     // Get default acl rights for user
     OzoneAclConfig aclConfig = conf.getObject(OzoneAclConfig.class);
-    ACLType userRights = aclConfig.getUserDefaultRights();
+    ACLType[] userRights = aclConfig.getUserDefaultRights();
     // Construct ACL for world access
-    OzoneAcl aclWorldAccess = new OzoneAcl(ACLIdentityType.WORLD, "",
-        userRights, ACCESS);
+    OzoneAcl aclWorldAccess = new OzoneAcl(ACLIdentityType.WORLD, "", ACCESS, userRights);
     // Construct VolumeArgs
     VolumeArgs volumeArgs = new VolumeArgs.Builder()
         .setAcls(Collections.singletonList(aclWorldAccess))
@@ -2375,10 +2371,9 @@ public class TestRootedOzoneFileSystem {
 
     // Get default acl rights for user
     OzoneAclConfig aclConfig = conf.getObject(OzoneAclConfig.class);
-    ACLType userRights = aclConfig.getUserDefaultRights();
+    ACLType[] userRights = aclConfig.getUserDefaultRights();
     // Construct ACL for world access
-    OzoneAcl aclWorldAccess = new OzoneAcl(ACLIdentityType.WORLD, "",
-        userRights, ACCESS);
+    OzoneAcl aclWorldAccess = new OzoneAcl(ACLIdentityType.WORLD, "", ACCESS, userRights);
     // Construct VolumeArgs, set ACL to world access
     VolumeArgs volumeArgs = new VolumeArgs.Builder()
         .setAcls(Collections.singletonList(aclWorldAccess))

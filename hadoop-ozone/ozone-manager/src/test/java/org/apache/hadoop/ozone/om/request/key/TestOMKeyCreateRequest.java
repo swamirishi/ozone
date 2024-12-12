@@ -44,6 +44,8 @@ import org.junit.Test;
 
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
+import org.apache.hadoop.security.UserGroupInformation;
+
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
@@ -727,7 +729,7 @@ public class TestOMKeyCreateRequest extends TestOMKeyRequest {
   }
 
 
-  private void checkNotAValidPath(String keyName) {
+  private void checkNotAValidPath(String keyName) throws IOException {
     OMRequest omRequest = createKeyRequest(false, 0, keyName);
     OMKeyCreateRequest omKeyCreateRequest = getOMKeyCreateRequest(omRequest);
 
@@ -814,13 +816,17 @@ public class TestOMKeyCreateRequest extends TestOMKeyRequest {
     return omMetadataManager.getOzoneKey(volumeName, bucketName, keyName);
   }
 
-  protected OMKeyCreateRequest getOMKeyCreateRequest(OMRequest omRequest) {
-    return new OMKeyCreateRequest(omRequest, BucketLayout.DEFAULT);
+  protected OMKeyCreateRequest getOMKeyCreateRequest(OMRequest omRequest) throws IOException {
+    OMKeyCreateRequest request = new OMKeyCreateRequest(omRequest, getBucketLayout());
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   protected OMKeyCreateRequest getOMKeyCreateRequest(
-      OMRequest omRequest, BucketLayout layout) {
-    return new OMKeyCreateRequest(omRequest, layout);
+      OMRequest omRequest, BucketLayout layout) throws IOException {
+    OMKeyCreateRequest request = new OMKeyCreateRequest(omRequest, layout);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   protected boolean getKeyPathLockEnabled() {

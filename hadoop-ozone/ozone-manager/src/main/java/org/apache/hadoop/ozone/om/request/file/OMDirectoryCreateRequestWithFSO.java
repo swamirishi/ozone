@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.ozone.om.request.file;
 
-import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
@@ -29,7 +28,6 @@ import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmDirectoryInfo;
-import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.file.OMDirectoryCreateResponseWithFSO;
@@ -55,12 +53,10 @@ import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_ALREADY_EXISTS;
-import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_KEY_NAME;
 import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
 import static org.apache.hadoop.ozone.om.request.file.OMFileRequest.OMDirectoryResult.DIRECTORY_EXISTS_IN_GIVENPATH;
 import static org.apache.hadoop.ozone.om.request.file.OMFileRequest.OMDirectoryResult.FILE_EXISTS;
@@ -153,9 +149,8 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
           omDirectoryResult == NONE) {
 
         // prepare all missing parents
-        missingParentInfos =
-                OMDirectoryCreateRequestWithFSO.getAllMissingParentDirInfo(
-                        ozoneManager, keyArgs, omPathInfo, trxnLogIndex);
+        missingParentInfos = getAllMissingParentDirInfo(
+            ozoneManager, keyArgs, omPathInfo, trxnLogIndex);
 
         final long volumeId = omMetadataManager.getVolumeId(volumeName);
         final long bucketId = omMetadataManager
@@ -173,7 +168,7 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
             omPathInfo.getLeafNodeName(),
             keyArgs, omPathInfo.getLeafNodeObjectId(),
             omPathInfo.getLastKnownParentId(), trxnLogIndex,
-            OzoneAclUtil.fromProtobuf(keyArgs.getAclsList()));
+            omPathInfo.getAcls(), ozoneManager.getConfiguration());
         OMFileRequest.addDirectoryTableCacheEntries(omMetadataManager,
             volumeId, bucketId, trxnLogIndex,
             missingParentInfos, dirInfo);
@@ -241,87 +236,5 @@ public class OMDirectoryCreateRequestWithFSO extends OMDirectoryCreateRequest {
       LOG.error("Unrecognized Result for OMDirectoryCreateRequest: {}",
           createDirectoryRequest);
     }
-  }
-
-  /**
-   * Construct OmDirectoryInfo for every parent directory in missing list.
-   *
-   * @param keyArgs      key arguments
-   * @param pathInfo     list of parent directories to be created and its ACLs
-   * @param trxnLogIndex transaction log index id
-   * @return list of missing parent directories
-   * @throws IOException DB failure
-   */
-  public static List<OmDirectoryInfo> getAllMissingParentDirInfo(
-          OzoneManager ozoneManager, KeyArgs keyArgs,
-          OMFileRequest.OMPathInfoWithFSO pathInfo, long trxnLogIndex)
-          throws IOException {
-    List<OmDirectoryInfo> missingParentInfos = new ArrayList<>();
-
-    // The base id is left shifted by 8 bits for creating space to
-    // create (2^8 - 1) object ids in every request.
-    // maxObjId represents the largest object id allocation possible inside
-    // the transaction.
-    long baseObjId = ozoneManager.getObjectIdFromTxId(trxnLogIndex);
-    long maxObjId = baseObjId + getMaxNumOfRecursiveDirs();
-    long objectCount = 1;
-
-    String volumeName = keyArgs.getVolumeName();
-    String bucketName = keyArgs.getBucketName();
-    String keyName = keyArgs.getKeyName();
-
-    long lastKnownParentId = pathInfo.getLastKnownParentId();
-    List<String> missingParents = pathInfo.getMissingParents();
-    List<OzoneAcl> inheritAcls = pathInfo.getAcls();
-    for (String missingKey : missingParents) {
-      long nextObjId = baseObjId + objectCount;
-      if (nextObjId > maxObjId) {
-        throw new OMException("Too many directories in path. Exceeds limit of "
-            + getMaxNumOfRecursiveDirs() + ". Unable to create directory: "
-            + keyName + " in volume/bucket: " + volumeName + "/" + bucketName,
-            INVALID_KEY_NAME);
-      }
-
-      LOG.debug("missing parent {} getting added to DirectoryTable",
-              missingKey);
-      OmDirectoryInfo dirInfo = createDirectoryInfoWithACL(missingKey,
-              keyArgs, nextObjId, lastKnownParentId, trxnLogIndex, inheritAcls);
-      objectCount++;
-
-      missingParentInfos.add(dirInfo);
-
-      // updating id for the next sub-dir
-      lastKnownParentId = nextObjId;
-    }
-    pathInfo.setLastKnownParentId(lastKnownParentId);
-    pathInfo.setLeafNodeObjectId(baseObjId + objectCount);
-    return missingParentInfos;
-  }
-
-  /**
-   * Fill in a DirectoryInfo for a new directory entry in OM database.
-   * without initializing ACLs from the KeyArgs - used for intermediate
-   * directories which get created internally/recursively during file
-   * and directory create.
-   * @param dirName
-   * @param keyArgs
-   * @param objectId
-   * @param parentObjectId
-   * @param inheritAcls
-   * @return the OmDirectoryInfo structure
-   */
-  private static OmDirectoryInfo createDirectoryInfoWithACL(
-          String dirName, KeyArgs keyArgs, long objectId,
-          long parentObjectId, long transactionIndex,
-          List<OzoneAcl> inheritAcls) {
-
-    return OmDirectoryInfo.newBuilder()
-            .setName(dirName)
-            .setCreationTime(keyArgs.getModificationTime())
-            .setModificationTime(keyArgs.getModificationTime())
-            .setObjectID(objectId)
-            .setUpdateID(transactionIndex)
-            .setParentObjectID(parentObjectId)
-            .setAcls(inheritAcls).build();
   }
 }

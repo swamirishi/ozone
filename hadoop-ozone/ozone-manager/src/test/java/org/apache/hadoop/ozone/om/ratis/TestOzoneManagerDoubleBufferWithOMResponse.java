@@ -45,6 +45,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.ratis.server.protocol.TermIndex;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -103,6 +104,7 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
     when(ozoneManager.getMaxUserVolumeCount()).thenReturn(10L);
     auditLogger = Mockito.mock(AuditLogger.class);
     when(ozoneManager.getAuditLogger()).thenReturn(auditLogger);
+    when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
     Mockito.doNothing().when(auditLogger).logWrite(any(AuditMessage.class));
     doubleBuffer = new OzoneManagerDoubleBuffer.Builder()
         .setOmMetadataManager(omMetadataManager)
@@ -454,6 +456,11 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
 
     OMVolumeCreateRequest omVolumeCreateRequest =
         new OMVolumeCreateRequest(omRequest);
+    try {
+      omVolumeCreateRequest.setUGI(UserGroupInformation.getCurrentUser());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
 
     final TermIndex termIndex = TransactionInfo.getTermIndex(transactionId);
     OMClientResponse omClientResponse = omVolumeCreateRequest.validateAndUpdateCache(ozoneManager, termIndex);
@@ -476,6 +483,10 @@ public class TestOzoneManagerDoubleBufferWithOMResponse {
 
     OMBucketCreateRequest omBucketCreateRequest =
         new OMBucketCreateRequest(omRequest);
+    try {
+      omBucketCreateRequest.setUGI(UserGroupInformation.getCurrentUser());
+    } catch (IOException e) {
+    }
 
     final TermIndex termIndex = TermIndex.valueOf(term, transactionID);
     OMClientResponse omClientResponse = omBucketCreateRequest.validateAndUpdateCache(ozoneManager, termIndex);

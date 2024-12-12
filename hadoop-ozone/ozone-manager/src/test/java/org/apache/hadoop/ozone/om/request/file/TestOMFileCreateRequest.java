@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.om.request.file;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
@@ -29,6 +30,7 @@ import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -472,8 +474,10 @@ public class TestOMFileCreateRequest extends TestOMKeyRequest {
    * @return OMFileCreateRequest reference
    */
   @NotNull
-  protected OMFileCreateRequest getOMFileCreateRequest(OMRequest omRequest) {
-    return new OMFileCreateRequest(omRequest, getBucketLayout());
+  protected OMFileCreateRequest getOMFileCreateRequest(OMRequest omRequest) throws IOException {
+    OMFileCreateRequest request = new OMFileCreateRequest(omRequest, getBucketLayout());
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
 }

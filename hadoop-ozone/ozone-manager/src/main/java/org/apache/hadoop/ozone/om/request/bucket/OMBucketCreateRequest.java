@@ -69,9 +69,11 @@ import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.BUCKET_ALREADY_EXISTS;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.VOLUME_NOT_FOUND;
+import static org.apache.hadoop.ozone.om.helpers.OzoneAclUtil.getDefaultAclList;
 import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
 import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.VOLUME_LOCK;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CryptoProtocolVersionProto.ENCRYPTION_ZONES;
@@ -226,8 +228,7 @@ public class OMBucketCreateRequest extends OMClientRequest {
       omBucketInfo.setUpdateID(transactionLogIndex,
           ozoneManager.isRatisEnabled());
 
-      // Add default acls from volume.
-      addDefaultAcls(omBucketInfo, omVolumeArgs);
+      addDefaultAcls(omBucketInfo, omVolumeArgs, ozoneManager);
 
       // check namespace quota
       checkQuotaInNamespace(omVolumeArgs, 1L);
@@ -297,9 +298,10 @@ public class OMBucketCreateRequest extends OMClientRequest {
    * @param omVolumeArgs
    */
   private void addDefaultAcls(OmBucketInfo omBucketInfo,
-      OmVolumeArgs omVolumeArgs) {
-    // Add default acls for bucket creator.
+      OmVolumeArgs omVolumeArgs, OzoneManager ozoneManager) throws OMException {
     List<OzoneAcl> acls = new ArrayList<>();
+    // Add default acls
+    acls.addAll(getDefaultAclList(createUGIForApi(), ozoneManager.getConfiguration()));
     if (omBucketInfo.getAcls() != null) {
       acls.addAll(omBucketInfo.getAcls());
     }
@@ -307,6 +309,8 @@ public class OMBucketCreateRequest extends OMClientRequest {
     // Add default acls from volume.
     List<OzoneAcl> defaultVolumeAcls = omVolumeArgs.getDefaultAcls();
     OzoneAclUtil.inheritDefaultAcls(acls, defaultVolumeAcls);
+    // Remove the duplicates
+    acls = acls.stream().distinct().collect(Collectors.toList());
     omBucketInfo.setAcls(acls);
   }
 

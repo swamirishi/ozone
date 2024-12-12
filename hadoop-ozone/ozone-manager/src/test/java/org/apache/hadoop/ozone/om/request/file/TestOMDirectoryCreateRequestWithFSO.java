@@ -52,6 +52,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +96,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
             .thenReturn(new ResolvedBucket("", "",
                     "", "", "",
                     BucketLayout.DEFAULT));
+    when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
   }
 
   @After
@@ -152,7 +154,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
     omDirCreateRequestFSO =
         new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
             BucketLayout.FILE_SYSTEM_OPTIMIZED);
-
+    omDirCreateRequestFSO.setUGI(UserGroupInformation.getCurrentUser());
     OMClientResponse omClientResponse =
         omDirCreateRequestFSO.validateAndUpdateCache(ozoneManager, 100L);
 
@@ -193,6 +195,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
     omDirCreateRequestFSO =
         new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
             BucketLayout.FILE_SYSTEM_OPTIMIZED);
+    omDirCreateRequestFSO.setUGI(UserGroupInformation.getCurrentUser());
     OMClientResponse omClientResponse =
         omDirCreateRequestFSO.validateAndUpdateCache(ozoneManager, 100L);
     Assert.assertTrue(omClientResponse.getOMResponse().getStatus()
@@ -302,7 +305,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
 
     omDirCreateReqFSO = new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
         BucketLayout.FILE_SYSTEM_OPTIMIZED);
-
+    omDirCreateReqFSO.setUGI(UserGroupInformation.getCurrentUser());
     OMClientResponse omClientResponse =
         omDirCreateReqFSO.validateAndUpdateCache(ozoneManager, 100L);
 
@@ -555,6 +558,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
 
     omDirCreateReqFSO = new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
         BucketLayout.FILE_SYSTEM_OPTIMIZED);
+    omDirCreateReqFSO.setUGI(UserGroupInformation.getCurrentUser());
 
     Assert.assertEquals(0L, omMetrics.getNumKeys());
     OMClientResponse omClientResponse =
@@ -589,7 +593,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
 
     omDirCreateReqFSO = new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
         BucketLayout.FILE_SYSTEM_OPTIMIZED);
-
+    omDirCreateReqFSO.setUGI(UserGroupInformation.getCurrentUser());
     Assert.assertEquals(0L, omMetrics.getNumKeys());
     OMClientResponse omClientResponse =
         omDirCreateReqFSO.validateAndUpdateCache(ozoneManager, 100L);
@@ -627,6 +631,7 @@ public class TestOMDirectoryCreateRequestWithFSO {
 
     omDirCreateReqFSO = new OMDirectoryCreateRequestWithFSO(modifiedOmReq,
         BucketLayout.FILE_SYSTEM_OPTIMIZED);
+    omDirCreateReqFSO.setUGI(UserGroupInformation.getCurrentUser());
 
     Assert.assertEquals(0L, omMetrics.getNumKeys());
     OMClientResponse omClientResponse =

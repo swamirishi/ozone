@@ -34,6 +34,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.apache.hadoop.util.Time;
 import org.junit.Assert;
 import org.junit.Test;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -196,15 +197,19 @@ public class TestOMKeyCreateRequestWithFSO extends TestOMKeyCreateRequest {
   }
 
   @Override
-  protected OMKeyCreateRequest getOMKeyCreateRequest(OMRequest omRequest) {
-    return new OMKeyCreateRequestWithFSO(omRequest,
+  protected OMKeyCreateRequest getOMKeyCreateRequest(OMRequest omRequest) throws IOException {
+    OMKeyCreateRequest request = new OMKeyCreateRequestWithFSO(omRequest,
         BucketLayout.FILE_SYSTEM_OPTIMIZED);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   @Override
   protected OMKeyCreateRequest getOMKeyCreateRequest(
-      OMRequest omRequest, BucketLayout layout) {
-    return new OMKeyCreateRequestWithFSO(omRequest, layout);
+      OMRequest omRequest, BucketLayout layout) throws IOException {
+    OMKeyCreateRequest request = new OMKeyCreateRequestWithFSO(omRequest, layout);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
   
   @Override

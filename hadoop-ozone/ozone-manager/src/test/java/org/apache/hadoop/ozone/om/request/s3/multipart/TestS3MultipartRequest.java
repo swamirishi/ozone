@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.apache.hadoop.security.UserGroupInformation;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.audit.AuditLogger;
@@ -99,6 +100,7 @@ public class TestS3MultipartRequest {
               args.getVolumeName(), args.getBucketName(),
               "owner", BucketLayout.DEFAULT);
         });
+    when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
   }
 
 
@@ -258,21 +260,27 @@ public class TestS3MultipartRequest {
   }
 
   protected S3MultipartUploadCompleteRequest getS3MultipartUploadCompleteReq(
-          OMRequest omRequest) {
-    return new S3MultipartUploadCompleteRequest(omRequest,
+      OMRequest omRequest) throws IOException {
+    S3MultipartUploadCompleteRequest request = new S3MultipartUploadCompleteRequest(omRequest,
         BucketLayout.DEFAULT);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   protected S3MultipartUploadCommitPartRequest getS3MultipartUploadCommitReq(
-          OMRequest omRequest) {
-    return new S3MultipartUploadCommitPartRequest(omRequest,
+      OMRequest omRequest) throws IOException {
+    S3MultipartUploadCommitPartRequest request = new S3MultipartUploadCommitPartRequest(omRequest,
         BucketLayout.DEFAULT);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   protected S3InitiateMultipartUploadRequest getS3InitiateMultipartUploadReq(
-      OMRequest initiateMPURequest) {
-    return new S3InitiateMultipartUploadRequest(initiateMPURequest,
+      OMRequest initiateMPURequest) throws IOException {
+    S3InitiateMultipartUploadRequest request = new S3InitiateMultipartUploadRequest(initiateMPURequest,
         BucketLayout.DEFAULT);
+    request.setUGI(UserGroupInformation.getCurrentUser());
+    return request;
   }
 
   protected S3MultipartUploadAbortRequest getS3MultipartUploadAbortReq(
