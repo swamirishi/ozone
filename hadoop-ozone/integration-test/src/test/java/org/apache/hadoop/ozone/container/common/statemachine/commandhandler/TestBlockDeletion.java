@@ -266,19 +266,19 @@ public class TestBlockDeletion {
     // close the containers which hold the blocks for the key
     OzoneTestUtils.closeAllContainers(scm.getEventQueue(), scm);
 
-    // If any container present as not closed, i.e. matches some entry 
+    // If any container present as not closed, i.e. matches some entry
     // not closed, then return false for wait
     ContainerSet containerSet = cluster.getHddsDatanodes().get(0)
         .getDatanodeStateMachine().getContainer().getContainerSet();
     GenericTestUtils.waitFor(() -> {
       return !(omKeyLocationInfoGroupList.stream().anyMatch((group) ->
-        group.getLocationList().stream().anyMatch((info) -> 
+        group.getLocationList().stream().anyMatch((info) ->
           containerSet.getContainer(info.getContainerID()).getContainerData()
               .getState() != ContainerProtos.ContainerDataProto.State.CLOSED
         )
       ));
     }, 1000, 30000);
-    
+
     // The blocks should be deleted in the DN.
     GenericTestUtils.waitFor(() -> {
       try {
@@ -314,6 +314,9 @@ public class TestBlockDeletion {
 
     Assertions.assertEquals(metrics.getNumBlockDeletionTransactionCreated(),
         metrics.getNumBlockDeletionTransactionCompleted());
+    Assertions.assertEquals(metrics.getNumBlockDeletionCommandSent(), metrics.getNumCommandsDatanodeSent());
+    Assertions.assertEquals(metrics.getNumBlockDeletionCommandSuccess(), metrics.getNumCommandsDatanodeSuccess());
+    Assertions.assertEquals(metrics.getBNumBlockDeletionCommandFailure(), metrics.getNumCommandsDatanodeFailed());
     Assertions.assertTrue(metrics.getNumBlockDeletionCommandSent() >=
         metrics.getNumBlockDeletionCommandSuccess() +
             metrics.getBNumBlockDeletionCommandFailure());

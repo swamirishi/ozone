@@ -488,6 +488,8 @@ public class DeletedBlockLogImpl
       LOG.warn("Skip commit transactions since current SCM is not leader.");
       return;
     }
+    DatanodeDetails details = deleteBlockStatus.getDatanodeDetails();
+    UUID dnId = details.getUuid();
 
     CommandStatus.Status status = deleteBlockStatus.getCmdStatus().getStatus();
     if (status == CommandStatus.Status.EXECUTED) {
@@ -496,8 +498,10 @@ public class DeletedBlockLogImpl
       commitTransactions(ackProto.getResultsList(),
           UUID.fromString(ackProto.getDnId()));
       metrics.incrBlockDeletionCommandSuccess();
+      metrics.incrDNCommandsSuccess(dnId, 1);
     } else if (status == CommandStatus.Status.FAILED) {
       metrics.incrBlockDeletionCommandFailure();
+      metrics.incrDNCommandsFailure(dnId, 1);
     } else {
       LOG.error("Delete Block Command is not executed yet.");
       return;

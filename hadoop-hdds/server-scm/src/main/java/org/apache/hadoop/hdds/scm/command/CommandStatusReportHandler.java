@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.scm.command;
 
 import com.google.common.base.Preconditions;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.SCMCommandProto;
 import org.apache.hadoop.hdds.protocol.proto
@@ -61,7 +62,7 @@ public class CommandStatusReportHandler implements
       }
       if (cmdStatus.getType() == SCMCommandProto.Type.deleteBlocksCommand) {
         publisher.fireEvent(SCMEvents.DELETE_BLOCK_STATUS,
-            new DeleteBlockStatus(cmdStatus));
+            new DeleteBlockStatus(cmdStatus, report.getDatanodeDetails()));
       } else {
         LOGGER.debug("CommandStatus of type:{} not handled in " +
             "CommandStatusReportHandler.", cmdStatus.getType());
@@ -98,8 +99,14 @@ public class CommandStatusReportHandler implements
    * Wrapper event for DeleteBlock Command.
    */
   public static class DeleteBlockStatus extends CommandStatusEvent {
-    public DeleteBlockStatus(CommandStatus cmdStatus) {
+    private final DatanodeDetails datanodeDetails;
+    public DeleteBlockStatus(CommandStatus cmdStatus, DatanodeDetails datanodeDetails) {
       super(cmdStatus);
+      this.datanodeDetails = datanodeDetails;
+    }
+
+    public DatanodeDetails getDatanodeDetails() {
+      return datanodeDetails;
     }
   }
 
