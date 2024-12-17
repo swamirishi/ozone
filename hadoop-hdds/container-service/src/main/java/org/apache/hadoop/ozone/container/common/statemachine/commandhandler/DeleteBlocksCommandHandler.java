@@ -358,7 +358,14 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
           LOG.debug("Sending following block deletion ACK to SCM");
           for (DeleteBlockTransactionResult result : blockDeletionACK
               .getResultsList()) {
-            LOG.debug("{} : {}", result.getTxID(), result.getSuccess());
+            boolean success = result.getSuccess();
+            LOG.debug("TxId = {} : ContainerId = {} : {}",
+                result.getTxID(), result.getContainerID(), success);
+            if (success) {
+              blockDeleteMetrics.incrProcessedTransactionSuccessCount(1);
+            } else {
+              blockDeleteMetrics.incrProcessedTransactionFailCount(1);
+            }
           }
         }
       }

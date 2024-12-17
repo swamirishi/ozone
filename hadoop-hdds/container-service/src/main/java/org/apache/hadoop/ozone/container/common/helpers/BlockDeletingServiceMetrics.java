@@ -73,8 +73,7 @@ public final class BlockDeletingServiceMetrics {
   @Metric(about = "The total number of Container chosen to be deleted.")
   private MutableGaugeLong totalContainerChosenCount;
 
-  @Metric(about = "The total number of transactions which failed due" +
-      " to container lock wait timeout.")
+  @Metric(about = "The total number of transactions which failed due to container lock wait timeout.")
   private MutableGaugeLong totalLockTimeoutTransactionCount;
 
   @Metric(about = "The number of delete block transactions successful.")
