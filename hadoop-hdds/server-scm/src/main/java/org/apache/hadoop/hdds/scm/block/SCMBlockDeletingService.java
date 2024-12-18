@@ -91,6 +91,7 @@ public class SCMBlockDeletingService extends BackgroundService
   private long safemodeExitMillis = 0;
   private final long safemodeExitRunDelayMillis;
   private final Clock clock;
+  private final ScmConfig scmConf;
 
   @SuppressWarnings("parameternumber")
   public SCMBlockDeletingService(DeletedBlockLog deletedBlockLog,
@@ -116,6 +117,7 @@ public class SCMBlockDeletingService extends BackgroundService
     this.eventPublisher = eventPublisher;
     this.scmContext = scmContext;
     this.metrics = metrics;
+    scmConf = conf.getObject(ScmConfig.class);
 
     blockDeleteLimitSize =
         conf.getObject(ScmConfig.class).getBlockDeletionLimit();
@@ -162,9 +164,10 @@ public class SCMBlockDeletingService extends BackgroundService
         final Set<DatanodeDetails> included = datanodes.stream().filter(
             dn -> nodeManager.getCommandQueueCount(dn.getUuid(),
                 Type.deleteBlocksCommand) == 0).collect(Collectors.toSet());
+        int blockDeletionLimit = getBlockDeleteTXNum();
         try {
           DatanodeDeletedBlockTransactions transactions =
-              deletedBlockLog.getTransactions(blockDeleteLimitSize, included);
+              deletedBlockLog.getTransactions(blockDeletionLimit, included);
 
           if (transactions.isEmpty()) {
             return EmptyTaskResult.newResult();
@@ -197,9 +200,11 @@ public class SCMBlockDeletingService extends BackgroundService
             }
           }
           LOG.info("Totally added {} blocks to be deleted for"
-                  + " {} datanodes, task elapsed time: {}ms",
+              + " {} datanodes / {} totalnodes, limit per iteration : {}blocks, task elapsed time: {}ms",
               transactions.getBlocksDeleted(),
               transactions.getDatanodeTransactionMap().size(),
+              included.size(),
+              blockDeletionLimit,
               Time.monotonicNow() - startTime);
           deletedBlockLog.incrementCount(new ArrayList<>(processedTxIDs));
         } catch (NotLeaderException nle) {
@@ -242,6 +247,10 @@ public class SCMBlockDeletingService extends BackgroundService
     } finally {
       serviceLock.unlock();
     }
+  }
+
+  public int getBlockDeleteTXNum() {
+    return scmConf.getBlockDeletionLimit();
   }
 
   @Override

@@ -32,6 +32,7 @@ import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.hadoop.ozone.common.DeleteBlockGroupResult;
 import org.apache.hadoop.ozone.om.DeletingServiceMetrics;
 import org.apache.hadoop.ozone.om.KeyManager;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OMPerformanceMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -107,11 +108,12 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       HashMap<String, RepeatedOmKeyInfo> keysToModify,
       String snapTableKey, UUID expectedPreviousSnapshotId) throws IOException {
 
-    long purgeStartTime = Time.monotonicNow();
+    long startTime = Time.monotonicNow();
     int delCount = 0;
     List<DeleteBlockGroupResult> blockDeletionResults =
         scmClient.deleteKeyBlocks(keyBlocksList);
     if (blockDeletionResults != null) {
+      startTime = Time.monotonicNow();
       if (isRatisEnabled()) {
         delCount = submitPurgeKeysRequest(blockDeletionResults,
             keysToModify, snapTableKey, expectedPreviousSnapshotId);
@@ -121,13 +123,12 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
         //  OMRequest model.
         delCount = deleteAllKeys(blockDeletionResults, manager);
       }
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Blocks for {} (out of {}) keys are deleted in {} ms",
-            delCount, blockDeletionResults.size(),
-            Time.monotonicNow() - purgeStartTime);
-      }
+      int limit = ozoneManager.getConfiguration().getInt(OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK,
+          OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT);
+      LOG.info("Blocks for {} (out of {}) keys are deleted from DB in {} ms. Limit per task is {}.",
+          delCount, blockDeletionResults.size(), Time.monotonicNow() - startTime, limit);
     }
-    perfMetrics.setKeyDeletingServiceLatencyMs(Time.monotonicNow() - purgeStartTime);
+    perfMetrics.setKeyDeletingServiceLatencyMs(Time.monotonicNow() - startTime);
     return delCount;
   }
 
@@ -419,6 +420,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       int remainingBufLimit, KeyManager keyManager,
       UUID expectedPreviousSnapshotId) {
 
+    long limit = remainNum;
     // Optimization to handle delete sub-dir and keys to remove quickly
     // This case will be useful to handle when depth of directory is high
     int subdirDelNum = 0;
