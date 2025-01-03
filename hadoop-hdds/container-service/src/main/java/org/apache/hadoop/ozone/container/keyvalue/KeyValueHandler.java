@@ -237,15 +237,6 @@ public class KeyValueHandler extends Handler {
       ContainerCommandRequestProto request, KeyValueContainer kvContainer,
       DispatcherContext dispatcherContext) {
     Type cmdType = request.getCmdType();
-    // Validate the request has been made to the correct datanode with the node id matching.
-    if (kvContainer != null) {
-      try {
-        handler.validateRequestDatanodeId(kvContainer.getContainerData().getReplicaIndex(),
-            request.getDatanodeUuid());
-      } catch (StorageContainerException e) {
-        return ContainerUtils.logAndReturnError(LOG, e, request);
-      }
-    }
 
     switch (cmdType) {
     case CreateContainer:

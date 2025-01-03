@@ -143,13 +143,6 @@ public class TestKeyValueHandler {
             .build();
 
     KeyValueContainer container = Mockito.mock(KeyValueContainer.class);
-    KeyValueContainerData containerData = Mockito.mock(KeyValueContainerData.class);
-    Mockito.when(container.getContainerData()).thenReturn(containerData);
-    Mockito.when(containerData.getReplicaIndex()).thenReturn(1);
-    ContainerProtos.ContainerCommandResponseProto responseProto = KeyValueHandler.dispatchRequest(handler,
-        createContainerRequest, container, null);
-    Assertions.assertEquals(ContainerProtos.Result.INVALID_ARGUMENT, responseProto.getResult());
-    Mockito.when(handler.getDatanodeId()).thenReturn(DATANODE_UUID);
     KeyValueHandler
         .dispatchRequest(handler, createContainerRequest, container, null);
     Mockito.verify(handler, times(0)).handleListBlock(
