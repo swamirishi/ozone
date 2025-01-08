@@ -37,6 +37,7 @@ import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.ozone.om.IOmMetadataReader;
+import org.apache.hadoop.ozone.om.DeletingServiceMetrics;
 import org.apache.hadoop.ozone.om.KeyManager;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
@@ -96,6 +97,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
   private final AtomicBoolean suspended;
   private final boolean deepCleanSnapshots;
   private final SnapshotChainManager snapshotChainManager;
+  private DeletingServiceMetrics metrics;
 
   public KeyDeletingService(OzoneManager ozoneManager,
       ScmBlockLocationProtocol scmClient,
@@ -112,6 +114,7 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
     this.suspended = new AtomicBoolean(false);
     this.deepCleanSnapshots = deepCleanSnapshots;
     this.snapshotChainManager = ((OmMetadataManagerImpl)manager.getMetadataManager()).getSnapshotChainManager();
+    this.metrics = ozoneManager.getDeletionMetrics();
   }
 
   /**
@@ -195,6 +198,8 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
                 getOzoneManager().getKeyManager(),
                 pendingKeysDeletion.getKeysToModify(), null, expectedPreviousSnapshotId);
             deletedKeyCount.addAndGet(delCount);
+            metrics.incrNumKeysProcessed(keyBlocksList.size());
+            metrics.incrNumKeysSentForPurge(delCount);
           }
         } catch (IOException e) {
           LOG.error("Error while running delete keys background task. Will " +
