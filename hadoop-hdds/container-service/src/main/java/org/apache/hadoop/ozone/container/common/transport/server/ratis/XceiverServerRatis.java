@@ -44,6 +44,7 @@ import org.apache.hadoop.hdds.DatanodeVersion;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.DatanodeRatisServerConfig;
+import org.apache.hadoop.hdds.conf.RatisConfUtils;
 import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -255,8 +256,11 @@ public final class XceiverServerRatis implements XceiverServerSpi {
     setRaftSegmentAndWriteBufferSize(properties);
 
     // set raft segment pre-allocated size
-    final long raftSegmentPreallocatedSize =
-        setRaftSegmentPreallocatedSize(properties);
+    final int logAppenderBufferByteLimit = setRaftSegmentPreallocatedSize(properties);
+
+    // set grpc message size max
+    final int max = Math.max(OzoneConsts.OZONE_SCM_CHUNK_MAX_SIZE, logAppenderBufferByteLimit);
+    RatisConfUtils.Grpc.setMessageSizeMax(properties, max);
 
     TimeUnit timeUnit;
     long duration;
@@ -314,11 +318,6 @@ public final class XceiverServerRatis implements XceiverServerSpi {
     storageDirPaths.stream().forEach(d -> storageDirs.add(new File(d)));
 
     RaftServerConfigKeys.setStorageDir(properties, storageDirs);
-
-    // For grpc set the maximum message size
-    GrpcConfigKeys.setMessageSizeMax(properties,
-        SizeInBytes.valueOf(OzoneConsts.OZONE_SCM_CHUNK_MAX_SIZE
-                + raftSegmentPreallocatedSize));
 
     // Set the ratis port number
     if (rpc == SupportedRpcType.GRPC) {
@@ -422,7 +421,7 @@ public final class XceiverServerRatis implements XceiverServerSpi {
         .setExpiryTime(properties, retryCacheTimeout);
   }
 
-  private long setRaftSegmentPreallocatedSize(RaftProperties properties) {
+  private int setRaftSegmentPreallocatedSize(RaftProperties properties) {
     final long raftSegmentPreallocatedSize = (long) conf.getStorageSize(
         OzoneConfigKeys.DFS_CONTAINER_RATIS_SEGMENT_PREALLOCATED_SIZE_KEY,
         OzoneConfigKeys.DFS_CONTAINER_RATIS_SEGMENT_PREALLOCATED_SIZE_DEFAULT,
@@ -442,7 +441,7 @@ public final class XceiverServerRatis implements XceiverServerSpi {
         SizeInBytes.valueOf(logAppenderQueueByteLimit));
     RaftServerConfigKeys.Log.setPreallocatedSize(properties,
         SizeInBytes.valueOf(raftSegmentPreallocatedSize));
-    return raftSegmentPreallocatedSize;
+    return logAppenderQueueByteLimit;
   }
 
   private void setRaftSegmentAndWriteBufferSize(RaftProperties properties) {
