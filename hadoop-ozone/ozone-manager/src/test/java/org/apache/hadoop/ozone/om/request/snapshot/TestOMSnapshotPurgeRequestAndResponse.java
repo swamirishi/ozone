@@ -271,6 +271,42 @@ public class TestOMSnapshotPurgeRequestAndResponse {
     assertEquals(initialSnapshotPurgeFailCount, omMetrics.getNumSnapshotPurgeFails());
   }
 
+  @Test
+  public void testDuplicateSnapshotPurge() throws Exception {
+    List<String> snapshotDbKeysToPurge = createSnapshots(1);
+    assertFalse(omMetadataManager.getSnapshotInfoTable().isEmpty());
+    OMRequest snapshotPurgeRequest = createPurgeKeysRequest(
+        snapshotDbKeysToPurge);
+
+    OMSnapshotPurgeRequest omSnapshotPurgeRequest = preExecute(snapshotPurgeRequest);
+
+    OMSnapshotPurgeResponse omSnapshotPurgeResponse = (OMSnapshotPurgeResponse)
+        omSnapshotPurgeRequest.validateAndUpdateCache(ozoneManager, 200L);
+
+    try (BatchOperation batchOperation = omMetadataManager.getStore().initBatchOperation()) {
+      omSnapshotPurgeResponse.checkAndUpdateDB(omMetadataManager, batchOperation);
+      omMetadataManager.getStore().commitBatchOperation(batchOperation);
+    }
+
+    // Check if the entries are deleted.
+    assertTrue(omMetadataManager.getSnapshotInfoTable().isEmpty());
+
+    OMSnapshotPurgeResponse omSnapshotPurgeResponse1 = (OMSnapshotPurgeResponse)
+        omSnapshotPurgeRequest.validateAndUpdateCache(ozoneManager, 201L);
+
+    for (Map.Entry<String, SnapshotInfo> purgedSnapshot : omSnapshotPurgeResponse1.getUpdatedSnapInfos().entrySet()) {
+      assertNotNull(purgedSnapshot.getValue());
+    }
+    for (String snapshotTableKey: snapshotDbKeysToPurge) {
+      assertNull(omMetadataManager.getSnapshotInfoTable().get(snapshotTableKey));
+    }
+
+    try (BatchOperation batchOperation = omMetadataManager.getStore().initBatchOperation()) {
+      omSnapshotPurgeResponse1.checkAndUpdateDB(omMetadataManager, batchOperation);
+      omMetadataManager.getStore().commitBatchOperation(batchOperation);
+    }
+  }
+
   /**
    * This test is mainly to validate metrics and error code.
    */

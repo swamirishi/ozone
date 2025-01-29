@@ -238,7 +238,9 @@ public class OMSnapshotPurgeRequest extends OMClientRequest {
 
     if (snapshotInfo == null) {
       snapshotInfo = omMetadataManager.getSnapshotInfoTable().get(snapshotTableKey);
-      updatedSnapshotInfos.put(snapshotTableKey, snapshotInfo);
+      if (snapshotInfo != null) {
+        updatedSnapshotInfos.put(snapshotTableKey, snapshotInfo);
+      }
     }
     return snapshotInfo;
   }
