@@ -45,6 +45,7 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalSt
 import static org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto.State.CLOSED;
 import static org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto.State.UNHEALTHY;
 import static org.apache.hadoop.hdds.scm.container.replication.ReplicationTestUtil.createContainerReplica;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Tests for EcContainerReplicaCounts.
@@ -91,7 +92,7 @@ public class TestECContainerReplicaCount {
     // appears missing
     ContainerReplicaOp op = new ContainerReplicaOp(
         ContainerReplicaOp.PendingOpType.ADD,
-        MockDatanodeDetails.randomDatanodeDetails(), 5, Long.MAX_VALUE);
+        MockDatanodeDetails.randomDatanodeDetails(), 5, null, Long.MAX_VALUE);
     rcnt.addPendingOp(op);
     Assertions.assertTrue(rcnt.isSufficientlyReplicated(true));
     Assertions.assertEquals(0, rcnt.unavailableIndexes(true).size());
@@ -215,8 +216,8 @@ public class TestECContainerReplicaCount {
     // as not over replicated.
     rcnt.addPendingOp(new ContainerReplicaOp(
         ContainerReplicaOp.PendingOpType.DELETE,
-        MockDatanodeDetails.randomDatanodeDetails(), 2, Long.MAX_VALUE));
-    Assertions.assertFalse(rcnt.isOverReplicated(true));
+        MockDatanodeDetails.randomDatanodeDetails(), 2, null, Long.MAX_VALUE));
+    assertFalse(rcnt.isOverReplicated(true));
   }
 
   @Test

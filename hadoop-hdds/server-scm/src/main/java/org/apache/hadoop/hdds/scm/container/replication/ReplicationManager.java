@@ -105,7 +105,7 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.E
  * that the containers are properly replicated. Replication Manager deals only
  * with Quasi Closed / Closed container.
  */
-public class ReplicationManager implements SCMService {
+public class ReplicationManager implements SCMService, ContainerReplicaPendingOpsSubscriber {
 
   public static final Logger LOG =
       LoggerFactory.getLogger(ReplicationManager.class);
@@ -691,8 +691,7 @@ public class ReplicationManager implements SCMService {
     if (cmd.getType() == Type.deleteContainerCommand) {
       DeleteContainerCommand rcc = (DeleteContainerCommand) cmd;
       containerReplicaPendingOps.scheduleDeleteReplica(
-          containerInfo.containerID(), targetDatanode, rcc.getReplicaIndex(),
-          scmDeadlineEpochMs);
+          containerInfo.containerID(), targetDatanode, rcc.getReplicaIndex(), cmd, scmDeadlineEpochMs);
       if (rcc.getReplicaIndex() > 0) {
         getMetrics().incrEcDeletionCmdsSentTotal();
       } else if (rcc.getReplicaIndex() == 0) {
@@ -705,8 +704,7 @@ public class ReplicationManager implements SCMService {
       byte[] targetIndexes = rcc.getMissingContainerIndexes();
       for (int i = 0; i < targetIndexes.length; i++) {
         containerReplicaPendingOps.scheduleAddReplica(
-            containerInfo.containerID(), targets.get(i), targetIndexes[i],
-            scmDeadlineEpochMs);
+            containerInfo.containerID(), targets.get(i),  targetIndexes[i], cmd, scmDeadlineEpochMs);
       }
       getMetrics().incrEcReconstructionCmdsSentTotal();
     } else if (cmd.getType() == Type.replicateContainerCommand) {
@@ -720,7 +718,7 @@ public class ReplicationManager implements SCMService {
          */
         containerReplicaPendingOps.scheduleAddReplica(
             containerInfo.containerID(),
-            targetDatanode, rcc.getReplicaIndex(), scmDeadlineEpochMs);
+            targetDatanode, rcc.getReplicaIndex(), cmd, scmDeadlineEpochMs);
       } else {
         /*
         This means the source will push replica to the target, so the op's
@@ -728,7 +726,7 @@ public class ReplicationManager implements SCMService {
          */
         containerReplicaPendingOps.scheduleAddReplica(
             containerInfo.containerID(),
-            rcc.getTargetDatanode(), rcc.getReplicaIndex(), scmDeadlineEpochMs);
+            rcc.getTargetDatanode(), rcc.getReplicaIndex(), cmd, scmDeadlineEpochMs);
       }
 
       if (rcc.getReplicaIndex() > 0) {
@@ -1065,6 +1063,27 @@ public class ReplicationManager implements SCMService {
     return replicationQueue.get();
   }
 
+  @Override
+  public void opCompleted(ContainerReplicaOp op, ContainerID containerID, boolean timedOut) {
+    if (!(timedOut && op.getOpType() == ContainerReplicaOp.PendingOpType.DELETE)) {
+      // We only care about expired delete ops. All others should be ignored.
+      return;
+    }
+    try {
+      ContainerInfo containerInfo = containerManager.getContainer(containerID);
+      // Sending the command in this way is un-throttled, and the command will have its deadline
+      // adjusted to a new deadline as part of the sending process.
+      sendDatanodeCommand(op.getCommand(), containerInfo, op.getTarget());
+    } catch (ContainerNotFoundException e) {
+      // Should not happen, as even deleted containers are currently retained in the SCM container map
+      LOG.error("Container {} not found when processing expired delete", containerID, e);
+    } catch (NotLeaderException e) {
+      // If SCM leadership has changed, this is fine to ignore. All pending ops will be expired
+      // once SCM leadership switches.
+      LOG.warn("SCM is not leader when processing expired delete", e);
+    }
+  }
+
   /**
    * Configuration used by the Replication Manager.
    */
@@ -1140,13 +1159,13 @@ public class ReplicationManager implements SCMService {
      */
     @Config(key = "event.timeout",
         type = ConfigType.TIME,
-        defaultValue = "10m",
+        defaultValue = "12m",
         reconfigurable = true,
         tags = {SCM, OZONE},
         description = "Timeout for the container replication/deletion commands "
             + "sent to datanodes. After this timeout the command will be "
             + "retried.")
-    private long eventTimeout = Duration.ofMinutes(10).toMillis();
+    private long eventTimeout = Duration.ofMinutes(12).toMillis();
     public void setInterval(Duration interval) {
       this.interval = interval.toMillis();
     }
@@ -1162,7 +1181,7 @@ public class ReplicationManager implements SCMService {
      */
     @Config(key = "event.timeout.datanode.offset",
         type = ConfigType.TIME,
-        defaultValue = "30s",
+        defaultValue = "6m",
         reconfigurable = true,
         tags = {SCM, OZONE},
         description = "The amount of time to subtract from "
@@ -1170,7 +1189,7 @@ public class ReplicationManager implements SCMService {
             + "datanodes which is less than the SCM timeout. This ensures "
             + "the datanodes will not process a command after SCM believes it "
             + "should have expired.")
-    private long datanodeTimeoutOffset = Duration.ofSeconds(30).toMillis();
+    private long datanodeTimeoutOffset = Duration.ofMinutes(6).toMillis();
     public long getDatanodeTimeoutOffset() {
       return datanodeTimeoutOffset;
     }
