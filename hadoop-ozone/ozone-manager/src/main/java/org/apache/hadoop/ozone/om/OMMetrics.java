@@ -235,7 +235,6 @@ public class OMMetrics implements OmMetadataReaderMetrics {
   private @Metric MutableCounterLong ecKeyCreateFailsTotal;
   private @Metric MutableCounterLong ecBucketCreateTotal;
   private @Metric MutableCounterLong ecBucketCreateFailsTotal;
-
   private final DBCheckpointMetrics dbCheckpointMetrics;
 
   public OMMetrics() {

@@ -393,12 +393,6 @@ public final class OMConfigKeys {
    */
   public static final String OZONE_SNAPSHOT_DEEP_CLEANING_ENABLED = "ozone.snapshot.deep.cleaning.enabled";
   public static final boolean OZONE_SNAPSHOT_DEEP_CLEANING_ENABLED_DEFAULT = true;
-  public static final String OZONE_PATH_DELETING_LIMIT_PER_TASK =
-      "ozone.path.deleting.limit.per.task";
-  // default is 6000 taking account of 32MB buffer size, and assuming
-  // 4KB size (considering acls, key/file name, and other meata)  * 6000
-  // resulting 24MB
-  public static final int OZONE_PATH_DELETING_LIMIT_PER_TASK_DEFAULT = 6000;
 
   public static final String OZONE_THREAD_NUMBER_DIR_DELETION =
       "ozone.thread.number.dir.deletion";
