@@ -19,6 +19,8 @@
 
 package org.apache.hadoop.hdds.utils.db;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -322,10 +324,10 @@ public class TestRDBTableStore {
           localCount++;
         }
 
-        Assertions.assertEquals(iterCount, localCount);
+        assertEquals(iterCount, localCount);
         iter.seekToFirst();
         iter.forEachRemaining(TestRDBTableStore::consume);
-        Assertions.assertEquals(iterCount, count);
+        assertEquals(iterCount, count);
 
       }
     }
@@ -354,7 +356,7 @@ public class TestRDBTableStore {
       // Test a key with zero size value.
       Assertions.assertNull(testTable.get(zeroSizeKey));
       testTable.put(zeroSizeKey, zeroSizeValue);
-      Assertions.assertEquals(0, testTable.get(zeroSizeKey).length);
+      assertEquals(0, testTable.get(zeroSizeKey).length);
 
       byte[] invalidKey =
           RandomStringUtils.random(5).getBytes(StandardCharsets.UTF_8);
@@ -362,9 +364,9 @@ public class TestRDBTableStore {
       Assertions.assertFalse(testTable.isExist(invalidKey));
 
       RDBMetrics rdbMetrics = rdbStore.getMetrics();
-      Assertions.assertEquals(3, rdbMetrics.getNumDBKeyMayExistChecks());
-      Assertions.assertEquals(0, rdbMetrics.getNumDBKeyMayExistMisses());
-      Assertions.assertEquals(2, rdbMetrics.getNumDBKeyGets());
+      assertEquals(3, rdbMetrics.getNumDBKeyMayExistChecks());
+      assertEquals(0, rdbMetrics.getNumDBKeyMayExistMisses());
+      assertEquals(2, rdbMetrics.getNumDBKeyGets());
 
       // Reinsert key for further testing.
       testTable.put(key, value);
@@ -375,13 +377,13 @@ public class TestRDBTableStore {
     try (Table<byte[], byte[]> testTable = rdbStore.getTable(tableName)) {
       // Verify isExist works with key not in block cache.
       Assertions.assertTrue(testTable.isExist(key));
-      Assertions.assertEquals(0, testTable.get(zeroSizeKey).length);
+      assertEquals(0, testTable.get(zeroSizeKey).length);
       Assertions.assertTrue(testTable.isExist(zeroSizeKey));
 
       RDBMetrics rdbMetrics = rdbStore.getMetrics();
-      Assertions.assertEquals(2, rdbMetrics.getNumDBKeyMayExistChecks());
-      Assertions.assertEquals(0, rdbMetrics.getNumDBKeyMayExistMisses());
-      Assertions.assertEquals(2, rdbMetrics.getNumDBKeyGets());
+      assertEquals(2, rdbMetrics.getNumDBKeyMayExistChecks());
+      assertEquals(0, rdbMetrics.getNumDBKeyMayExistMisses());
+      assertEquals(2, rdbMetrics.getNumDBKeyGets());
     }
   }
 
@@ -404,8 +406,8 @@ public class TestRDBTableStore {
         testTable.put(keyBytes, valueBytes);
         final byte[] got = testTable.get(keyBytes);
         Assertions.assertArrayEquals(valueBytes, got);
-        Assertions.assertEquals(value, codec.fromPersistedFormat(got));
-        Assertions.assertEquals(value, typedTable.get(key));
+        assertEquals(value, codec.fromPersistedFormat(got));
+        assertEquals(value, typedTable.get(key));
       }
     }
   }
@@ -434,11 +436,11 @@ public class TestRDBTableStore {
       Assertions.assertNull(testTable.getIfExist(invalidKey));
 
       RDBMetrics rdbMetrics = rdbStore.getMetrics();
-      Assertions.assertEquals(3, rdbMetrics.getNumDBKeyGetIfExistChecks());
+      assertEquals(3, rdbMetrics.getNumDBKeyGetIfExistChecks());
 
-      Assertions.assertEquals(0, rdbMetrics.getNumDBKeyGetIfExistMisses());
+      assertEquals(0, rdbMetrics.getNumDBKeyGetIfExistMisses());
 
-      Assertions.assertEquals(0, rdbMetrics.getNumDBKeyGetIfExistGets());
+      assertEquals(0, rdbMetrics.getNumDBKeyGetIfExistGets());
 
       // Reinsert key for further testing.
       testTable.put(key, value);
@@ -601,17 +603,20 @@ public class TestRDBTableStore {
     try (Table.KeyValueIterator<String, String> i = table.iterator(prefix)) {
       int keyCount = 0;
       for (; i.hasNext(); keyCount++) {
-        Assertions.assertEquals(prefix,
-            i.next().getKey().substring(0, PREFIX_LENGTH));
+        Table.KeyValue<String, String> entry = i.next();
+        assertEquals(prefix,
+            entry.getKey().substring(0, PREFIX_LENGTH));
+        assertEquals(entry.getValue().getBytes(StandardCharsets.UTF_8).length,
+            entry.getRawSize());
       }
-      Assertions.assertEquals(expectedCount, keyCount);
+      assertEquals(expectedCount, keyCount);
 
       // test seekToFirst
       i.seekToFirst();
       if (expectedCount > 0) {
         // iterator should be able to seekToFirst
         Assertions.assertTrue(i.hasNext());
-        Assertions.assertEquals(prefix,
+        assertEquals(prefix,
             i.next().getKey().substring(0, PREFIX_LENGTH));
       }
     }
