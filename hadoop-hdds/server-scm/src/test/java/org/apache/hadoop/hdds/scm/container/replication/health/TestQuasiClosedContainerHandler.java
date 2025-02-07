@@ -44,10 +44,13 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleState.OP
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleState.QUASI_CLOSED;
 import static org.apache.hadoop.hdds.scm.HddsTestUtils.getContainer;
 import static org.apache.hadoop.hdds.scm.HddsTestUtils.getReplicas;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link QuasiClosedContainerHandler}. This handler is only meant
@@ -81,8 +84,8 @@ public class TestQuasiClosedContainerHandler {
         .setContainerReplicas(containerReplicas)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Mockito.verify(replicationManager, times(0))
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    verify(replicationManager, times(0))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
   }
 
@@ -100,19 +103,18 @@ public class TestQuasiClosedContainerHandler {
         .setContainerReplicas(containerReplicas)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Mockito.verify(replicationManager, times(0))
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    verify(replicationManager, times(0))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
   }
 
   /**
-   * When a container is QUASI_CLOSED, and it has greater than 50% of its
+   * When a container is QUASI_CLOSED, and it has only 2
    * replicas in QUASI_CLOSED state with unique origin node id,
-   * the handler should send force close commands to the replica(s) with
-   * highest BCSID.
+   * the handler should not force close it as all 3 unique replicas are needed.
    */
   @Test
-  public void testQuasiClosedWithQuorumReturnsTrue() {
+  public void testQuasiClosedWithQuorumReturnsFalse() {
     ContainerInfo containerInfo = ReplicationTestUtil.createContainerInfo(
         ratisReplicationConfig, 1, QUASI_CLOSED);
     Set<ContainerReplica> containerReplicas = ReplicationTestUtil
@@ -136,16 +138,50 @@ public class TestQuasiClosedContainerHandler {
         .setReadOnly(true)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(readRequest));
-    Mockito.verify(replicationManager, times(2))
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    assertFalse(quasiClosedContainerHandler.handle(readRequest));
+    verify(replicationManager, times(2))
+        .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
+    assertEquals(1, request.getReport().getStat(
+        ReplicationManagerReport.HealthState.QUASI_CLOSED_STUCK));
+  }
+
+  /**
+   * When a container is QUASI_CLOSED, and all 3 replicas are reported with unique
+   * origins, it should be forced closed.
+   */
+  @Test
+  public void testQuasiClosedWithAllUniqueOriginSendsForceClose() {
+    ContainerInfo containerInfo = ReplicationTestUtil.createContainerInfo(
+        ratisReplicationConfig, 1, QUASI_CLOSED);
+    // These 3 replicas will have the same BCSID and unique origin node ids
+    Set<ContainerReplica> containerReplicas = ReplicationTestUtil
+        .createReplicas(containerInfo.containerID(),
+            State.QUASI_CLOSED, 0, 0, 0);
+    ContainerCheckRequest request = new ContainerCheckRequest.Builder()
+        .setPendingOps(Collections.emptyList())
+        .setReport(new ReplicationManagerReport())
+        .setContainerInfo(containerInfo)
+        .setContainerReplicas(containerReplicas)
+        .build();
+    ContainerCheckRequest readRequest = new ContainerCheckRequest.Builder()
+        .setPendingOps(Collections.emptyList())
+        .setReport(new ReplicationManagerReport())
+        .setContainerInfo(containerInfo)
+        .setContainerReplicas(containerReplicas)
+        .setReadOnly(true)
+        .build();
+
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    assertFalse(quasiClosedContainerHandler.handle(readRequest));
+    verify(replicationManager, times(3))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
   }
 
   /**
    * The replicas are QUASI_CLOSED, but all of them have the same origin node
-   * id. Since a quorum (greater than 50% of replicas with unique origin node
-   * ids in QUASI_CLOSED state) is not formed, the handler should return false.
+   * id. Since all replicas must have unique origin node ids, the handler
+   * should not force close it.
    */
   @Test
   public void testHealthyQuasiClosedContainerReturnsFalse() {
@@ -161,17 +197,16 @@ public class TestQuasiClosedContainerHandler {
         .setContainerReplicas(containerReplicas)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Mockito.verify(replicationManager, times(0))
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    verify(replicationManager, times(0))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
-    Assertions.assertEquals(1, request.getReport().getStat(
+    assertEquals(1, request.getReport().getStat(
         ReplicationManagerReport.HealthState.QUASI_CLOSED_STUCK));
   }
 
   /**
    * Only one replica is in QUASI_CLOSED state. This fails the condition of
-   * having greater than 50% of replicas with unique origin nodes in
-   * QUASI_CLOSED state. The handler should return false.
+   * having all replicas with unique origin nodes in QUASI_CLOSED state.
    */
   @Test
   public void testQuasiClosedWithTwoOpenReplicasReturnsFalse() {
@@ -191,10 +226,10 @@ public class TestQuasiClosedContainerHandler {
         .setContainerReplicas(containerReplicas)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Mockito.verify(replicationManager, times(0))
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    verify(replicationManager, times(0))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
-    Assertions.assertEquals(1, request.getReport().getStat(
+    assertEquals(1, request.getReport().getStat(
         ReplicationManagerReport.HealthState.QUASI_CLOSED_STUCK));
   }
 
@@ -240,15 +275,13 @@ public class TestQuasiClosedContainerHandler {
         .setReadOnly(true)
         .build();
 
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(request));
-    Assertions.assertFalse(quasiClosedContainerHandler.handle(readRequest));
+    assertFalse(quasiClosedContainerHandler.handle(request));
+    assertFalse(quasiClosedContainerHandler.handle(readRequest));
     // verify close command was sent for replicas with sequence ID 1001, that
     // is dnTwo and dnThree
-    Mockito.verify(replicationManager, times(1))
-        .sendCloseContainerReplicaCommand(eq(containerInfo), eq(dnTwo),
-            anyBoolean());
-    Mockito.verify(replicationManager, times(1))
-        .sendCloseContainerReplicaCommand(eq(containerInfo), eq(dnThree),
-            anyBoolean());
+    verify(replicationManager, times(1))
+        .sendCloseContainerReplicaCommand(eq(containerInfo), eq(dnTwo), anyBoolean());
+    verify(replicationManager, times(1))
+        .sendCloseContainerReplicaCommand(eq(containerInfo), eq(dnThree), anyBoolean());
   }
 }
