@@ -117,7 +117,7 @@ public class OMKeyDeleteRequest extends OMKeyRequest {
     DeleteKeyRequest deleteKeyRequest = getOmRequest().getDeleteKeyRequest();
 
     OzoneManagerProtocolProtos.KeyArgs keyArgs = deleteKeyRequest.getKeyArgs();
-    Map<String, String> auditMap = buildKeyArgsAuditMap(keyArgs);
+    Map<String, String> auditMap = buildLightKeyArgsAuditMap(keyArgs);
 
     String volumeName = keyArgs.getVolumeName();
     String bucketName = keyArgs.getBucketName();
@@ -181,6 +181,10 @@ public class OMKeyDeleteRequest extends OMKeyRequest {
           omResponse.setDeleteKeyResponse(DeleteKeyResponse.newBuilder())
               .build(), omKeyInfo, ozoneManager.isRatisEnabled(),
           omBucketInfo.copyObject());
+      if (omKeyInfo.isFile()) {
+        auditMap.put(OzoneConsts.DATA_SIZE, String.valueOf(omKeyInfo.getDataSize()));
+        auditMap.put(OzoneConsts.REPLICATION_CONFIG, omKeyInfo.getReplicationConfig().toString());
+      }
 
       result = Result.SUCCESS;
       long endNanosDeleteKeySuccessLatencyNs = Time.monotonicNowNanos();
