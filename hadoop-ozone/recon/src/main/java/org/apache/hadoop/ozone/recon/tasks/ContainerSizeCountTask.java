@@ -187,7 +187,7 @@ public class ContainerSizeCountTask extends ReconScmTask {
           process(container, containerSizeCountMap);
         } catch (Exception e) {
           // FIXME: it is a bug if there is an exception.
-          LOG.error("FIXME: Failed to process " + container, e);
+          LOG.debug("FIXME: Failed to process " + container, e);
         }
       }
 
