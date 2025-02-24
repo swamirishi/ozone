@@ -38,13 +38,16 @@ import picocli.CommandLine.Option;
 public class GenericCli implements Callable<Void>, GenericParentCommand {
 
   public static final int EXECUTION_ERROR_EXIT_CODE = -1;
+  private final OzoneConfiguration config = new OzoneConfiguration();
 
   @Option(names = {"--verbose"},
       description = "More verbose output. Show the stack trace of the errors.")
   private boolean verbose;
 
   @Option(names = {"-D", "--set"})
-  private Map<String, String> configurationOverrides = new HashMap<>();
+  public void setConfigurationOverrides(Map<String, String> configOverrides) {
+    configOverrides.forEach(config::set);
+  }
 
   @Option(names = {"-conf"})
   private String configurationPath;
@@ -118,16 +121,10 @@ public class GenericCli implements Callable<Void>, GenericParentCommand {
 
   @Override
   public OzoneConfiguration createOzoneConfiguration() {
-    OzoneConfiguration ozoneConf = new OzoneConfiguration();
     if (configurationPath != null) {
-      ozoneConf.addResource(new Path(configurationPath));
+      config.addResource(new Path(configurationPath));
     }
-    if (configurationOverrides != null) {
-      for (Entry<String, String> entry : configurationOverrides.entrySet()) {
-        ozoneConf.set(entry.getKey(), entry.getValue());
-      }
-    }
-    return ozoneConf;
+    return config;
   }
 
   @VisibleForTesting
