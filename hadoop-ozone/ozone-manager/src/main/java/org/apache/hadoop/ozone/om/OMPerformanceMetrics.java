@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.om;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.annotation.Metric;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MutableGaugeLong;
 import org.apache.hadoop.metrics2.lib.MutableRate;
 
 /**
@@ -86,6 +87,33 @@ public class OMPerformanceMetrics {
   @Metric(about = "checkAccess latency in nanoseconds")
   private MutableRate checkAccessLatencyNs;
 
+  @Metric(about = "deleteKeyFailure latency in nano seconds")
+  private MutableRate deleteKeyFailureLatencyNs;
+
+  @Metric(about = "deleteKeySuccess latency in nano seconds")
+  private MutableRate deleteKeySuccessLatencyNs;
+
+  @Metric(about = "resolveBucketLink latency in deleteKeys")
+  private MutableRate deleteKeysResolveBucketLatencyNs;
+
+  @Metric(about = "ACLs check latency in deleteKeys")
+  private MutableRate deleteKeysAclCheckLatencyNs;
+
+  @Metric(about = "resolveBucketLink and ACLs check latency in deleteKey")
+  private MutableRate deleteKeyResolveBucketAndAclCheckLatencyNs;
+
+  @Metric(about = "readFromRockDb latency in listKeys")
+  private MutableRate listKeysReadFromRocksDbLatencyNs;
+
+  @Metric(about = "Latency of each iteration of DirectoryDeletingService in ms")
+  private MutableGaugeLong directoryDeletingServiceLatencyMs;
+
+  @Metric(about = "Latency of each iteration of KeyDeletingService in ms")
+  private MutableGaugeLong keyDeletingServiceLatencyMs;
+
+  @Metric(about = "Latency of each iteration of OpenKeyCleanupService in ms")
+  private MutableGaugeLong openKeyCleanupServiceLatencyMs;
+
   public void addLookupLatency(long latencyInNs) {
     lookupLatencyNs.add(latencyInNs);
   }
@@ -145,5 +173,41 @@ public class OMPerformanceMetrics {
 
   public void setCheckAccessLatencyNs(long latencyInNs) {
     checkAccessLatencyNs.add(latencyInNs);
+  }
+
+  public void setDeleteKeyFailureLatencyNs(long latencyInNs) {
+    deleteKeyFailureLatencyNs.add(latencyInNs);
+  }
+
+  public void setDeleteKeySuccessLatencyNs(long latencyInNs) {
+    deleteKeySuccessLatencyNs.add(latencyInNs);
+  }
+
+  public void setDeleteKeysResolveBucketLatencyNs(long latencyInNs) {
+    deleteKeysResolveBucketLatencyNs.add(latencyInNs);
+  }
+
+  public void setDeleteKeysAclCheckLatencyNs(long latencyInNs) {
+    deleteKeysAclCheckLatencyNs.add(latencyInNs);
+  }
+
+  public MutableRate getDeleteKeyResolveBucketAndAclCheckLatencyNs() {
+    return deleteKeyResolveBucketAndAclCheckLatencyNs;
+  }
+
+  public void addListKeysReadFromRocksDbLatencyNs(long latencyInNs) {
+    listKeysReadFromRocksDbLatencyNs.add(latencyInNs);
+  }
+
+  public void setDirectoryDeletingServiceLatencyMs(long latencyInMs) {
+    directoryDeletingServiceLatencyMs.set(latencyInMs);
+  }
+
+  public void setKeyDeletingServiceLatencyMs(long latencyInMs) {
+    keyDeletingServiceLatencyMs.set(latencyInMs);
+  }
+
+  public void setOpenKeyCleanupServiceLatencyMs(long latencyInMs) {
+    openKeyCleanupServiceLatencyMs.set(latencyInMs);
   }
 }

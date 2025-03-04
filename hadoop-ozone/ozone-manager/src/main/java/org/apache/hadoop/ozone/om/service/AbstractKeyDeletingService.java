@@ -32,6 +32,7 @@ import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.hadoop.ozone.common.DeleteBlockGroupResult;
 import org.apache.hadoop.ozone.om.KeyManager;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
+import org.apache.hadoop.ozone.om.OMPerformanceMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.SnapshotChainManager;
 import org.apache.hadoop.ozone.om.helpers.OMRatisHelper;
@@ -75,6 +76,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     implements BootstrapStateHandler {
 
   private final OzoneManager ozoneManager;
+  private final OMPerformanceMetrics perfMetrics;
   private final ScmBlockLocationProtocol scmClient;
   private final ClientId clientId = ClientId.randomId();
   private final AtomicLong deletedDirsCount;
@@ -94,6 +96,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     this.movedDirsCount = new AtomicLong(0);
     this.movedFilesCount = new AtomicLong(0);
     this.runCount = new AtomicLong(0);
+    this.perfMetrics = ozoneManager.getPerfMetrics();
   }
 
   protected int processKeyDeletes(List<BlockGroup> keyBlocksList,
@@ -101,7 +104,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       HashMap<String, RepeatedOmKeyInfo> keysToModify,
       String snapTableKey, UUID expectedPreviousSnapshotId) throws IOException {
 
-    long startTime = Time.monotonicNow();
+    long purgeStartTime = Time.monotonicNow();
     int delCount = 0;
     List<DeleteBlockGroupResult> blockDeletionResults =
         scmClient.deleteKeyBlocks(keyBlocksList);
@@ -118,9 +121,10 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       if (LOG.isDebugEnabled()) {
         LOG.debug("Blocks for {} (out of {}) keys are deleted in {} ms",
             delCount, blockDeletionResults.size(),
-            Time.monotonicNow() - startTime);
+            Time.monotonicNow() - purgeStartTime);
       }
     }
+    perfMetrics.setKeyDeletingServiceLatencyMs(Time.monotonicNow() - purgeStartTime);
     return delCount;
   }
 
@@ -460,13 +464,15 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       deletedDirsCount.addAndGet(dirNum + subdirDelNum);
       movedDirsCount.addAndGet(subDirNum - subdirDelNum);
       movedFilesCount.addAndGet(subFileNum);
+      long timeTakenInIteration = Time.monotonicNow() - startTime;
       LOG.info("Number of dirs deleted: {}, Number of sub-dir " +
               "deleted: {}, Number of sub-files moved:" +
               " {} to DeletedTable, Number of sub-dirs moved {} to " +
-              "DeletedDirectoryTable, iteration elapsed: {}ms," +
+              "DeletedDirectoryTable, iteration elapsed: {}ms, " +
               " totalRunCount: {}",
           dirNum, subdirDelNum, subFileNum, (subDirNum - subdirDelNum),
-          Time.monotonicNow() - startTime, getRunCount());
+          timeTakenInIteration, getRunCount());
+      perfMetrics.setDirectoryDeletingServiceLatencyMs(timeTakenInIteration);
     }
     return remainNum;
   }
