@@ -125,13 +125,13 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     LOG.info("{} BlockGroup deletion are acked by SCM in {} ms",
         keyBlocksList.size(), Time.monotonicNow() - startTime);
     if (blockDeletionResults != null) {
-      startTime = Time.monotonicNow();
+      long purgeStartTime = Time.monotonicNow();
       delCount = submitPurgeKeysRequest(blockDeletionResults,
           keysToModify, snapTableKey, expectedPreviousSnapshotId);
       int limit = ozoneManager.getConfiguration().getInt(OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK,
           OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT);
       LOG.info("Blocks for {} (out of {}) keys are deleted from DB in {} ms. Limit per task is {}.",
-          delCount, blockDeletionResults.size(), Time.monotonicNow() - startTime, limit);
+          delCount, blockDeletionResults.size(), Time.monotonicNow() - purgeStartTime, limit);
     }
     perfMetrics.setKeyDeletingServiceLatencyMs(Time.monotonicNow() - startTime);
     return delCount;
