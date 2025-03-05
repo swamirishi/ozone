@@ -88,7 +88,8 @@ public class RDBStore implements DBStore {
                   String dbJmxBeanName, boolean enableCompactionDag,
                   long maxDbUpdatesSizeThreshold,
                   boolean createCheckpointDirs,
-                  ConfigurationSource configuration)
+                  ConfigurationSource configuration,
+                  boolean enableRocksDBMetrics)
 
       throws IOException {
     Preconditions.checkNotNull(dbFile, "DB file location cannot be null");
@@ -122,13 +123,18 @@ public class RDBStore implements DBStore {
         dbJmxBeanName = dbFile.getName();
       }
       // Use statistics instead of dbOptions.statistics() to avoid repeated init.
-      metrics = RocksDBStoreMetrics.create(statistics, db, dbJmxBeanName);
-      if (metrics == null) {
-        LOG.warn("Metrics registration failed during RocksDB init, " +
+      if (!enableRocksDBMetrics) {
+        LOG.debug("Skipped Metrics registration during RocksDB init, " +
             "db path :{}", dbJmxBeanName);
       } else {
-        LOG.debug("Metrics registration succeed during RocksDB init, " +
-            "db path :{}", dbJmxBeanName);
+        metrics = RocksDBStoreMetrics.create(statistics, db, dbJmxBeanName);
+        if (metrics == null) {
+          LOG.warn("Metrics registration failed during RocksDB init, " +
+              "db path :{}", dbJmxBeanName);
+        } else {
+          LOG.debug("Metrics registration succeed during RocksDB init, " +
+              "db path :{}", dbJmxBeanName);
+        }
       }
 
       // Create checkpoints and snapshot directories if not exists.

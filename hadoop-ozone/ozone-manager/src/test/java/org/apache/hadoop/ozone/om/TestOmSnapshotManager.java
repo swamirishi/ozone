@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.HddsWhiteboxTestUtils;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.RDBBatchOperation;
+import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
@@ -37,6 +38,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.event.Level;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 import static org.apache.commons.io.file.PathUtils.copyDirectory;
 import static org.apache.hadoop.hdds.utils.HAUtils.getExistingSstFiles;
@@ -107,6 +110,8 @@ public class TestOmSnapshotManager {
     // Only allow one entry in cache so each new one causes an eviction
     configuration.setInt(
         OMConfigKeys.OZONE_OM_SNAPSHOT_CACHE_MAX_SIZE, 1);
+    configuration.setBoolean(
+        OMConfigKeys.OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED, false);
 
     OmTestManagers omTestManagers = new OmTestManagers(configuration);
     om = omTestManagers.getOzoneManager();
@@ -138,8 +143,12 @@ public class TestOmSnapshotManager {
   }
 
   @Test
-  public void testCloseOnEviction() throws IOException {
+  public void testCloseOnEviction() throws IOException,
+      InterruptedException, TimeoutException {
 
+    GenericTestUtils.setLogLevel(RDBStore.getLogger(), Level.DEBUG);
+    GenericTestUtils.LogCapturer logCapture =
+        GenericTestUtils.LogCapturer.captureLogs(RDBStore.getLogger());
     // set up db tables
     Table<String, OmVolumeArgs> volumeTable = mock(Table.class);
     Table<String, OmBucketInfo> bucketTable = mock(Table.class);
@@ -212,6 +221,12 @@ public class TestOmSnapshotManager {
 
     // confirm store was closed
     verify(firstSnapshotStore, timeout(3000).times(1)).close();
+
+    // Verify RocksDBStoreMetrics registration is skipped.
+    String msg = "Skipped Metrics registration during RocksDB init";
+    GenericTestUtils.waitFor(() -> {
+      return logCapture.getOutput().contains(msg);
+    }, 100, 30_000);
   }
 
   private void setupData() throws IOException {

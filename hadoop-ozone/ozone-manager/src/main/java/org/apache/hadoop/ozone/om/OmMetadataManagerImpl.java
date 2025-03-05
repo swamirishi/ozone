@@ -100,6 +100,10 @@ import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_FS_SNAPSHOT_MAX_LIMIT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_FS_SNAPSHOT_MAX_LIMIT_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DB_MAX_OPEN_FILES;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DB_MAX_OPEN_FILES_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.ozone.om.OmSnapshotManager.getSnapshotPrefix;
@@ -368,8 +372,10 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
       throws IOException {
     lock = new OmReadOnlyLock();
     omEpoch = 0;
-    setStore(loadDB(conf, dir, name, true,
-        java.util.Optional.of(Boolean.TRUE), Optional.empty()));
+    int maxOpenFiles = conf.getInt(OZONE_OM_SNAPSHOT_DB_MAX_OPEN_FILES, OZONE_OM_SNAPSHOT_DB_MAX_OPEN_FILES_DEFAULT);
+
+    setStore(loadDB(conf, dir, name, true, Optional.of(Boolean.TRUE),
+        Optional.of(maxOpenFiles), false, false, true));
     initializeOmTables(CacheType.PARTIAL_CACHE, false);
   }
 
@@ -401,8 +407,9 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
         checkSnapshotDirExist(checkpoint);
       }
       setStore(loadDB(conf, metaDir, dbName, false,
-          java.util.Optional.of(Boolean.TRUE),
-          Optional.of(maxOpenFiles), false, false));
+          java.util.Optional.of(Boolean.TRUE), Optional.of(maxOpenFiles), false, false,
+          conf.getBoolean(OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED,
+              OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED_DEFAULT)));
       initializeOmTables(CacheType.PARTIAL_CACHE, false);
     } catch (IOException e) {
       stop();
@@ -551,7 +558,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
   public static DBStore loadDB(OzoneConfiguration configuration, File metaDir)
       throws IOException {
     return loadDB(configuration, metaDir, OM_DB_NAME, false,
-            java.util.Optional.empty(), Optional.empty(), true, true);
+            java.util.Optional.empty(), Optional.empty(), true, true, true);
   }
 
   public static DBStore loadDB(OzoneConfiguration configuration, File metaDir,
@@ -561,7 +568,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
                                java.util.Optional<Integer> maxOpenFiles)
           throws IOException {
     return loadDB(configuration, metaDir, dbName, readOnly,
-        disableAutoCompaction, maxOpenFiles, true, true);
+        disableAutoCompaction, maxOpenFiles, true, true, true);
   }
 
   @SuppressWarnings("checkstyle:parameternumber")
@@ -571,7 +578,8 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
                                    disableAutoCompaction,
                                java.util.Optional<Integer> maxOpenFiles,
                                boolean enableCompactionDag,
-                               boolean createCheckpointDirs)
+                               boolean createCheckpointDirs,
+                               boolean enableRocksDBMetrics)
       throws IOException {
     final int maxFSSnapshots = configuration.getInt(
         OZONE_OM_FS_SNAPSHOT_MAX_LIMIT, OZONE_OM_FS_SNAPSHOT_MAX_LIMIT_DEFAULT);
@@ -583,7 +591,8 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
         .setPath(Paths.get(metaDir.getPath()))
         .setMaxFSSnapshots(maxFSSnapshots)
         .setEnableCompactionDag(enableCompactionDag)
-        .setCreateCheckpointDirs(createCheckpointDirs);
+        .setCreateCheckpointDirs(createCheckpointDirs)
+        .setEnableRocksDbMetrics(enableRocksDBMetrics);
     disableAutoCompaction.ifPresent(
             dbStoreBuilder::disableDefaultCFAutoCompaction);
     maxOpenFiles.ifPresent(dbStoreBuilder::setMaxNumberOfOpenFiles);
