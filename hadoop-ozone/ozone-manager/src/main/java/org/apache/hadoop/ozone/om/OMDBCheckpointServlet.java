@@ -651,8 +651,8 @@ public class OMDBCheckpointServlet extends DBCheckpointServlet {
       locks = Stream.of(
           om.getKeyManager().getDeletingService(),
           om.getKeyManager().getSnapshotSstFilteringService(),
-          om.getMetadataManager().getStore().getRocksDBCheckpointDiffer(),
-          om.getKeyManager().getSnapshotDeletingService()
+          om.getKeyManager().getSnapshotDeletingService(),
+          om.getMetadataManager().getStore().getRocksDBCheckpointDiffer()
       )
           .filter(Objects::nonNull)
           .map(BootstrapStateHandler::getBootstrapStateLock)

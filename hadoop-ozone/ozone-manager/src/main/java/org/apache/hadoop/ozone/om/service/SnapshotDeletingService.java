@@ -465,7 +465,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
       return remainNum;
     }
 
-    private void submitSnapshotPurgeRequest(List<String> purgeSnapshotKeys) {
+    private void submitSnapshotPurgeRequest(List<String> purgeSnapshotKeys) throws InterruptedException {
       for (String purgeSnapshotKey : purgeSnapshotKeys) {
         SnapshotPurgeRequest snapshotPurgeRequest = SnapshotPurgeRequest
             .newBuilder()
@@ -478,7 +478,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
             .setClientId(clientId.toString())
             .build();
 
-        submitRequest(omRequest);
+        try (BootstrapStateHandler.Lock lock = getBootstrapStateLock().lock()) {
+          submitRequest(omRequest);
+        }
       }
     }
 
@@ -570,8 +572,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
           .setSnapshotMoveDeletedKeysRequest(moveDeletedKeys)
           .setClientId(clientId.toString())
           .build();
-
-      try (BootstrapStateHandler.Lock lock = new BootstrapStateHandler.Lock()) {
+      try (BootstrapStateHandler.Lock lock = getBootstrapStateLock().lock()) {
         submitRequest(omRequest);
       }
     }
