@@ -69,7 +69,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -158,17 +160,16 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
       Table<String, SnapshotInfo> snapshotInfoTable =
           ozoneManager.getMetadataManager().getSnapshotInfoTable();
       List<String> purgeSnapshotKeys = new ArrayList<>();
-      try (TableIterator<String, ? extends Table.KeyValue
-          <String, SnapshotInfo>> iterator = snapshotInfoTable.iterator()) {
-
+      try {
         long snapshotLimit = snapshotDeletionPerTask;
+        Iterator<UUID> iterator = chainManager.iterator(false);
 
         while (iterator.hasNext() && snapshotLimit > 0) {
-          //Get snapshot info from cache.
-          SnapshotInfo snapInfo = snapshotInfoTable.get(iterator.next().getKey());
+          // Get snapshot info from cache.
+          SnapshotInfo snapInfo = SnapshotUtils.getSnapshotInfo(ozoneManager, chainManager, iterator.next());
 
           // Only Iterate in deleted snapshot
-          if (snapInfo == null || shouldIgnoreSnapshot(snapInfo, orderedSnapshotDeletion)) {
+          if (shouldIgnoreSnapshot(snapInfo, orderedSnapshotDeletion)) {
             continue;
           }
 

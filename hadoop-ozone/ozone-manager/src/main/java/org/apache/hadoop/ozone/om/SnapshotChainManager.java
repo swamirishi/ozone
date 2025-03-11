@@ -24,11 +24,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -55,6 +58,7 @@ public class SnapshotChainManager {
   private final ConcurrentMap<String, UUID> latestSnapshotIdByPath;
   private final ConcurrentMap<UUID, String> snapshotIdToTableKey;
   private UUID latestGlobalSnapshotId;
+  private UUID oldestGlobalSnapshotId;
   private final boolean snapshotChainCorrupted;
 
   public SnapshotChainManager(OMMetadataManager metadataManager) {
@@ -104,6 +108,8 @@ public class SnapshotChainManager {
       // On add snapshot, set previous snapshot entry nextSnapshotID =
       // snapshotID
       globalSnapshotChain.get(prevGlobalID).setNextSnapshotId(snapshotID);
+    } else {
+      oldestGlobalSnapshotId = snapshotID;
     }
 
     globalSnapshotChain.put(snapshotID,
@@ -194,8 +200,11 @@ public class SnapshotChainManager {
         globalSnapshotChain.get(prev).setNextSnapshotId(next);
       }
       // remove from latest list if necessary
-      if (latestGlobalSnapshotId.equals(snapshotID)) {
+      if (Objects.equals(latestGlobalSnapshotId, snapshotID)) {
         latestGlobalSnapshotId = prev;
+      }
+      if (Objects.equals(oldestGlobalSnapshotId, snapshotID)) {
+        oldestGlobalSnapshotId = next;
       }
       return true;
     } else {
@@ -380,6 +389,42 @@ public class SnapshotChainManager {
   public UUID getLatestPathSnapshotId(String snapshotPath) throws IOException {
     validateSnapshotChain();
     return latestSnapshotIdByPath.get(snapshotPath);
+  }
+
+  /**
+   * Get oldest of global snapshot in snapshot chain.
+   */
+  public UUID getOldestGlobalSnapshotId() throws IOException {
+    validateSnapshotChain();
+    return oldestGlobalSnapshotId;
+  }
+
+  public Iterator<UUID> iterator(final boolean reverse) throws IOException {
+    validateSnapshotChain();
+    return new Iterator<UUID>() {
+      private UUID currentSnapshotId = reverse ? getLatestGlobalSnapshotId() : getOldestGlobalSnapshotId();
+      @Override
+      public boolean hasNext() {
+        return currentSnapshotId != null;
+      }
+
+      @Override
+      public UUID next() {
+        try {
+          UUID prevSnapshotId = currentSnapshotId;
+          if (reverse && hasPreviousGlobalSnapshot(currentSnapshotId) ||
+              !reverse && hasNextGlobalSnapshot(currentSnapshotId)) {
+            currentSnapshotId =
+                reverse ? previousGlobalSnapshot(currentSnapshotId) : nextGlobalSnapshot(currentSnapshotId);
+          } else {
+            currentSnapshotId = null;
+          }
+          return prevSnapshotId;
+        } catch (IOException e) {
+          throw new UncheckedIOException("Error while getting next snapshot for " + currentSnapshotId, e);
+        }
+      }
+    };
   }
 
   /**
