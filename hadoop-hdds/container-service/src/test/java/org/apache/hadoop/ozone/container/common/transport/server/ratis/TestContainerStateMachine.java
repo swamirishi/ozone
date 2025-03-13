@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -30,8 +31,10 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,6 +60,7 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -92,6 +96,7 @@ abstract class TestContainerStateMachine {
       .setNameFormat("ChunkWriter-" + i + "-%d")
       .build())).collect(Collectors.toList());
   private final boolean isLeader;
+  private static final String CONTAINER_DATA = "Test Data";
 
   TestContainerStateMachine(boolean isLeader) {
     this.isLeader = isLeader;
@@ -267,5 +272,80 @@ abstract class TestContainerStateMachine {
     ContainerProtos.ContainerCommandResponseProto resp =
         ContainerProtos.ContainerCommandResponseProto.parseFrom(succcesfulTransaction.getContent());
     assertEquals(ContainerProtos.Result.SUCCESS, resp.getResult());
+  }
+
+  @Test
+  public void testWriteTimout() throws Exception {
+    ContainerProtos.ContainerCommandRequestProto commandRequestProto
+            = ContainerProtos.ContainerCommandRequestProto.newBuilder()
+            .setCmdType(ContainerProtos.Type.WriteChunk).setWriteChunk(
+                    ContainerProtos.WriteChunkRequestProto.newBuilder().setData(ByteString.copyFromUtf8(CONTAINER_DATA))
+                            .setBlockID(
+                                    ContainerProtos.DatanodeBlockID.newBuilder().setContainerID(1)
+                                            .setLocalID(1).build()).build())
+            .setContainerID(1)
+            .setDatanodeUuid(UUID.randomUUID().toString()).build();
+
+    RaftProtos.StateMachineLogEntryProto smLogEntry = mock(RaftProtos.StateMachineLogEntryProto.class);
+    when(smLogEntry.getLogData()).thenReturn(commandRequestProto.toByteString());
+    RaftProtos.StateMachineEntryProto smEntry = mock(RaftProtos.StateMachineEntryProto.class);
+    when(smLogEntry.getStateMachineEntry()).thenReturn(smEntry);
+    when(smEntry.getStateMachineData()).thenReturn(ByteString.copyFromUtf8(CONTAINER_DATA));
+    RaftProtos.LogEntryProto entry = mock(RaftProtos.LogEntryProto.class);
+    when(entry.getTerm()).thenReturn(1L);
+    when(entry.getIndex()).thenReturn(1L);
+    when(entry.getStateMachineLogEntry()).thenReturn(smLogEntry);
+    RaftProtos.LogEntryProto entryNext = mock(RaftProtos.LogEntryProto.class);
+    when(entryNext.getTerm()).thenReturn(1L);
+    when(entryNext.getIndex()).thenReturn(2L);
+    when(entryNext.getStateMachineLogEntry()).thenReturn(smLogEntry);
+    doAnswer(e -> {
+      try {
+        Thread.sleep(200000);
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw ie;
+      }
+      return null;
+    }).when(dispatcher).dispatch(any(), any());
+
+    ThrowableCatcher catcher = new ThrowableCatcher();
+
+    CompletableFuture<Message> firstWrite = stateMachine.write(entry);
+    Thread.sleep(2000);
+    CompletableFuture<Message> secondWrite = stateMachine.write(entryNext);
+    firstWrite.exceptionally(catcher.asSetter()).get();
+    assertNotNull(catcher.getCaught());
+    assertInstanceOf(InterruptedException.class, catcher.getReceived());
+
+    secondWrite.exceptionally(catcher.asSetter()).get();
+    assertNotNull(catcher.getReceived());
+    assertInstanceOf(StorageContainerException.class, catcher.getReceived());
+    StorageContainerException sce = (StorageContainerException) catcher.getReceived();
+    assertEquals(ContainerProtos.Result.CONTAINER_INTERNAL_ERROR, sce.getResult());
+  }
+
+  private static class ThrowableCatcher {
+
+    private final AtomicReference<Throwable> caught = new AtomicReference<>(null);
+
+    public Function<Throwable, ? extends Message> asSetter() {
+      return t -> {
+        caught.set(t);
+        return null;
+      };
+    }
+
+    public AtomicReference<Throwable> getCaught() {
+      return caught;
+    }
+
+    public Throwable getReceived() {
+      return caught.get();
+    }
+
+    public void reset() {
+      caught.set(null);
+    }
   }
 }
