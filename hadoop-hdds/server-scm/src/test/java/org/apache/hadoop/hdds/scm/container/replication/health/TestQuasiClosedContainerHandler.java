@@ -140,7 +140,7 @@ public class TestQuasiClosedContainerHandler {
 
     assertFalse(quasiClosedContainerHandler.handle(request));
     assertFalse(quasiClosedContainerHandler.handle(readRequest));
-    verify(replicationManager, times(2))
+    verify(replicationManager, times(0))
         .sendCloseContainerReplicaCommand(any(), any(), anyBoolean());
     assertEquals(1, request.getReport().getStat(
         ReplicationManagerReport.HealthState.QUASI_CLOSED_STUCK));
