@@ -815,6 +815,37 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
     return builder.toString();
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getBucketKeyPrefix(String volume, String bucket) {
+    return getOzoneKey(volume, bucket, OM_KEY_PREFIX);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getBucketKeyPrefixFSO(String volume, String bucket) throws IOException {
+    return getOzoneKeyFSO(volume, bucket, OM_KEY_PREFIX);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public String getOzoneKeyFSO(String volumeName,
+                               String bucketName,
+                               String keyPrefix)
+      throws IOException {
+    final long volumeId = getVolumeId(volumeName);
+    final long bucketId = getBucketId(volumeName, bucketName);
+    // FSO keyPrefix could look like: -9223372036854774527/key1
+    return getOzoneKey(Long.toString(volumeId),
+        Long.toString(bucketId), keyPrefix);
+  }
+
   @Override
   public String getOzoneKey(String volume, String bucket, String key) {
     StringBuilder builder = new StringBuilder()

@@ -112,6 +112,25 @@ public interface OMMetadataManager extends DBStoreHAManager {
   String getBucketKey(String volume, String bucket);
 
   /**
+   * Given a volume and bucket, return the corresponding DB key prefix.
+   *
+   * @param volume - Volume name
+   * @param bucket - Bucket name
+   * @return /volume/bucket/
+   */
+  String getBucketKeyPrefix(String volume, String bucket);
+
+  /**
+   * Given a volume and bucket, return the corresponding DB key prefix for FSO buckets.
+   *
+   * @param volume - Volume name
+   * @param bucket - Bucket name
+   * @return /volumeId/bucketId/
+   *    e.g. /-9223372036854772480/-9223372036854771968/
+   */
+  String getBucketKeyPrefixFSO(String volume, String bucket) throws IOException;
+
+  /**
    * Given a volume, bucket and a key, return the corresponding DB key.
    *
    * @param volume - volume name
@@ -119,8 +138,13 @@ public interface OMMetadataManager extends DBStoreHAManager {
    * @param key    - key name
    * @return DB key as String.
    */
-
   String getOzoneKey(String volume, String bucket, String key);
+
+  /**
+   * Get DB key for a key or prefix in an FSO bucket given existing
+   * volume and bucket names.
+   */
+  String getOzoneKeyFSO(String volumeName, String bucketName, String keyPrefix) throws IOException;
 
   /**
    * Given a volume, bucket and a key, return the corresponding DB directory

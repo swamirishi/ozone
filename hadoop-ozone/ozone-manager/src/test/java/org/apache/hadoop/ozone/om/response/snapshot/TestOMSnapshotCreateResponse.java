@@ -214,8 +214,7 @@ public class TestOMSnapshotCreateResponse {
     // Add deletedDirectoryTable key entries that "surround" the snapshot scope
     Set<String> sentinelKeys = new HashSet<>();
 
-    final String dbKeyPfx = SnapshotUtils.getOzonePathKeyForFso(
-            omMetadataManager, volumeName, bucketName);
+    final String dbKeyPfx = omMetadataManager.getBucketKeyPrefixFSO(volumeName, bucketName);
 
     // Calculate offset to bucketId's last character in dbKeyPfx.
     // First -1 for offset, second -1 for second to last char (before '/')
