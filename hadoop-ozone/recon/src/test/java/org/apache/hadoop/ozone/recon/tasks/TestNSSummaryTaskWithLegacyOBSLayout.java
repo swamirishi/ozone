@@ -141,7 +141,7 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
 
     nSSummaryTaskWithLegacy = new NSSummaryTaskWithLegacy(
         reconNamespaceSummaryManager,
-        reconOMMetadataManager, ozoneConfiguration);
+        reconOMMetadataManager, ozoneConfiguration, 1);
   }
 
   /**

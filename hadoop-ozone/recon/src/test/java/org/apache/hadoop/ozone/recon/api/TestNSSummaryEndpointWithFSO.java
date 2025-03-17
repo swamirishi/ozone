@@ -391,7 +391,7 @@ public class TestNSSummaryEndpointWithFSO {
     populateOMDB();
     NSSummaryTaskWithFSO nSSummaryTaskWithFso =
         new NSSummaryTaskWithFSO(reconNamespaceSummaryManager,
-            reconOMMetadataManager, ozoneConfiguration);
+            reconOMMetadataManager, ozoneConfiguration, 1);
     nSSummaryTaskWithFso.reprocessWithFSO(reconOMMetadataManager);
     commonUtils = new CommonUtils();
   }
@@ -1400,7 +1400,7 @@ public class TestNSSummaryEndpointWithFSO {
   }
 
   private static SCMNodeStat getMockSCMRootStat() {
-    return new SCMNodeStat(ROOT_QUOTA, ROOT_DATA_SIZE, 
+    return new SCMNodeStat(ROOT_QUOTA, ROOT_DATA_SIZE,
         ROOT_QUOTA - ROOT_DATA_SIZE);
   }
 }

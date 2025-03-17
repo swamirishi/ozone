@@ -152,7 +152,7 @@ public final class TestNSSummaryTaskWithFSO {
 
     nSSummaryTaskWithFso = new NSSummaryTaskWithFSO(
         reconNamespaceSummaryManager, reconOMMetadataManager,
-        ozoneConfiguration);
+        ozoneConfiguration, 1);
   }
 
   /**

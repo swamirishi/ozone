@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.recon.tasks;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.db.StringCodec;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
@@ -30,6 +31,7 @@ import org.apache.hadoop.ozone.om.helpers.WithParentObjectId;
 import org.apache.hadoop.ozone.recon.api.types.NSSummary;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
+import org.apache.hadoop.ozone.recon.tasks.util.ParallelTableIteratorOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.KEY_TABLE;
@@ -53,19 +58,22 @@ public class NSSummaryTaskWithLegacy extends NSSummaryTaskDbEventHandler {
       LoggerFactory.getLogger(NSSummaryTaskWithLegacy.class);
 
   private boolean enableFileSystemPaths;
+  private final int maxIterators;
 
   public NSSummaryTaskWithLegacy(ReconNamespaceSummaryManager
                                  reconNamespaceSummaryManager,
                                  ReconOMMetadataManager
                                  reconOMMetadataManager,
                                  OzoneConfiguration
-                                 ozoneConfiguration) {
+                                 ozoneConfiguration,
+                                 int maxIterators) {
     super(reconNamespaceSummaryManager,
         reconOMMetadataManager, ozoneConfiguration);
     // true if FileSystemPaths enabled
     enableFileSystemPaths = ozoneConfiguration
         .getBoolean(OMConfigKeys.OZONE_OM_ENABLE_FILESYSTEM_PATHS,
             OMConfigKeys.OZONE_OM_ENABLE_FILESYSTEM_PATHS_DEFAULT);
+    this.maxIterators = maxIterators;
   }
 
   public boolean processWithLegacy(OMUpdateEventBatch events) {
@@ -238,55 +246,74 @@ public class NSSummaryTaskWithLegacy extends NSSummaryTaskDbEventHandler {
   }
 
   public boolean reprocessWithLegacy(OMMetadataManager omMetadataManager) {
-    Map<Long, NSSummary> nsSummaryMap = new HashMap<>();
+    Map<Long, NSSummary> nsSummaryMap = new ConcurrentHashMap<>();
 
     try {
       Table<String, OmKeyInfo> keyTable =
           omMetadataManager.getKeyTable(LEGACY_BUCKET_LAYOUT);
+      ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+      long loggingThreshold = Math.max(keyTable.getEstimatedKeyCount()/100, 1);
+      try (ParallelTableIteratorOperation<String, OmKeyInfo>
+          keyTableIter = new ParallelTableIteratorOperation<>(omMetadataManager, keyTable, StringCodec.get(),
+          maxIterators, loggingThreshold)) {
 
-      try (TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
-          keyTableIter = keyTable.iterator()) {
+        Function<Table.KeyValue<String, OmKeyInfo>, Void> keyOperation = kv -> {
+          try {
+            OmKeyInfo keyInfo = kv.getValue();
 
-        while (keyTableIter.hasNext()) {
-          Table.KeyValue<String, OmKeyInfo> kv = keyTableIter.next();
-          OmKeyInfo keyInfo = kv.getValue();
-
-          // KeyTable entries belong to both Legacy and OBS buckets.
-          // Check bucket layout and if it's OBS
-          // continue to the next iteration.
-          if (!isBucketLayoutValid((ReconOMMetadataManager) omMetadataManager,
-              keyInfo)) {
-            continue;
-          }
-
-          if (enableFileSystemPaths) {
-            // The LEGACY bucket is a file system bucket.
-            setKeyParentID(keyInfo);
-
-            if (keyInfo.getKeyName().endsWith(OM_KEY_PREFIX)) {
-              OmDirectoryInfo directoryInfo =
-                  new OmDirectoryInfo.Builder()
-                      .setName(keyInfo.getKeyName())
-                      .setObjectID(keyInfo.getObjectID())
-                      .setParentObjectID(keyInfo.getParentObjectID())
-                      .build();
-              handlePutDirEvent(directoryInfo, nsSummaryMap);
-            } else {
-              handlePutKeyEvent(keyInfo, nsSummaryMap);
+            // KeyTable entries belong to both Legacy and OBS buckets.
+            // Check bucket layout and if it's OBS
+            // continue to the next iteration.
+            if (!isBucketLayoutValid((ReconOMMetadataManager) omMetadataManager,
+                keyInfo)) {
+              return null;
             }
-          } else {
-            // The LEGACY bucket is an object store bucket.
-            setParentBucketId(keyInfo);
-            handlePutKeyEvent(keyInfo, nsSummaryMap);
+
+            try {
+              lock.readLock().lock();
+              if (enableFileSystemPaths) {
+                // The LEGACY bucket is a file system bucket.
+                setKeyParentID(keyInfo);
+
+                if (keyInfo.getKeyName().endsWith(OM_KEY_PREFIX)) {
+                  OmDirectoryInfo directoryInfo =
+                      new OmDirectoryInfo.Builder()
+                          .setName(keyInfo.getKeyName())
+                          .setObjectID(keyInfo.getObjectID())
+                          .setParentObjectID(keyInfo.getParentObjectID())
+                          .build();
+                  handlePutDirEvent(directoryInfo, nsSummaryMap);
+                } else {
+                  handlePutKeyEvent(keyInfo, nsSummaryMap);
+                }
+              } else {
+                // The LEGACY bucket is an object store bucket.
+                setParentBucketId(keyInfo);
+                handlePutKeyEvent(keyInfo, nsSummaryMap);
+              }
+            } finally {
+              lock.readLock().unlock();
+            }
+            if (nsSummaryMap.size() >= nsSummaryFlushToDBMaxThreshold) {
+              try {
+                lock.writeLock().lock();
+                if (!checkAndCallFlushToDB(nsSummaryMap)) {
+                  throw new IOException();
+                }
+              } finally {
+                lock.writeLock().unlock();
+              }
+            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
           }
-          if (!checkAndCallFlushToDB(nsSummaryMap)) {
-            return false;
-          }
-        }
+          return null;
+        };
+        keyTableIter.performTaskOnTableVals(this.getClass().getName(), null, null, keyOperation);
       }
-    } catch (IOException ioEx) {
+    } catch (Exception ex) {
       LOG.error("Unable to reprocess Namespace Summary data in Recon DB. ",
-          ioEx);
+          ex);
       return false;
     }
 

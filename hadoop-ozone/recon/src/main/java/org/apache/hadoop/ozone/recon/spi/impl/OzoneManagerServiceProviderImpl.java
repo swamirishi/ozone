@@ -586,13 +586,18 @@ public class OzoneManagerServiceProviderImpl
   }
 
   private void printTableCount(String tableName) {
-    Table table = omMetadataManager.getTable(tableName);
-    if (table == null) {
+      Table<byte[], byte[]> table = null;
+      try {
+          table = omMetadataManager.getStore().getTable(tableName);
+      } catch (IOException e) {
+          LOG.error("Unable to retrieve table " + tableName, e);
+      }
+      if (table == null) {
       LOG.error("Table {} not found in OM Metadata.", tableName);
       return;
     }
     if (LOG.isDebugEnabled()) {
-      try (TableIterator<String, ? extends Table.KeyValue<String, ?>> iterator = table.iterator()) {
+      try (TableIterator<byte[], ? extends Table.KeyValue<byte[], byte[]>> iterator = table.iterator()) {
         long count = Iterators.size(iterator);
         LOG.debug("{} Table count: {}", tableName, count);
       } catch (IOException ioException) {

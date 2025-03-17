@@ -381,11 +381,11 @@ public class TestNSSummaryEndpointWithOBSAndLegacy {
     populateOMDB();
     NSSummaryTaskWithOBS nsSummaryTaskWithOBS =
         new NSSummaryTaskWithOBS(reconNamespaceSummaryManager,
-            reconOMMetadataManager, conf);
+            reconOMMetadataManager, conf, 1);
     nsSummaryTaskWithOBS.reprocessWithOBS(reconOMMetadataManager);
     NSSummaryTaskWithLegacy nsSummaryTaskWithLegacy =
         new NSSummaryTaskWithLegacy(reconNamespaceSummaryManager,
-            reconOMMetadataManager, conf);
+            reconOMMetadataManager, conf, 1);
     nsSummaryTaskWithLegacy.reprocessWithLegacy(reconOMMetadataManager);
     commonUtils = new CommonUtils();
   }

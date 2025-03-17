@@ -253,7 +253,7 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
         containerCountBySizeDao,
         utilizationSchemaDefinition);
     fileSizeCountTask =
-        new FileSizeCountTask(fileCountBySizeDao, utilizationSchemaDefinition);
+        new FileSizeCountTask(fileCountBySizeDao, utilizationSchemaDefinition, new OzoneConfiguration());
     omTableInsightTask = new OmTableInsightTask(
         globalStatsDao, sqlConfiguration, reconOMMetadataManager);
     containerHealthSchemaManager =

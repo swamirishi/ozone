@@ -388,7 +388,7 @@ public class TestNSSummaryEndpointWithLegacy {
     populateOMDB();
     NSSummaryTaskWithLegacy nsSummaryTaskWithLegacy =
         new NSSummaryTaskWithLegacy(reconNamespaceSummaryManager,
-            reconOMMetadataManager, conf);
+            reconOMMetadataManager, conf, 1);
     nsSummaryTaskWithLegacy.reprocessWithLegacy(reconOMMetadataManager);
     commonUtils = new CommonUtils();
   }

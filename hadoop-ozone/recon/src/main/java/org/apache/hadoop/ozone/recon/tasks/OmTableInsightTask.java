@@ -23,12 +23,15 @@ import com.google.inject.Inject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.apache.hadoop.hdds.utils.db.StringCodec;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
+import org.apache.hadoop.ozone.recon.ReconServerConfigKeys;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
+import org.apache.hadoop.ozone.recon.tasks.util.ParallelTableIteratorOperation;
 import org.hadoop.ozone.recon.schema.tables.daos.GlobalStatsDao;
 import org.hadoop.ozone.recon.schema.tables.pojos.GlobalStats;
 import org.jooq.Configuration;
@@ -46,6 +49,7 @@ import java.util.Map;
 
 
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_KEY_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_FILE_TABLE;
@@ -65,6 +69,7 @@ public class OmTableInsightTask implements ReconOmTask {
   private GlobalStatsDao globalStatsDao;
   private Configuration sqlConfiguration;
   private ReconOMMetadataManager reconOMMetadataManager;
+  private final int maxIterators;
 
   @Inject
   public OmTableInsightTask(GlobalStatsDao globalStatsDao,
@@ -73,6 +78,9 @@ public class OmTableInsightTask implements ReconOmTask {
     this.globalStatsDao = globalStatsDao;
     this.sqlConfiguration = sqlConfiguration;
     this.reconOMMetadataManager = reconOMMetadataManager;
+    this.maxIterators = reconOMMetadataManager.getOzoneConfiguration().getInt(
+      ReconServerConfigKeys.OZONE_RECON_TASK_REPROCESS_MAX_ITERATORS,
+      ReconServerConfigKeys.OZONE_RECON_TASK_REPROCESS_MAX_ITERATORS_DEFAULT);
   }
 
   /**
@@ -95,27 +103,34 @@ public class OmTableInsightTask implements ReconOmTask {
 
     for (String tableName : getTaskTables()) {
       Table table = omMetadataManager.getTable(tableName);
-      if (table == null) {
-        LOG.error("Table " + tableName + " not found in OM Metadata.");
-        return new ImmutablePair<>(getTaskName(), false);
-      }
-
-      try (
-          TableIterator<String, ? extends Table.KeyValue<String, ?>> iterator
-              = table.iterator()) {
+      try {
         if (getTablesToCalculateSize().contains(tableName)) {
-          Triple<Long, Long, Long> details = getTableSizeAndCount(iterator);
-          objectCountMap.put(getTableCountKeyFromTable(tableName),
-              details.getLeft());
-          unReplicatedSizeCountMap.put(
-              getUnReplicatedSizeKeyFromTable(tableName), details.getMiddle());
-          replicatedSizeCountMap.put(getReplicatedSizeKeyFromTable(tableName),
-              details.getRight());
+          try (TableIterator<String, ? extends Table.KeyValue<String, ?>> iterator
+                   = table.iterator()) {
+              Triple<Long, Long, Long> details = getTableSizeAndCount(iterator);
+              objectCountMap.put(getTableCountKeyFromTable(tableName),
+                      details.getLeft());
+              unReplicatedSizeCountMap.put(
+                      getUnReplicatedSizeKeyFromTable(tableName), details.getMiddle());
+              replicatedSizeCountMap.put(getReplicatedSizeKeyFromTable(tableName),
+                      details.getRight());
+          }
         } else {
-          long count = Iterators.size(iterator);
-          objectCountMap.put(getTableCountKeyFromTable(tableName), count);
+          AtomicLong count = new AtomicLong(0);
+          long loggingThreshold = Math.max(table.getEstimatedKeyCount()/100, 1);
+          try (ParallelTableIteratorOperation<String, byte[]> parallelTableIteratorOperation =
+                   new ParallelTableIteratorOperation<>(omMetadataManager,
+                       omMetadataManager.getStore().getTable(tableName, String.class, byte[].class),
+                       StringCodec.get(), maxIterators, loggingThreshold)) {
+            parallelTableIteratorOperation.performTaskOnTableVals(this.getTaskName(), null, null,
+                kv -> {
+                count.incrementAndGet();
+                return null;
+              });
+          }
+          objectCountMap.put(getTableCountKeyFromTable(tableName), count.get());
         }
-      } catch (IOException ioEx) {
+      } catch (Exception ioEx) {
         LOG.error("Unable to populate Table Count in Recon DB.", ioEx);
         return new ImmutablePair<>(getTaskName(), false);
       }

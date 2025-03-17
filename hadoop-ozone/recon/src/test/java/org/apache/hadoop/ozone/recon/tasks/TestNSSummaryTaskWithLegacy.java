@@ -150,7 +150,7 @@ public final class TestNSSummaryTaskWithLegacy {
 
     nSSummaryTaskWithLegacy = new NSSummaryTaskWithLegacy(
         reconNamespaceSummaryManager,
-        reconOMMetadataManager, omConfiguration);
+        reconOMMetadataManager, omConfiguration, 1);
   }
 
   /**

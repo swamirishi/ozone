@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 
 import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_NSSUMMARY_FLUSH_TO_DB_MAX_THRESHOLD;
@@ -47,7 +48,7 @@ public class NSSummaryTaskDbEventHandler {
   private ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private ReconOMMetadataManager reconOMMetadataManager;
 
-  private final long nsSummaryFlushToDBMaxThreshold;
+  protected final long nsSummaryFlushToDBMaxThreshold;
 
   public NSSummaryTaskDbEventHandler(ReconNamespaceSummaryManager
                                      reconNamespaceSummaryManager,
@@ -90,27 +91,27 @@ public class NSSummaryTaskDbEventHandler {
       NSSummary> nsSummaryMap) throws IOException {
     long parentObjectId = keyInfo.getParentObjectID();
     // Try to get the NSSummary from our local map that maps NSSummaries to IDs
-    NSSummary nsSummary = nsSummaryMap.get(parentObjectId);
-    if (nsSummary == null) {
-      // If we don't have it in this batch we try to get it from the DB
-      nsSummary = reconNamespaceSummaryManager.getNSSummary(parentObjectId);
-    }
-    if (nsSummary == null) {
-      // If we don't have it locally and in the DB we create a new instance
-      // as this is a new ID
-      nsSummary = new NSSummary();
-    }
-    int numOfFile = nsSummary.getNumOfFiles();
-    long sizeOfFile = nsSummary.getSizeOfFiles();
-    int[] fileBucket = nsSummary.getFileSizeBucket();
-    nsSummary.setNumOfFiles(numOfFile + 1);
-    long dataSize = keyInfo.getDataSize();
-    nsSummary.setSizeOfFiles(sizeOfFile + dataSize);
-    int binIndex = ReconUtils.getFileSizeBinIndex(dataSize);
+    nsSummaryMap.compute(parentObjectId, (k, v) -> {
+      if (v == null) {
+        try {
+          v = reconNamespaceSummaryManager.getNSSummary(parentObjectId);
+          if (v == null) {
+            v = new NSSummary();
+          }
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+      NSSummary nsSummary = v;
+      int[] fileBucket = nsSummary.getFileSizeBucket();
+      nsSummary.setNumOfFiles(nsSummary.getNumOfFiles() + 1);
+      nsSummary.setSizeOfFiles(nsSummary.getSizeOfFiles() + keyInfo.getDataSize());
+      int binIndex = ReconUtils.getFileSizeBinIndex(keyInfo.getDataSize());
 
-    ++fileBucket[binIndex];
-    nsSummary.setFileSizeBucket(fileBucket);
-    nsSummaryMap.put(parentObjectId, nsSummary);
+      ++fileBucket[binIndex];
+      nsSummary.setFileSizeBucket(fileBucket);
+      return nsSummary;
+    });
   }
 
   protected void handlePutDirEvent(OmDirectoryInfo directoryInfo,
@@ -121,35 +122,47 @@ public class NSSummaryTaskDbEventHandler {
     // write the dir name to the current directory
     String dirName = directoryInfo.getName();
     // Try to get the NSSummary from our local map that maps NSSummaries to IDs
-    NSSummary curNSSummary = nsSummaryMap.get(objectId);
-    if (curNSSummary == null) {
-      // If we don't have it in this batch we try to get it from the DB
-      curNSSummary = reconNamespaceSummaryManager.getNSSummary(objectId);
-    }
-    if (curNSSummary == null) {
-      // If we don't have it locally and in the DB we create a new instance
-      // as this is a new ID
-      curNSSummary = new NSSummary();
-    }
-    curNSSummary.setDirName(dirName);
-    // Set the parent directory ID
-    curNSSummary.setParentId(parentObjectId);
-    nsSummaryMap.put(objectId, curNSSummary);
+      try {
+          nsSummaryMap.compute(objectId, (k, curNSSummary) -> {
+            if (curNSSummary == null) {
+              // If we don't have it in this batch we try to get it from the DB
+                try {
+                    curNSSummary = reconNamespaceSummaryManager.getNSSummary(objectId);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            if (curNSSummary == null) {
+              // If we don't have it locally and in the DB we create a new instance
+              // as this is a new ID
+              curNSSummary = new NSSummary();
+            }
+            curNSSummary.setDirName(dirName);
+            return curNSSummary;
+          });
 
-    // Write the child dir list to the parent directory
-    // Try to get the NSSummary from our local map that maps NSSummaries to IDs
-    NSSummary nsSummary = nsSummaryMap.get(parentObjectId);
-    if (nsSummary == null) {
-      // If we don't have it in this batch we try to get it from the DB
-      nsSummary = reconNamespaceSummaryManager.getNSSummary(parentObjectId);
-    }
-    if (nsSummary == null) {
-      // If we don't have it locally and in the DB we create a new instance
-      // as this is a new ID
-      nsSummary = new NSSummary();
-    }
-    nsSummary.addChildDir(objectId);
-    nsSummaryMap.put(parentObjectId, nsSummary);
+          // Write the child dir list to the parent directory
+          // Try to get the NSSummary from our local map that maps NSSummaries to IDs
+          nsSummaryMap.compute(parentObjectId, (k ,nsSummary) -> {
+            if (nsSummary == null) {
+              // If we don't have it in this batch we try to get it from the DB
+                try {
+                    nsSummary = reconNamespaceSummaryManager.getNSSummary(parentObjectId);
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+            }
+            if (nsSummary == null) {
+              // If we don't have it locally and in the DB we create a new instance
+              // as this is a new ID
+              nsSummary = new NSSummary();
+            }
+            nsSummary.addChildDir(objectId);
+            return nsSummary;
+          });
+      } catch (UncheckedIOException e) {
+        throw e.getCause();
+      }
   }
 
   protected void handleDeleteKeyEvent(OmKeyInfo keyInfo,
@@ -210,21 +223,22 @@ public class NSSummaryTaskDbEventHandler {
   protected boolean flushAndCommitNSToDB(Map<Long, NSSummary> nsSummaryMap) {
     try {
       writeNSSummariesToDB(nsSummaryMap);
-      nsSummaryMap.clear();
     } catch (IOException e) {
       LOG.error("Unable to write Namespace Summary data in Recon DB.", e);
       return false;
+    } finally {
+      nsSummaryMap.clear();
     }
     return true;
   }
 
   protected boolean checkAndCallFlushToDB(
-      Map<Long, NSSummary> nsSummaryMap) {
-    // if map contains more than entries, flush to DB and clear the map
-    if (null != nsSummaryMap && nsSummaryMap.size() >=
-        nsSummaryFlushToDBMaxThreshold) {
-      return flushAndCommitNSToDB(nsSummaryMap);
-    }
-    return true;
+          Map<Long, NSSummary> nsSummaryMap) {
+      // if map contains more than entries, flush to DB and clear the map
+      if (null != nsSummaryMap && nsSummaryMap.size() >=
+              nsSummaryFlushToDBMaxThreshold) {
+          return flushAndCommitNSToDB(nsSummaryMap);
+      }
+      return true;
   }
 }

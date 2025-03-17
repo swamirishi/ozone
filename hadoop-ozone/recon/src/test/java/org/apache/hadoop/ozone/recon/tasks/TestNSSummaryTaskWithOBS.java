@@ -136,7 +136,7 @@ public final class TestNSSummaryTaskWithOBS implements Serializable {
 
     nSSummaryTaskWithOBS = new NSSummaryTaskWithOBS(
         reconNamespaceSummaryManager,
-        reconOMMetadataManager, omConfiguration);
+        reconOMMetadataManager, omConfiguration, 1);
   }
 
   /**

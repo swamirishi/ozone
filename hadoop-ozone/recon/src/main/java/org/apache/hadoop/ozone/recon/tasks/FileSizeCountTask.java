@@ -21,12 +21,16 @@ package org.apache.hadoop.ozone.recon.tasks;
 import com.google.inject.Inject;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.db.StringCodec;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
+import org.apache.hadoop.ozone.recon.ReconServerConfigKeys;
 import org.apache.hadoop.ozone.recon.ReconUtils;
+import org.apache.hadoop.ozone.recon.tasks.util.ParallelTableIteratorOperation;
 import org.hadoop.ozone.recon.schema.UtilizationSchemaDefinition;
 import org.hadoop.ozone.recon.schema.tables.daos.FileCountBySizeDao;
 import org.hadoop.ozone.recon.schema.tables.pojos.FileCountBySize;
@@ -36,12 +40,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.FILE_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.KEY_TABLE;
@@ -58,13 +66,18 @@ public class FileSizeCountTask implements ReconOmTask {
 
   private FileCountBySizeDao fileCountBySizeDao;
   private DSLContext dslContext;
+  private final int maxIterators;
 
   @Inject
   public FileSizeCountTask(FileCountBySizeDao fileCountBySizeDao,
                            UtilizationSchemaDefinition
-                               utilizationSchemaDefinition) {
+                               utilizationSchemaDefinition,
+                           OzoneConfiguration configuration) {
     this.fileCountBySizeDao = fileCountBySizeDao;
     this.dslContext = utilizationSchemaDefinition.getDSLContext();
+    this.maxIterators = configuration.getInt(
+            ReconServerConfigKeys.OZONE_RECON_TASK_REPROCESS_MAX_ITERATORS,
+            ReconServerConfigKeys.OZONE_RECON_TASK_REPROCESS_MAX_ITERATORS_DEFAULT);
   }
 
   /**
@@ -77,7 +90,7 @@ public class FileSizeCountTask implements ReconOmTask {
   @Override
   public Pair<String, Boolean> reprocess(OMMetadataManager omMetadataManager) {
     // Map to store the count of files based on file size
-    Map<FileSizeCountKey, Long> fileSizeCountMap = new HashMap<>();
+    Map<FileSizeCountKey, Long> fileSizeCountMap = new ConcurrentHashMap<>();
 
     // Delete all records from FILE_COUNT_BY_SIZE table
     int execute = dslContext.delete(FILE_COUNT_BY_SIZE).execute();
@@ -105,20 +118,46 @@ public class FileSizeCountTask implements ReconOmTask {
                                Map<FileSizeCountKey, Long> fileSizeCountMap) {
     Table<String, OmKeyInfo> omKeyInfoTable =
         omMetadataManager.getKeyTable(bucketLayout);
-    try (TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
-             keyIter = omKeyInfoTable.iterator()) {
-      while (keyIter.hasNext()) {
-        Table.KeyValue<String, OmKeyInfo> kv = keyIter.next();
-        handlePutKeyEvent(kv.getValue(), fileSizeCountMap);
-        //  The time complexity of .size() method is constant time, O(1)
-        if (fileSizeCountMap.size() >= 100000) {
-          writeCountsToDB(fileSizeCountMap);
-          fileSizeCountMap.clear();
+    ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    long loggingThreshold = 1;
+    try {
+      loggingThreshold = Math.max(omKeyInfoTable.getEstimatedKeyCount()/100, 1);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    try (ParallelTableIteratorOperation<String, OmKeyInfo> keyIter =
+                 new ParallelTableIteratorOperation<>(omMetadataManager, omKeyInfoTable, StringCodec.get(),
+                         maxIterators, loggingThreshold)) {
+      Function<Table.KeyValue<String, OmKeyInfo>, Void> kvOperation = kv -> {
+        try {
+          try {
+            lock.readLock().lock();
+            handlePutKeyEvent(kv.getValue(), fileSizeCountMap);
+          }  finally {
+            lock.readLock().unlock();
+          }
+
+          //  The time complexity of .size() method is constant time, O(1)
+          if (fileSizeCountMap.size() >= 100000) {
+            try {
+              lock.writeLock().lock();
+              if (fileSizeCountMap.size() >= 100000) {
+                writeCountsToDB(fileSizeCountMap);
+                fileSizeCountMap.clear();
+              }
+            } finally {
+              lock.writeLock().unlock();
+            }
+          }
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
         }
-      }
-    } catch (IOException ioEx) {
+        return null;
+      };
+      keyIter.performTaskOnTableVals(this.getTaskName(), null, null, kvOperation);
+    } catch (Exception exception) {
       LOG.error("Unable to populate File Size Count for " + bucketLayout +
-          " in Recon DB. ", ioEx);
+          " in Recon DB. ", exception);
       return false;
     }
     return true;
@@ -266,9 +305,7 @@ public class FileSizeCountTask implements ReconOmTask {
   private void handlePutKeyEvent(OmKeyInfo omKeyInfo,
                                  Map<FileSizeCountKey, Long> fileSizeCountMap) {
     FileSizeCountKey key = getFileSizeCountKey(omKeyInfo);
-    Long count = fileSizeCountMap.containsKey(key) ?
-        fileSizeCountMap.get(key) + 1L : 1L;
-    fileSizeCountMap.put(key, count);
+    fileSizeCountMap.compute(key, (k, v) -> v == null ? 1 : v + 1);
   }
 
   private BucketLayout getBucketLayout() {

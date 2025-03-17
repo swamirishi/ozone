@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.recon.tasks;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
@@ -66,7 +67,7 @@ public class TestFileSizeCountTask extends AbstractReconSqlDBTest {
     UtilizationSchemaDefinition utilizationSchemaDefinition =
         getSchemaDefinition(UtilizationSchemaDefinition.class);
     fileSizeCountTask =
-        new FileSizeCountTask(fileCountBySizeDao, utilizationSchemaDefinition);
+        new FileSizeCountTask(fileCountBySizeDao, utilizationSchemaDefinition, new OzoneConfiguration());
     dslContext = utilizationSchemaDefinition.getDSLContext();
     // Truncate table before running each test
     dslContext.truncate(FILE_COUNT_BY_SIZE);

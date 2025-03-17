@@ -19,8 +19,8 @@
 package org.apache.hadoop.ozone.recon.tasks;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.db.StringCodec;
 import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
@@ -29,6 +29,7 @@ import org.apache.hadoop.ozone.om.helpers.WithParentObjectId;
 import org.apache.hadoop.ozone.recon.api.types.NSSummary;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
+import org.apache.hadoop.ozone.recon.tasks.util.ParallelTableIteratorOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +37,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.KEY_TABLE;
 
@@ -50,56 +53,79 @@ public class NSSummaryTaskWithOBS extends NSSummaryTaskDbEventHandler {
   private static final Logger LOG =
       LoggerFactory.getLogger(NSSummaryTaskWithOBS.class);
 
+  private final int maxIterators;
 
   public NSSummaryTaskWithOBS(
       ReconNamespaceSummaryManager reconNamespaceSummaryManager,
       ReconOMMetadataManager reconOMMetadataManager,
-      OzoneConfiguration ozoneConfiguration) {
+      OzoneConfiguration ozoneConfiguration,
+      int maxIterators) {
     super(reconNamespaceSummaryManager,
         reconOMMetadataManager, ozoneConfiguration);
+    this.maxIterators = maxIterators;
   }
 
 
   public boolean reprocessWithOBS(OMMetadataManager omMetadataManager) {
     Map<Long, NSSummary> nsSummaryMap = new HashMap<>();
-
+    ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     try {
       Table<String, OmKeyInfo> keyTable =
           omMetadataManager.getKeyTable(BUCKET_LAYOUT);
+      long loggingThreshold = Math.max(keyTable.getEstimatedKeyCount()/100, 1);
+      try (ParallelTableIteratorOperation<String, OmKeyInfo>
+               keyTableIter = new ParallelTableIteratorOperation<>(omMetadataManager, keyTable, StringCodec.get(),
+          maxIterators, loggingThreshold)) {
 
-      try (TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
-               keyTableIter = keyTable.iterator()) {
+        Function<Table.KeyValue<String, OmKeyInfo>, Void> keyOperation = kv -> {
+          try {
+            OmKeyInfo keyInfo = kv.getValue();
 
-        while (keyTableIter.hasNext()) {
-          Table.KeyValue<String, OmKeyInfo> kv = keyTableIter.next();
-          OmKeyInfo keyInfo = kv.getValue();
+            // KeyTable entries belong to both Legacy and OBS buckets.
+            // Check bucket layout and if it's anything other than OBS,
+            // continue to the next iteration.
+            String volumeName = keyInfo.getVolumeName();
+            String bucketName = keyInfo.getBucketName();
+            String bucketDBKey = omMetadataManager
+                .getBucketKey(volumeName, bucketName);
+            // Get bucket info from bucket table
+            OmBucketInfo omBucketInfo = omMetadataManager
+                .getBucketTable().getSkipCache(bucketDBKey);
 
-          // KeyTable entries belong to both Legacy and OBS buckets.
-          // Check bucket layout and if it's anything other than OBS,
-          // continue to the next iteration.
-          String volumeName = keyInfo.getVolumeName();
-          String bucketName = keyInfo.getBucketName();
-          String bucketDBKey = omMetadataManager
-              .getBucketKey(volumeName, bucketName);
-          // Get bucket info from bucket table
-          OmBucketInfo omBucketInfo = omMetadataManager
-              .getBucketTable().getSkipCache(bucketDBKey);
+            if (omBucketInfo.getBucketLayout() != BUCKET_LAYOUT) {
+              return null;
+            }
 
-          if (omBucketInfo.getBucketLayout() != BUCKET_LAYOUT) {
-            continue;
+            setKeyParentID(keyInfo);
+
+            try {
+              lock.readLock().lock();
+              handlePutKeyEvent(keyInfo, nsSummaryMap);
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            } finally {
+              lock.readLock().unlock();
+            }
+            if (nsSummaryMap.size() >= nsSummaryFlushToDBMaxThreshold) {
+              try {
+                lock.writeLock().lock();
+                if (!checkAndCallFlushToDB(nsSummaryMap)) {
+                  throw new IOException("Failed to commit nsSummaryMap");
+                }
+              } finally {
+                lock.writeLock().unlock();
+              }
+            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
           }
-
-          setKeyParentID(keyInfo);
-
-          handlePutKeyEvent(keyInfo, nsSummaryMap);
-          if (!checkAndCallFlushToDB(nsSummaryMap)) {
-            return false;
-          }
-        }
+          return null;
+        };
+        keyTableIter.performTaskOnTableVals(this.getClass().getName(), null, null, keyOperation);
       }
-    } catch (IOException ioEx) {
+    } catch (Exception exception) {
       LOG.error("Unable to reprocess Namespace Summary data in Recon DB. ",
-          ioEx);
+          exception);
       return false;
     }
 
