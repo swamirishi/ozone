@@ -375,13 +375,14 @@ public class OzoneManagerServiceProviderImpl
       Path untarredDbDir = Paths.get(omSnapshotDBParentDir.getAbsolutePath(),
           snapshotFileName);
       reconUtils.untarCheckpointFile(targetFile, untarredDbDir);
-      FileUtils.deleteQuietly(targetFile);
 
       // Currently, OM DB type is not configurable. Hence, defaulting to
       // RocksDB.
       return new RocksDBCheckpoint(untarredDbDir);
     } catch (IOException e) {
       LOG.error("Unable to obtain Ozone Manager DB Snapshot. ", e);
+    } finally {
+      FileUtils.deleteQuietly(targetFile);
     }
     return null;
   }
