@@ -176,8 +176,7 @@ public class VolumeUsage implements SpaceUsageSource {
                                              long volumeCommittedBytesCount,
                                              long requiredSpace,
                                              long volumeFreeSpaceToSpare) {
-    return (volumeAvailableSpace - volumeCommittedBytesCount) >
-        Math.max(requiredSpace, volumeFreeSpaceToSpare);
+    return (volumeAvailableSpace - volumeCommittedBytesCount - volumeFreeSpaceToSpare) > requiredSpace;
   }
 
   /**

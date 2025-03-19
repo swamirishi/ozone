@@ -24,6 +24,7 @@ import com.google.protobuf.ServiceException;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.fs.SpaceUsageSource;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandRequestProto;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandResponseProto;
@@ -588,15 +589,10 @@ public class HddsDispatcher implements ContainerDispatcher, Auditor {
         .orElse(Boolean.FALSE);
     if (isOpen) {
       HddsVolume volume = container.getContainerData().getVolume();
-      PrecomputedVolumeSpace precomputedVolumeSpace =
-          volume.getPrecomputedVolumeSpace();
-      long volumeCapacity = precomputedVolumeSpace.getCapacity();
+      SpaceUsageSource usage = volume.getVolumeInfo().get().getCurrentUsage();
       long volumeFreeSpaceToSpare =
-          VolumeUsage.getMinVolumeFreeSpace(conf, volumeCapacity);
-      long volumeFree = precomputedVolumeSpace.getAvailable();
-      long volumeCommitted = volume.getCommittedBytes();
-      long volumeAvailable = volumeFree - volumeCommitted;
-      return (volumeAvailable <= volumeFreeSpaceToSpare);
+          VolumeUsage.getMinVolumeFreeSpace(conf, usage.getCapacity());
+      return (usage.getAvailable() - volume.getCommittedBytes() - volumeFreeSpaceToSpare) <= 0;
     }
     return false;
   }
