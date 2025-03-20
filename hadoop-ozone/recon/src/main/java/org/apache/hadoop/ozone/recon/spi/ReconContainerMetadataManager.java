@@ -30,6 +30,7 @@ import org.apache.hadoop.ozone.recon.api.types.ContainerMetadata;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.recon.api.types.KeyPrefixContainer;
 import org.apache.hadoop.ozone.recon.scm.ContainerReplicaHistory;
+import org.apache.hadoop.ozone.util.SeekableIterator;
 
 /**
  * The Recon Container DB Service interface.
@@ -186,6 +187,9 @@ public interface ReconContainerMetadataManager {
    */
   Map<Long, ContainerMetadata> getContainers(int limit, long prevContainer)
       throws IOException;
+
+
+  SeekableIterator<Long, ContainerMetadata> getContainersIterator() throws IOException;
 
   /**
    * Delete an entry in the container DB.
