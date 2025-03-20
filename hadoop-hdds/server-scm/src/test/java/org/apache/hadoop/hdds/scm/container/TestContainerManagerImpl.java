@@ -17,13 +17,18 @@
 
 package org.apache.hadoop.hdds.scm.container;
 
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
+import static org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto.State.OPEN;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
-
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
@@ -35,8 +40,9 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleState;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.scm.container.replication.ContainerReplicaPendingOps;
-import org.apache.hadoop.hdds.scm.ha.SCMHAManagerStub;
+import org.apache.hadoop.hdds.scm.container.states.ContainerStateMap;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
+import org.apache.hadoop.hdds.scm.ha.SCMHAManagerStub;
 import org.apache.hadoop.hdds.scm.ha.SequenceIdGenerator;
 import org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition;
 import org.apache.hadoop.hdds.scm.node.NodeManager;
@@ -49,13 +55,13 @@ import org.apache.hadoop.ozone.container.common.SCMTestUtils;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
-
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
-import static org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto.State.OPEN;
+import org.slf4j.event.Level;
 
 
 /**
@@ -70,6 +76,12 @@ public class TestContainerManagerImpl {
   private SequenceIdGenerator sequenceIdGen;
   private NodeManager nodeManager;
   private ContainerReplicaPendingOps pendingOpsMock;
+
+  @BeforeAll
+  static void init() {
+    // Print container state transition logs
+    GenericTestUtils.setLogLevel(ContainerStateMap.getLogger(), Level.TRACE);
+  }
 
   @BeforeEach
   public void setUp() throws Exception {
@@ -113,7 +125,7 @@ public class TestContainerManagerImpl {
     final ContainerInfo container = containerManager.allocateContainer(
         RatisReplicationConfig.getInstance(
             ReplicationFactor.THREE), "admin");
-    Assertions.assertEquals(1, containerManager.getContainers().size());
+    assertEquals(1, containerManager.getContainers().size());
     Assertions.assertNotNull(containerManager.getContainer(
         container.containerID()));
   }
@@ -124,81 +136,94 @@ public class TestContainerManagerImpl {
         RatisReplicationConfig.getInstance(
             ReplicationFactor.THREE), "admin");
     final ContainerID cid = container.containerID();
-    Assertions.assertEquals(LifeCycleState.OPEN,
+    assertEquals(LifeCycleState.OPEN,
         containerManager.getContainer(cid).getState());
     containerManager.updateContainerState(cid,
         HddsProtos.LifeCycleEvent.FINALIZE);
-    Assertions.assertEquals(LifeCycleState.CLOSING,
+    assertEquals(LifeCycleState.CLOSING,
         containerManager.getContainer(cid).getState());
     containerManager.updateContainerState(cid,
         HddsProtos.LifeCycleEvent.QUASI_CLOSE);
-    Assertions.assertEquals(LifeCycleState.QUASI_CLOSED,
+    assertEquals(LifeCycleState.QUASI_CLOSED,
         containerManager.getContainer(cid).getState());
     containerManager.updateContainerState(cid,
         HddsProtos.LifeCycleEvent.FORCE_CLOSE);
-    Assertions.assertEquals(LifeCycleState.CLOSED,
+    assertEquals(LifeCycleState.CLOSED,
         containerManager.getContainer(cid).getState());
   }
 
-  @Test
-  void testTransitionDeletingToClosedState() throws IOException, InvalidStateTransitionException {
-    // allocate OPEN Ratis and Ec containers, and do a series of state changes to transition them to DELETING
+  @ParameterizedTest
+  @EnumSource(value = HddsProtos.LifeCycleState.class,
+      names = {"DELETING", "DELETED"})
+  void testTransitionDeletingOrDeletedToClosedState(HddsProtos.LifeCycleState desiredState)
+      throws IOException, InvalidStateTransitionException {
+    // Allocate OPEN Ratis and Ec containers, and do a series of state changes to transition them to DELETING / DELETED
     final ContainerInfo container = containerManager.allocateContainer(
         RatisReplicationConfig.getInstance(
             ReplicationFactor.THREE), "admin");
     ContainerInfo ecContainer = containerManager.allocateContainer(new ECReplicationConfig(3, 2), "admin");
     final ContainerID cid = container.containerID();
     final ContainerID ecCid = ecContainer.containerID();
-    Assertions.assertEquals(LifeCycleState.OPEN, containerManager.getContainer(cid).getState());
-    Assertions.assertEquals(LifeCycleState.OPEN, containerManager.getContainer(ecCid).getState());
+    assertEquals(LifeCycleState.OPEN, containerManager.getContainer(cid).getState());
+    assertEquals(LifeCycleState.OPEN, containerManager.getContainer(ecCid).getState());
 
     // OPEN -> CLOSING
     containerManager.updateContainerState(cid,
         HddsProtos.LifeCycleEvent.FINALIZE);
     containerManager.updateContainerState(ecCid, HddsProtos.LifeCycleEvent.FINALIZE);
-    Assertions.assertEquals(LifeCycleState.CLOSING, containerManager.getContainer(cid).getState());
-    Assertions.assertEquals(LifeCycleState.CLOSING, containerManager.getContainer(ecCid).getState());
+    assertEquals(LifeCycleState.CLOSING, containerManager.getContainer(cid).getState());
+    assertEquals(LifeCycleState.CLOSING, containerManager.getContainer(ecCid).getState());
 
     // CLOSING -> CLOSED
     containerManager.updateContainerState(cid, HddsProtos.LifeCycleEvent.CLOSE);
     containerManager.updateContainerState(ecCid, HddsProtos.LifeCycleEvent.CLOSE);
-    Assertions.assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(cid).getState());
-    Assertions.assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(ecCid).getState());
+    assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(cid).getState());
+    assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(ecCid).getState());
 
     // CLOSED -> DELETING
     containerManager.updateContainerState(cid, HddsProtos.LifeCycleEvent.DELETE);
     containerManager.updateContainerState(ecCid, HddsProtos.LifeCycleEvent.DELETE);
-    Assertions.assertEquals(LifeCycleState.DELETING, containerManager.getContainer(cid).getState());
-    Assertions.assertEquals(LifeCycleState.DELETING, containerManager.getContainer(ecCid).getState());
+    assertEquals(LifeCycleState.DELETING, containerManager.getContainer(cid).getState());
+    assertEquals(LifeCycleState.DELETING, containerManager.getContainer(ecCid).getState());
 
-    // DELETING -> CLOSED
-    containerManager.transitionDeletingToClosedState(cid);
-    containerManager.transitionDeletingToClosedState(ecCid);
+    if (desiredState == LifeCycleState.DELETED) {
+      // DELETING -> DELETED
+      containerManager.updateContainerState(cid, HddsProtos.LifeCycleEvent.CLEANUP);
+      containerManager.updateContainerState(ecCid, HddsProtos.LifeCycleEvent.CLEANUP);
+      assertEquals(LifeCycleState.DELETED, containerManager.getContainer(cid).getState());
+      assertEquals(LifeCycleState.DELETED, containerManager.getContainer(ecCid).getState());
+    }
+
+    // DELETING / DELETED -> CLOSED
+    containerManager.transitionDeletingOrDeletedToClosedState(cid);
+    containerManager.transitionDeletingOrDeletedToClosedState(ecCid);
     // the containers should be back in CLOSED state now
-    Assertions.assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(cid).getState());
-    Assertions.assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(ecCid).getState());
+    assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(cid).getState());
+    assertEquals(LifeCycleState.CLOSED, containerManager.getContainer(ecCid).getState());
   }
 
   @Test
-  void testTransitionDeletingToClosedStateAllowsOnlyDeletingContainers() throws IOException {
+  void testTransitionContainerToClosedStateAllowOnlyDeletingOrDeletedContainers() throws IOException {
+    // Negative test for Ratis/EC container OPEN -> CLOSED transition
+
     // test for RATIS container
     final ContainerInfo container = containerManager.allocateContainer(
         RatisReplicationConfig.getInstance(
             ReplicationFactor.THREE), "admin");
     final ContainerID cid = container.containerID();
-    Assertions.assertEquals(LifeCycleState.OPEN, containerManager.getContainer(cid).getState());
-    Assertions.assertThrows(IOException.class, () -> containerManager.transitionDeletingToClosedState(cid));
+    assertEquals(LifeCycleState.OPEN, containerManager.getContainer(cid).getState());
+    assertThrows(IOException.class, () -> containerManager.transitionDeletingOrDeletedToClosedState(cid));
 
     // test for EC container
     final ContainerInfo ecContainer = containerManager.allocateContainer(new ECReplicationConfig(3, 2), "admin");
     final ContainerID ecCid = ecContainer.containerID();
-    Assertions.assertEquals(LifeCycleState.OPEN, containerManager.getContainer(ecCid).getState());
-    Assertions.assertThrows(IOException.class, () -> containerManager.transitionDeletingToClosedState(ecCid));
+    assertEquals(LifeCycleState.OPEN, containerManager.getContainer(ecCid).getState());
+    assertThrows(IOException.class, () -> containerManager.transitionDeletingOrDeletedToClosedState(ecCid));
   }
 
   @Test
   void testGetContainers() throws Exception {
-    Assertions.assertEquals(emptyList(), containerManager.getContainers());
+    assertEquals(emptyList(), containerManager.getContainers());
 
     List<ContainerID> ids = new ArrayList<>();
     for (int i = 0; i < 10; i++) {
@@ -239,13 +264,13 @@ public class TestContainerManagerImpl {
         HddsProtos.LifeCycleEvent.FINALIZE);
     containerManager.updateContainerState(ids.get(2),
         HddsProtos.LifeCycleEvent.CLOSE);
-    Assertions.assertEquals(7, containerManager.
+    assertEquals(7, containerManager.
         getContainerStateCount(LifeCycleState.OPEN));
-    Assertions.assertEquals(1, containerManager
+    assertEquals(1, containerManager
         .getContainerStateCount(LifeCycleState.CLOSING));
-    Assertions.assertEquals(1, containerManager
+    assertEquals(1, containerManager
         .getContainerStateCount(LifeCycleState.QUASI_CLOSED));
-    Assertions.assertEquals(1, containerManager
+    assertEquals(1, containerManager
         .getContainerStateCount(LifeCycleState.CLOSED));
   }
 
@@ -253,7 +278,7 @@ public class TestContainerManagerImpl {
       List<ContainerID> expected,
       List<ContainerInfo> containers
   ) {
-    Assertions.assertEquals(expected, containers.stream()
+    assertEquals(expected, containers.stream()
         .map(ContainerInfo::containerID)
         .collect(toList()));
   }
@@ -262,7 +287,7 @@ public class TestContainerManagerImpl {
   void testAllocateContainersWithECReplicationConfig() throws Exception {
     final ContainerInfo admin = containerManager
         .allocateContainer(new ECReplicationConfig(3, 2), "admin");
-    Assertions.assertEquals(1, containerManager.getContainers().size());
+    assertEquals(1, containerManager.getContainers().size());
     Assertions.assertNotNull(
         containerManager.getContainer(admin.containerID()));
   }

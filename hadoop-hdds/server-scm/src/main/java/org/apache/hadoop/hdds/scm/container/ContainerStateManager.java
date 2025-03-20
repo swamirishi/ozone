@@ -153,7 +153,7 @@ public interface ContainerStateManager {
 
 
   /**
-   * Bypasses the container state machine to change a container's state from DELETING to CLOSED. This API was
+   * Bypasses the container state machine to change a container's state from DELETING or DELETED to CLOSED. This API was
    * introduced to fix a bug (HDDS-11136), and should be used with care otherwise.
    *
    * @see <a href="https://issues.apache.org/jira/browse/HDDS-11136">HDDS-11136</a>
@@ -161,7 +161,7 @@ public interface ContainerStateManager {
    * @throws IOException
    */
   @Replicate
-  void transitionDeletingToClosedState(HddsProtos.ContainerID id) throws IOException;
+  void transitionDeletingOrDeletedToClosedState(HddsProtos.ContainerID id) throws IOException;
 
   /**
    *
