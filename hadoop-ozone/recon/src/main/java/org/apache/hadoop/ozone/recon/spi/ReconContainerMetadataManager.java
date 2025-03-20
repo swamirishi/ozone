@@ -173,7 +173,7 @@ public interface ReconContainerMetadataManager {
    * @return Map of Key prefix -> count.
    */
   Map<ContainerKeyPrefix, Integer> getKeyPrefixesForContainer(
-      long containerId, String prevKeyPrefix) throws IOException;
+      long containerId, String prevKeyPrefix, int limit) throws IOException;
 
   /**
    * Get a Map of containerID, containerMetadata of Containers only for the
