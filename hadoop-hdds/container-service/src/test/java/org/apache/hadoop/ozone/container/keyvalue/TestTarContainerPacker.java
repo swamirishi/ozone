@@ -394,9 +394,8 @@ public class TestTarContainerPacker {
       throws Exception {
     File targetFile = TEMP_DIR.resolve("container.tar").toFile();
     try (FileOutputStream output = new FileOutputStream(targetFile);
-         OutputStream compressed = packer.compress(output);
          TarArchiveOutputStream archive =
-             new TarArchiveOutputStream(compressed)) {
+             new TarArchiveOutputStream(packer.compress(output))) {
       archive.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
       TarContainerPacker.includeFile(file, entryName, archive);
     }
