@@ -126,4 +126,8 @@ public class ContainerSchemaDefinition implements ReconSchemaDefinition {
   public DSLContext getDSLContext() {
     return dslContext;
   }
+
+  public DataSource getDataSource() {
+    return dataSource;
+  }
 }
