@@ -18,10 +18,11 @@
 package org.apache.hadoop.hdds.scm.container;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-
+import java.util.function.Predicate;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ContainerInfoProto;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleState;
@@ -108,6 +109,30 @@ public interface ContainerStateManager {
    * @return Set of {@link ContainerID}
    */
   Set<ContainerID> getContainerIDs();
+
+  /**
+   * Get {@link ContainerInfo}s for the given state.
+   *
+   * @param start the start {@link ContainerID} (inclusive)
+   * @return an iterator of {@link ContainerInfo};
+   */
+  Iterator<ContainerInfo> getContainerInfoIterator(ContainerID start, Predicate<ContainerInfo> predicate);
+
+  /**
+   * Get {@link ContainerInfo}s for the given state.
+   *
+   * @param start the start {@link ContainerID} (inclusive)
+   * @return an iterator of {@link ContainerInfo};
+   */
+  Iterator<ContainerInfo> getContainerInfoIterator(ContainerID start);
+
+  /**
+   * Get {@link ContainerInfo}s for the given state.
+   *
+   * @param start the start {@link ContainerID} (inclusive)
+   * @return an iterator of {@link ContainerInfo};
+   */
+  Iterator<ContainerInfo> getContainerInfoIterator(LifeCycleState state, ContainerID start);
 
   /**
    *

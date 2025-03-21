@@ -21,15 +21,15 @@ import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
+import java.util.function.Predicate;
 import com.google.common.base.Preconditions;
-
 import com.google.common.util.concurrent.Striped;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.StorageUnit;
@@ -278,6 +278,21 @@ public final class ContainerStateManagerImpl
     try (AutoCloseableLock ignored = readLock()) {
       return containers.getAllContainerIDs();
     }
+  }
+
+  @Override
+  public Iterator<ContainerInfo> getContainerInfoIterator(ContainerID start, Predicate<ContainerInfo> predicate) {
+    return containers.getContainerInfoIterator(start, predicate);
+  }
+
+  @Override
+  public Iterator<ContainerInfo> getContainerInfoIterator(ContainerID start) {
+    return getContainerInfoIterator(start, null);
+  }
+
+  @Override
+  public Iterator<ContainerInfo> getContainerInfoIterator(LifeCycleState state, ContainerID start) {
+    return containers.getContainerInfoIterator(state, start);
   }
 
   @Override

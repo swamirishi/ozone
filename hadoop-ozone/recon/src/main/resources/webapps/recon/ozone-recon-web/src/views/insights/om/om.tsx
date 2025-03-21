@@ -575,7 +575,7 @@ export class Om extends React.Component<Record<string, object>, IOmdbInsightsSta
           count = count + 1;
           return { ...item, dataSize: newDataSize };
         }, { "dataSize": 0 });
-      
+
         return {
           "dataSize": item.dataSize,
           "fileName":item.fileName,
@@ -669,7 +669,7 @@ export class Om extends React.Component<Record<string, object>, IOmdbInsightsSta
     const deletedKeysEndpoint = `/api/v1/containers/mismatch/deleted?limit=${limit}&prevKey=${prevKeyDeleted}`;
     axios.get(deletedKeysEndpoint).then(deletedKeysResponse => {
       let deletedContainerKeys = [];
-      deletedContainerKeys = deletedKeysResponse && deletedKeysResponse.data && deletedKeysResponse.data.containers;
+      deletedContainerKeys = deletedKeysResponse && deletedKeysResponse.data && deletedKeysResponse.data.containerDiscrepancyInfo;
       if (deletedKeysResponse && deletedKeysResponse.data && deletedKeysResponse.data.lastKey === null) {
         // no more further records last key
         deletedKeysPrevList = [0];
@@ -1001,7 +1001,7 @@ export class Om extends React.Component<Record<string, object>, IOmdbInsightsSta
       />
     }
 
-  
+
 
     return (
       <div className='missing-containers-container'>

@@ -19,6 +19,7 @@ package org.apache.hadoop.hdds.scm.container.states;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSortedSet;
+import java.util.SortedSet;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.slf4j.Logger;
@@ -197,6 +198,26 @@ public class ContainerAttribute<T> {
     }
     return EMPTY_SET;
   }
+
+  /**
+   * Returns the collection that maps to the given key.
+   *
+   * @param key - Key to the bucket.
+   * @return Underlying Set in immutable form.
+   */
+  public SortedSet<ContainerID> getCollection(T key, ContainerID startId) {
+    Preconditions.checkNotNull(key);
+
+    if (this.attributeMap.containsKey(key)) {
+      return this.attributeMap.get(key).tailSet(startId);
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("No such Key. Key {}", key);
+    }
+    return EMPTY_SET;
+  }
+
+
 
   /**
    * Moves a ContainerID from one bucket to another.

@@ -19,6 +19,8 @@
 package org.apache.hadoop.hdds.scm.container.states;
 
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.NavigableMap;
 import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.Collections;
@@ -30,6 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.google.common.base.Preconditions;
 
 import com.google.common.collect.ImmutableSet;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.function.Predicate;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerReplica;
@@ -89,7 +93,7 @@ public class ContainerStateMap {
   private final ContainerAttribute<String> ownerMap;
   private final ContainerAttribute<ReplicationConfig> repConfigMap;
   private final ContainerAttribute<ReplicationType> typeMap;
-  private final Map<ContainerID, ContainerInfo> containerMap;
+  private final NavigableMap<ContainerID, ContainerInfo> containerMap;
   private final Map<ContainerID, Set<ContainerReplica>> replicaMap;
   private final Map<ContainerQueryKey, NavigableSet<ContainerID>> resultCache;
 
@@ -101,7 +105,7 @@ public class ContainerStateMap {
     this.ownerMap = new ContainerAttribute<>();
     this.repConfigMap = new ContainerAttribute<>();
     this.typeMap = new ContainerAttribute<>();
-    this.containerMap = new ConcurrentHashMap<>();
+    this.containerMap = new ConcurrentSkipListMap<>();
     this.replicaMap = new ConcurrentHashMap<>();
     this.resultCache = new ConcurrentHashMap<>();
   }
@@ -305,6 +309,11 @@ public class ContainerStateMap {
     return ImmutableSet.copyOf(containerMap.keySet());
   }
 
+  public Iterator<ContainerInfo> getContainerInfoIterator(ContainerID start, Predicate<ContainerInfo> predicate) {
+    return containerMap.tailMap(start).values().stream().filter(container -> predicate == null
+      || predicate.test(container)).iterator();
+  }
+
   /**
    * Returns A list of containers owned by a name service.
    *
@@ -327,7 +336,19 @@ public class ContainerStateMap {
     return typeMap.getCollection(type);
   }
 
-  /**
+/**
+ *
+ * @param state the state of the {@link ContainerInfo}s
+ * @param start the start id
+ *
+ * @return an iterator of {@link ContainerInfo}s sorted by {@link ContainerID}
+ */
+public Iterator<ContainerInfo> getContainerInfoIterator(LifeCycleState state, ContainerID start) {
+  return lifeCycleStateMap.getCollection(state, start).stream().map(containerMap::get).iterator();
+}
+
+
+/**
    * Returns Containers by replication factor.
    *
    * @param repConfig - ReplicationConfig.
