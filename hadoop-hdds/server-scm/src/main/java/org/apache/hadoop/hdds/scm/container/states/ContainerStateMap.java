@@ -20,7 +20,6 @@ package org.apache.hadoop.hdds.scm.container.states;
 
 import java.util.HashSet;
 import java.util.Set;
-import com.google.common.annotations.VisibleForTesting;
 import java.util.Collections;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -104,11 +103,6 @@ public class ContainerStateMap {
     this.containerMap = new ConcurrentHashMap<>();
     this.replicaMap = new ConcurrentHashMap<>();
     this.resultCache = new ConcurrentHashMap<>();
-  }
-
-  @VisibleForTesting
-  public static Logger getLogger() {
-    return LOG;
   }
 
   /**

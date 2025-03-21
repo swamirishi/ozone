@@ -36,8 +36,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.ozone.test.GenericTestUtils;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -64,18 +63,13 @@ public class TestContainerReportHandlingWithHA {
   private static final String KEY = "key1";
 
   /**
-   * Tests that a DELETING (or DELETED) container moves to the CLOSED state if a non-empty replica is reported.
-   * To do this, the test first creates a key and closes its corresponding container. Then it moves that container to
-   * DELETING (or DELETED) state using ContainerManager. Then it restarts a Datanode hosting that container,
-   * making it send a full container report.
-   * Finally, the test waits for the container to move from DELETING (or DELETED) to CLOSED in all SCMs.
+   * Tests that a DELETING container moves to the CLOSED state if a non-empty CLOSED replica is reported. To do this,
+   * the test first creates a key and closes its corresponding container. Then it moves that container to the
+   * DELETING state using ContainerManager. Then it restarts a Datanode hosting that container, making it send a full
+   * container report. Then the test waits for the container to move from DELETING to CLOSED in all SCMs.
    */
-  @ParameterizedTest
-  @EnumSource(value = HddsProtos.LifeCycleState.class,
-      names = {"DELETING", "DELETED"})
-  void testDeletingOrDeletedContainerTransitionsToClosedWhenNonEmptyReplicaIsReportedWithScmHA(
-      HddsProtos.LifeCycleState desiredState)
-      throws Exception {
+  @Test
+  void testDeletingContainerTransitionsToClosedWhenNonEmptyReplicaIsReportedWithScmHA() throws Exception {
     OzoneConfiguration conf = new OzoneConfiguration();
     conf.setTimeDuration(OZONE_SCM_STALENODE_INTERVAL, 3, TimeUnit.SECONDS);
     conf.setTimeDuration(OZONE_SCM_DEADNODE_INTERVAL, 6, TimeUnit.SECONDS);
@@ -98,12 +92,6 @@ public class TestContainerReportHandlingWithHA {
         ContainerManager containerManager = cluster.getScmLeader().getContainerManager();
         containerManager.updateContainerState(containerID, HddsProtos.LifeCycleEvent.DELETE);
         assertEquals(HddsProtos.LifeCycleState.DELETING, containerManager.getContainer(containerID).getState());
-
-        // move the container to DELETED in the second test case
-        if (desiredState == HddsProtos.LifeCycleState.DELETED) {
-          containerManager.updateContainerState(containerID, HddsProtos.LifeCycleEvent.CLEANUP);
-          assertEquals(HddsProtos.LifeCycleState.DELETED, containerManager.getContainer(containerID).getState());
-        }
 
         // restart a DN and wait for the container to get CLOSED in all SCMs
         HddsDatanodeService dn = cluster.getHddsDatanode(keyLocation.getPipeline().getFirstNode());
