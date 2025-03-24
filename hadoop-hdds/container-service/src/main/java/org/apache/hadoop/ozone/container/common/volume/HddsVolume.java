@@ -358,6 +358,10 @@ public class HddsVolume extends StorageVolume {
     return committedBytes.get();
   }
 
+  public long getFreeSpaceToSpare(long volumeCapacity) {
+    return getDatanodeConfig().getMinFreeSpace(volumeCapacity);
+  }
+
   public void setDbVolume(DbVolume dbVolume) {
     this.dbVolume = dbVolume;
   }

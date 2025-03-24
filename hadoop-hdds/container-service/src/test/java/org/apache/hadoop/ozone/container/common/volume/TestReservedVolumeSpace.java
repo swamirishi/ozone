@@ -18,9 +18,11 @@
 
 package org.apache.hadoop.ozone.container.common.volume;
 
+import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.fs.MockSpaceUsageCheckFactory;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
+import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -29,8 +31,12 @@ import org.junit.rules.TemporaryFolder;
 
 import java.util.UUID;
 
+import static org.apache.hadoop.hdds.conf.StorageUnit.*;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED_PERCENT;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED_PERCENT_DEFAULT;
+import static org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE;
+import static org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * To test the reserved volume space.
@@ -147,4 +153,23 @@ public class TestReservedVolumeSpace {
             .getReservedInBytes();
     Assert.assertEquals(reservedFromVolume2, 0);
   }
+
+  @Test
+  public void testMinFreeSpaceCalculator() throws Exception {
+    OzoneConfiguration conf = new OzoneConfiguration();
+    long minSpace = 100;
+    conf.setStorageSize(DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE,
+        minSpace, BYTES);
+    long capacity = 1000;
+    assertEquals(minSpace, conf.getObject(DatanodeConfiguration.class).getMinFreeSpace(capacity));
+
+    conf.setFloat(HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT, 0.01f);
+    // default is 5GB
+    assertEquals(5L * 1024 * 1024 * 1024, conf.getObject(DatanodeConfiguration.class).getMinFreeSpace(capacity));
+
+    // capacity * 1% = 10
+    conf.unset(HDDS_DATANODE_VOLUME_MIN_FREE_SPACE);
+    assertEquals(10, conf.getObject(DatanodeConfiguration.class).getMinFreeSpace(capacity));
+  }
+
 }

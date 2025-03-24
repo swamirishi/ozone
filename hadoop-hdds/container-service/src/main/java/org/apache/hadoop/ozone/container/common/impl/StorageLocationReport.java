@@ -19,7 +19,6 @@
 package org.apache.hadoop.ozone.container.common.impl;
 
 import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.proto.
     StorageContainerDatanodeProtocolProtos.MetadataStorageReportProto;
 import org.apache.hadoop.hdds.protocol.proto.
@@ -28,7 +27,6 @@ import org.apache.hadoop.hdds.protocol.proto.
     StorageContainerDatanodeProtocolProtos.StorageTypeProto;
 import org.apache.hadoop.ozone.container.common.interfaces
     .StorageLocationReportMXBean;
-import org.apache.hadoop.ozone.container.common.volume.VolumeUsage;
 
 import java.io.IOException;
 
@@ -174,11 +172,6 @@ public final class StorageLocationReport implements
    * @throws IOException In case, the storage type specified is invalid.
    */
   public StorageReportProto getProtoBufMessage() throws IOException {
-    return getProtoBufMessage(null);
-  }
-
-  public StorageReportProto getProtoBufMessage(ConfigurationSource conf)
-      throws IOException {
     StorageReportProto.Builder srb = StorageReportProto.newBuilder();
     return srb.setStorageUuid(getId())
         .setCapacity(getCapacity())
@@ -188,8 +181,7 @@ public final class StorageLocationReport implements
         .setStorageType(getStorageTypeProto())
         .setStorageLocation(getStorageLocation())
         .setFailed(isFailed())
-        .setFreeSpaceToSpare(conf != null ?
-            VolumeUsage.getMinVolumeFreeSpace(conf, getCapacity()) : 0)
+        .setFreeSpaceToSpare(getFreeSpaceToSpare())
         .build();
   }
 

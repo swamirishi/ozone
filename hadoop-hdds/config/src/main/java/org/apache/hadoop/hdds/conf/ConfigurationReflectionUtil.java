@@ -295,6 +295,9 @@ public final class ConfigurationReflectionUtil {
           case DOUBLE:
             config.setDouble(key, field.getDouble(configObject));
             break;
+          case FLOAT:
+            config.setFloat(key, field.getFloat(configObject));
+            break;
           case TIME:
             config.setTimeDuration(key, field.getLong(configObject),
                 configAnnotation.timeUnit());

@@ -94,6 +94,13 @@ public enum ConfigType {
       return Double.parseDouble(value);
     }
 
+  },
+  FLOAT {
+    @Override
+    Float parse(String value, Config config, Class<?> type, String key) {
+      return Float.parseFloat(value);
+    }
+
   };
 
   abstract Object parse(String value, Config config, Class<?> type, String key)

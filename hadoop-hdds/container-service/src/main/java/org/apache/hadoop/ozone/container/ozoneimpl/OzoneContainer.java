@@ -540,8 +540,9 @@ public class OzoneContainer {
     StorageContainerDatanodeProtocolProtos.NodeReportProto.Builder nrb
             = StorageContainerDatanodeProtocolProtos.
             NodeReportProto.newBuilder();
-    for (int i = 0; i < reports.length; i++) {
-      nrb.addStorageReport(reports[i].getProtoBufMessage(config));
+
+    for (StorageLocationReport report : reports) {
+      nrb.addStorageReport(report.getProtoBufMessage());
     }
 
     StorageLocationReport[] metaReports = metaVolumeSet.getStorageReport();

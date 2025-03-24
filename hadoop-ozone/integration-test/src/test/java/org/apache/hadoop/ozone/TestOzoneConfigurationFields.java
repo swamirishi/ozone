@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.recon.ReconConfigKeys;
 import org.apache.hadoop.hdds.scm.ScmConfig;
 import org.apache.hadoop.hdds.scm.server.SCMHTTPServerConfig;
 import org.apache.hadoop.http.HttpServer2;
+import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.ozone.recon.ReconServerConfigKeys;
@@ -137,7 +138,7 @@ public class TestOzoneConfigurationFields extends TestConfigurationFieldsBase {
         ScmConfigKeys.OZONE_SCM_PIPELINE_PLACEMENT_IMPL_KEY,
         ScmConfigKeys.OZONE_SCM_HA_PREFIX,
         S3GatewayConfigKeys.OZONE_S3G_FSO_DIRECTORY_CREATION_ENABLED,
-        HddsConfigKeys.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT,
+        DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT,
         OzoneConfigKeys.HDDS_SCM_CLIENT_RPC_TIME_OUT,
         OzoneConfigKeys.HDDS_SCM_CLIENT_MAX_RETRY_TIMEOUT,
         OzoneConfigKeys.HDDS_SCM_CLIENT_FAILOVER_MAX_RETRY

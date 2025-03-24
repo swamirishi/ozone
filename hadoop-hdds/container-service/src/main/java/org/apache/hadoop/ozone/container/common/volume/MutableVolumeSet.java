@@ -33,6 +33,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.fs.SpaceUsageCheckFactory;
+import org.apache.hadoop.hdds.fs.SpaceUsageSource;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdfs.server.datanode.StorageLocation;
 import org.apache.hadoop.ozone.container.common.impl.StorageLocationReport;
@@ -466,16 +467,19 @@ public class MutableVolumeSet implements VolumeSet {
         long remaining = 0;
         long capacity = 0;
         long committed = 0;
+        long spare = 0;
         String rootDir = "";
         failed = true;
         if (volumeInfo.isPresent()) {
           try {
             rootDir = volumeInfo.get().getRootDir();
-            scmUsed = volumeInfo.get().getScmUsed();
-            remaining = volumeInfo.get().getAvailable();
-            capacity = volumeInfo.get().getCapacity();
-            committed = (volume instanceof HddsVolume) ?
-                ((HddsVolume) volume).getCommittedBytes() : 0;
+            SpaceUsageSource usage = volumeInfo.get().getCurrentUsage();
+            scmUsed = usage.getUsedSpace();
+            remaining = usage.getAvailable();
+            capacity = usage.getCapacity();
+            HddsVolume hddsVolume = volume instanceof HddsVolume ? (HddsVolume) volume : null;
+            committed = hddsVolume != null ? hddsVolume.getCommittedBytes() : 0;
+            spare = hddsVolume != null ? hddsVolume.getFreeSpaceToSpare(capacity) : 0;
             failed = false;
           } catch (UncheckedIOException ex) {
             LOG.warn("Failed to get scmUsed and remaining for container " +
@@ -496,6 +500,7 @@ public class MutableVolumeSet implements VolumeSet {
             .setRemaining(remaining)
             .setScmUsed(scmUsed)
             .setCommitted(committed)
+            .setFreeSpaceToSpare(spare)
             .setStorageType(volume.getStorageType());
         StorageLocationReport r = builder.build();
         reports[counter++] = r;
