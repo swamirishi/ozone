@@ -102,7 +102,7 @@ public class TestOMKeyRequest {
   protected ScmClient scmClient;
   protected OzoneBlockTokenSecretManager ozoneBlockTokenSecretManager;
   protected ScmBlockLocationProtocol scmBlockLocationProtocol;
-  protected OMPerformanceMetrics metrics;
+  protected OMPerformanceMetrics perfMetrics;
   protected DeletingServiceMetrics delMetrics;
 
   protected static final long CONTAINER_ID = 1000L;
@@ -124,8 +124,8 @@ public class TestOMKeyRequest {
   public void setup() throws Exception {
     ozoneManager = Mockito.mock(OzoneManager.class);
     omMetrics = OMMetrics.create();
+    perfMetrics = OMPerformanceMetrics.register();
     delMetrics = DeletingServiceMetrics.create();
-    metrics = OMPerformanceMetrics.register();
     OzoneConfiguration ozoneConfiguration = getOzoneConfiguration();
     ozoneConfiguration.set(OMConfigKeys.OZONE_OM_DB_DIRS,
         folder.newFolder().getAbsolutePath());
@@ -138,8 +138,8 @@ public class TestOMKeyRequest {
         .thenAnswer(i -> new ResolvedBucket(i.getArgument(0),
             i.getArgument(0), "dummyBucketOwner", BucketLayout.FILE_SYSTEM_OPTIMIZED));
     when(ozoneManager.getMetrics()).thenReturn(omMetrics);
+    when(ozoneManager.getPerfMetrics()).thenReturn(perfMetrics);
     when(ozoneManager.getDeletionMetrics()).thenReturn(delMetrics);
-    when(ozoneManager.getPerfMetrics()).thenReturn(metrics);
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
     when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
     OMLayoutVersionManager lvm = mock(OMLayoutVersionManager.class);
@@ -158,12 +158,11 @@ public class TestOMKeyRequest {
     setupReplicationConfigValidation(ozoneManager, ozoneConfiguration);
 
     scmClient = Mockito.mock(ScmClient.class);
-    ozoneBlockTokenSecretManager =
-        Mockito.mock(OzoneBlockTokenSecretManager.class);
+    ozoneBlockTokenSecretManager = Mockito.mock(OzoneBlockTokenSecretManager.class);
     scmBlockLocationProtocol = Mockito.mock(ScmBlockLocationProtocol.class);
-    metrics = Mockito.mock(OMPerformanceMetrics.class);
+    perfMetrics = Mockito.mock(OMPerformanceMetrics.class);
     keyManager = new KeyManagerImpl(ozoneManager, scmClient, ozoneConfiguration,
-        metrics);
+        perfMetrics);
     when(ozoneManager.getScmClient()).thenReturn(scmClient);
     when(ozoneManager.getBlockTokenSecretManager())
         .thenReturn(ozoneBlockTokenSecretManager);
