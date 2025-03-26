@@ -128,6 +128,8 @@ public class ContainerImporter {
       try (FileInputStream input = new FileInputStream(tarFilePath.toFile())) {
         Container container = controller.importContainer(
             containerData, input, packer);
+        // After container import is successful, increase used space for the volume
+        targetVolume.incrementUsedSpace(container.getContainerData().getBytesUsed());
         containerSet.addContainerByOverwriteMissingContainer(container);
       }
     } finally {
@@ -156,5 +158,9 @@ public class ContainerImporter {
       throws IOException {
     return Paths.get(hddsVolume.getVolumeRootDir())
         .resolve(CONTAINER_COPY_TMP_DIR).resolve(CONTAINER_COPY_DIR);
+  }
+
+  public long getDefaultContainerSize() {
+    return containerSize;
   }
 }

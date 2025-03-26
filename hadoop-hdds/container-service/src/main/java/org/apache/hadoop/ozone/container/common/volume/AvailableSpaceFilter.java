@@ -25,14 +25,14 @@ import java.util.function.Predicate;
  * Filter for selecting volumes with enough space for a new container.
  * Keeps track of ineligible volumes for logging/debug purposes.
  */
-class AvailableSpaceFilter implements Predicate<HddsVolume> {
+public class AvailableSpaceFilter implements Predicate<HddsVolume> {
 
   private final long requiredSpace;
   private final Map<HddsVolume, AvailableSpace> fullVolumes =
       new HashMap<>();
   private long mostAvailableSpace = Long.MIN_VALUE;
 
-  AvailableSpaceFilter(long requiredSpace) {
+  public AvailableSpaceFilter(long requiredSpace) {
     this.requiredSpace = requiredSpace;
   }
 
