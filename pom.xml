@@ -1829,6 +1829,13 @@
                       <bannedImport>org.apache.ratis.thirdparty.com.google.common.**</bannedImport>
                     </bannedImports>
                   </restrictImports>
+                  <restrictImports>
+                    <includeTestCode>true</includeTestCode>
+                    <reason>Use Ozone's version of the same class</reason>
+                    <bannedImports>
+                      <bannedImport>org.apache.hadoop.test.Whitebox</bannedImport>
+                    </bannedImports>
+                  </restrictImports>
                 </rules>
               </configuration>
             </execution>

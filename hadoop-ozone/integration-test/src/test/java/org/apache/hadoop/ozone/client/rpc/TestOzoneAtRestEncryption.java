@@ -47,6 +47,7 @@ import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.scm.HddsWhiteboxTestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.protocolPB.StorageContainerLocationProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClientTestImpl;
@@ -76,7 +77,6 @@ import org.apache.hadoop.ozone.om.helpers.OmMultipartInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartUploadCompleteInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
-import org.apache.hadoop.test.Whitebox;
 import org.apache.ozone.test.GenericTestUtils;
 
 import static org.apache.hadoop.hdds.HddsConfigKeys.OZONE_METADATA_DIRS;
@@ -213,7 +213,7 @@ class TestOzoneAtRestEncryption {
 
   private KMSClientProvider getKMSClientProvider() {
     LoadBalancingKMSClientProvider lbkmscp =
-        (LoadBalancingKMSClientProvider) Whitebox.getInternalState(
+        (LoadBalancingKMSClientProvider) HddsWhiteboxTestUtils.getInternalState(
             cluster.getOzoneManager().getKmsProvider(), "extension");
     assert lbkmscp.getProviders().length == 1;
     return lbkmscp.getProviders()[0];
