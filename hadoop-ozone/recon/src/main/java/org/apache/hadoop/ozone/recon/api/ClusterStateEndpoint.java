@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.recon.api;
 
+import java.util.Optional;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.container.placement.metrics.SCMNodeStat;
@@ -99,7 +100,7 @@ public class ClusterStateEndpoint {
     List<UnhealthyContainers> missingContainers = containerHealthSchemaManager
         .getUnhealthyContainers(
             ContainerSchemaDefinition.UnHealthyContainerStates.MISSING,
-            0, MISSING_CONTAINER_COUNT_LIMIT);
+            0L, Optional.empty(), MISSING_CONTAINER_COUNT_LIMIT);
 
     containerStateCounts.setMissingContainerCount(
         missingContainers.size() == MISSING_CONTAINER_COUNT_LIMIT ?

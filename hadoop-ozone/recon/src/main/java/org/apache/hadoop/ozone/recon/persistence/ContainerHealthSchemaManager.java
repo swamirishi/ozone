@@ -26,17 +26,23 @@ import static org.jooq.impl.DSL.count;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.sql.Connection;
+import java.util.Comparator;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.hadoop.ozone.recon.api.types.UnhealthyContainersSummary;
 import org.hadoop.ozone.recon.schema.ContainerSchemaDefinition;
 import org.hadoop.ozone.recon.schema.ContainerSchemaDefinition.UnHealthyContainerStates;
 import org.hadoop.ozone.recon.schema.tables.daos.UnhealthyContainersDao;
 import org.hadoop.ozone.recon.schema.tables.pojos.UnhealthyContainers;
 import org.hadoop.ozone.recon.schema.tables.records.UnhealthyContainersRecord;
+import org.jooq.Condition;
 import org.jooq.Cursor;
 import org.jooq.DSLContext;
+import org.jooq.OrderField;
 import org.jooq.Record;
 import org.jooq.SelectQuery;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,26 +80,38 @@ public class ContainerHealthSchemaManager {
    * @return List of unhealthy containers.
    */
   public List<UnhealthyContainers> getUnhealthyContainers(
-      UnHealthyContainerStates state, int offset, int limit) {
+    UnHealthyContainerStates state, Long minContainerId,
+    Optional<Long> maxContainerId, int limit) {
     DSLContext dslContext = containerSchemaDefinition.getDSLContext();
     SelectQuery<Record> query = dslContext.selectQuery();
     query.addFrom(UNHEALTHY_CONTAINERS);
+    Condition containerCondition;
+    OrderField[] orderField;
+    if (maxContainerId.isPresent() && maxContainerId.get() > 0) {
+      containerCondition = UNHEALTHY_CONTAINERS.CONTAINER_ID.lessThan(maxContainerId.get());
+      orderField = new OrderField[]{UNHEALTHY_CONTAINERS.CONTAINER_ID.desc(),
+        UNHEALTHY_CONTAINERS.CONTAINER_STATE.asc()};
+    } else {
+      containerCondition = UNHEALTHY_CONTAINERS.CONTAINER_ID.greaterThan(minContainerId);
+      orderField = new OrderField[]{UNHEALTHY_CONTAINERS.CONTAINER_ID.asc(),
+        UNHEALTHY_CONTAINERS.CONTAINER_STATE.asc()};
+    }
     if (state != null) {
       if (state.equals(ALL_REPLICAS_BAD)) {
-        query.addConditions(UNHEALTHY_CONTAINERS.CONTAINER_STATE
-            .eq(UNDER_REPLICATED.toString()));
+        query.addConditions(containerCondition.and(UNHEALTHY_CONTAINERS.CONTAINER_STATE
+          .eq(UNDER_REPLICATED.toString())));
         query.addConditions(UNHEALTHY_CONTAINERS.ACTUAL_REPLICA_COUNT.eq(0));
       } else {
-        query.addConditions(
-            UNHEALTHY_CONTAINERS.CONTAINER_STATE.eq(state.toString()));
+        query.addConditions(containerCondition.and(UNHEALTHY_CONTAINERS.CONTAINER_STATE.eq(state.toString())));
       }
     }
-    query.addOrderBy(UNHEALTHY_CONTAINERS.CONTAINER_ID.asc(),
-        UNHEALTHY_CONTAINERS.CONTAINER_STATE.asc());
-    query.addOffset(offset);
+
+    query.addOrderBy(orderField);
     query.addLimit(limit);
 
-    return query.fetchInto(UnhealthyContainers.class);
+    return query.fetchInto(UnhealthyContainers.class).stream()
+      .sorted(Comparator.comparingLong(UnhealthyContainers::getContainerId))
+      .collect(Collectors.toList());
   }
 
   /**

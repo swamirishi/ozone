@@ -32,12 +32,15 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Class used to create tables that are required for tracking containers.
  */
 @Singleton
 public class ContainerSchemaDefinition implements ReconSchemaDefinition {
+  private static final Logger LOG = LoggerFactory.getLogger(ContainerSchemaDefinition.class);
 
   public static final String UNHEALTHY_CONTAINERS_TABLE_NAME =
       "UNHEALTHY_CONTAINERS";
@@ -101,6 +104,14 @@ public class ContainerSchemaDefinition implements ReconSchemaDefinition {
             .check(field(name("container_state"))
                 .in(enumStates)))
         .execute();
+    try {
+      dslContext.createIndex(name("idx_" + CONTAINER_STATE))
+        .on(DSL.table(UNHEALTHY_CONTAINERS_TABLE_NAME), DSL.field(name(CONTAINER_STATE)))
+        .execute();
+    } catch (Exception e) {
+      LOG.warn("Failed to create indexing on container state", e);
+    }
+
   }
 
   /**
@@ -118,9 +129,12 @@ public class ContainerSchemaDefinition implements ReconSchemaDefinition {
         .constraint(DSL.constraint("pk_container_id")
             .primaryKey(CONTAINER_ID, CONTAINER_STATE))
         .constraint(DSL.constraint(UNHEALTHY_CONTAINERS_TABLE_NAME + "ck1")
-            .check(field(name("container_state"))
+            .check(field(name(CONTAINER_STATE))
                 .in(UnHealthyContainerStates.values())))
         .execute();
+    dslContext.createIndex("idx_container_state")
+      .on(DSL.table(UNHEALTHY_CONTAINERS_TABLE_NAME), DSL.field(name(CONTAINER_STATE)))
+      .execute();
   }
 
   public DSLContext getDSLContext() {

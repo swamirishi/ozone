@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.recon.api;
 
 import java.util.Collections;
+import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
@@ -87,6 +88,8 @@ import static org.apache.hadoop.ozone.recon.ReconConstants.PREV_CONTAINER_ID_DEF
 import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_BATCH_PARAM;
 import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_LIMIT;
 import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_PREVKEY;
+import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_PREV_LAST_KEY;
+import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_QUERY_PREV_START_KEY;
 
 
 /**
@@ -347,7 +350,7 @@ public class ContainerEndpoint {
   ) {
     List<MissingContainerMetadata> missingContainers = new ArrayList<>();
     containerHealthSchemaManager.getUnhealthyContainers(
-            UnHealthyContainerStates.MISSING, 0, limit)
+            UnHealthyContainerStates.MISSING, 0L, Optional.empty(), limit)
         .forEach(container -> {
           long containerID = container.getContainerId();
           try {
@@ -381,9 +384,9 @@ public class ContainerEndpoint {
    *              eg UNDER_REPLICATED, MIS_REPLICATED, OVER_REPLICATED or
    *              MISSING. Passing null returns all containers.
    * @param limit The limit of unhealthy containers to return.
-   * @param batchNum The batch number (like "page number") of results to return.
-   *                 Passing 1, will return records 1 to limit. 2 will return
-   *                 limit + 1 to 2 * limit, etc.
+   * @param prevStartKey startKey of previous batch. If this value is given last N records before this container
+   *                     would be returned.
+   * @param prevLastKey lastKey of previous batch.
    * @return {@link Response}
    */
   @GET
@@ -392,10 +395,11 @@ public class ContainerEndpoint {
       @PathParam("state") String state,
       @DefaultValue(DEFAULT_FETCH_COUNT) @QueryParam(RECON_QUERY_LIMIT)
       int limit,
-      @DefaultValue(DEFAULT_BATCH_NUMBER)
-      @QueryParam(RECON_QUERY_BATCH_PARAM) int batchNum) {
-    int offset = Math.max(((batchNum - 1) * limit), 0);
-
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
+      @QueryParam(RECON_QUERY_PREV_START_KEY) long prevStartKey,
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
+      @QueryParam(RECON_QUERY_PREV_LAST_KEY) long prevLastKey) {
+    Optional<Long> maxContainerId = prevStartKey > 0 ? Optional.of(prevStartKey) : Optional.empty();
     List<UnhealthyContainerMetadata> unhealthyMeta = new ArrayList<>();
     List<UnhealthyContainersSummary> summary;
     try {
@@ -409,7 +413,7 @@ public class ContainerEndpoint {
 
       summary = containerHealthSchemaManager.getUnhealthyContainersSummary();
       List<UnhealthyContainers> containers = containerHealthSchemaManager
-          .getUnhealthyContainers(internalState, offset, limit);
+          .getUnhealthyContainers(internalState, prevLastKey, maxContainerId, limit);
       List<UnhealthyContainers> emptyMissingFiltered = containers.stream()
           .filter(
               container -> !container.getContainerState()
@@ -437,6 +441,12 @@ public class ContainerEndpoint {
 
     UnhealthyContainersResponse response =
         new UnhealthyContainersResponse(unhealthyMeta);
+    if (!unhealthyMeta.isEmpty()) {
+      response.setFirstKey(unhealthyMeta.stream().map(UnhealthyContainerMetadata::getContainerID).min(Long::compareTo)
+        .orElse(0L));
+      response.setLastKey(unhealthyMeta.stream().map(UnhealthyContainerMetadata::getContainerID).max(Long::compareTo)
+        .orElse(0L));
+    }
     for (UnhealthyContainersSummary s : summary) {
       response.setSummaryCount(s.getContainerState(), s.getCount());
     }
@@ -448,9 +458,9 @@ public class ContainerEndpoint {
    * {@link org.apache.hadoop.ozone.recon.api.types.UnhealthyContainerMetadata}
    * for all unhealthy containers.
    * @param limit The limit of unhealthy containers to return.
-   * @param batchNum The batch number (like "page number") of results to return.
-   *                 Passing 1, will return records 1 to limit. 2 will return
-   *                 limit + 1 to 2 * limit, etc.
+   * @param prevStartKey startKey of previous batch. If this value is given last N records before this container
+   *                     would be returned.
+   * @param prevLastKey lastKey of previous batch.
    * @return {@link Response}
    */
   @GET
@@ -458,9 +468,11 @@ public class ContainerEndpoint {
   public Response getUnhealthyContainers(
       @DefaultValue(DEFAULT_FETCH_COUNT) @QueryParam(RECON_QUERY_LIMIT)
       int limit,
-      @DefaultValue(DEFAULT_BATCH_NUMBER)
-      @QueryParam(RECON_QUERY_BATCH_PARAM) int batchNum) {
-    return getUnhealthyContainers(null, limit, batchNum);
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
+      @QueryParam(RECON_QUERY_PREV_START_KEY) long prevStartKey,
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
+      @QueryParam(RECON_QUERY_PREV_LAST_KEY) long prevLastKey) {
+    return getUnhealthyContainers(null, limit, prevStartKey, prevLastKey);
   }
 
   /**
