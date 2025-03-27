@@ -157,6 +157,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyDouble;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.anyList;
@@ -303,7 +304,8 @@ public class TestSnapshotDiffManager {
 
       SnapshotDiffJob diffJob = new SnapshotDiffJob(System.currentTimeMillis(),
           UUID.randomUUID().toString(), jobStatus, VOLUME_NAME, BUCKET_NAME,
-          baseSnapshotName, targetSnapshotName, false, false, 0);
+          baseSnapshotName, targetSnapshotName, false, false, 0,
+          null, 0.0);
 
       snapshotNames.add(targetSnapshotName);
       snapshotInfoList.add(targetSnapshot);
@@ -414,6 +416,7 @@ public class TestSnapshotDiffManager {
     UUID snap2 = UUID.randomUUID();
 
     String diffDir = Files.createTempDirectory("snapdiff_dir").toString();
+    String diffJobKey = snap1 + DELIMITER + snap2;
     Set<String> randomStrings = IntStream.range(0, numberOfFiles)
         .mapToObj(i -> RandomStringUtils.randomAlphabetic(10))
         .collect(Collectors.toSet());
@@ -440,12 +443,15 @@ public class TestSnapshotDiffManager {
       mockedRdbUtil.when(() -> RdbUtil.getSSTFilesForComparison(any(), any()))
           .thenReturn(Collections.singleton(RandomStringUtils.randomAlphabetic(10)));
       mockedRocksDiffUtils.when(() -> RocksDiffUtils.filterRelevantSstFiles(any(), any())).thenAnswer(i -> null);
-      Set<String> deltaFiles = snapshotDiffManager.getDeltaFiles(
+      SnapshotDiffManager spy = spy(snapshotDiffManager);
+      doNothing().when(spy).recordActivity(any(), any());
+      doNothing().when(spy).updateProgress(anyString(), anyDouble());
+      Set<String> deltaFiles = spy.getDeltaFiles(
           fromSnapshot,
           toSnapshot,
           Arrays.asList("cf1", "cf2"), fromSnapshotInfo,
           toSnapshotInfo, false,
-          Collections.emptyMap(), diffDir);
+          Collections.emptyMap(), diffDir, diffJobKey);
       assertEquals(randomStrings, deltaFiles);
     }
     rcFromSnapshot.close();
@@ -488,6 +494,7 @@ public class TestSnapshotDiffManager {
           });
       UUID snap1 = UUID.randomUUID();
       UUID snap2 = UUID.randomUUID();
+      String diffJobKey = snap1 + DELIMITER + snap2;
       if (!useFullDiff) {
         when(differ.getSSTDiffListWithFullPath(
             any(DifferSnapshotInfo.class),
@@ -506,7 +513,10 @@ public class TestSnapshotDiffManager {
       SnapshotInfo fromSnapshotInfo = getMockedSnapshotInfo(snap1);
       SnapshotInfo toSnapshotInfo = getMockedSnapshotInfo(snap1);
       when(jobTableIterator.isValid()).thenReturn(false);
-      Set<String> deltaFiles = snapshotDiffManager.getDeltaFiles(
+      SnapshotDiffManager spy = spy(snapshotDiffManager);
+      doNothing().when(spy).recordActivity(any(), any());
+      doNothing().when(spy).updateProgress(anyString(), anyDouble());
+      Set<String> deltaFiles = spy.getDeltaFiles(
           fromSnapshot,
           toSnapshot,
           Arrays.asList("cf1", "cf2"),
@@ -515,7 +525,7 @@ public class TestSnapshotDiffManager {
           false,
           Collections.emptyMap(),
           Files.createTempDirectory("snapdiff_dir").toAbsolutePath()
-              .toString());
+              .toString(), diffJobKey);
       assertEquals(deltaStrings, deltaFiles);
     }
   }
@@ -571,7 +581,11 @@ public class TestSnapshotDiffManager {
       SnapshotInfo fromSnapshotInfo = getMockedSnapshotInfo(snap1);
       SnapshotInfo toSnapshotInfo = getMockedSnapshotInfo(snap1);
       when(jobTableIterator.isValid()).thenReturn(false);
-      Set<String> deltaFiles = snapshotDiffManager.getDeltaFiles(
+      String diffJobKey = snap1 + DELIMITER + snap2;
+      SnapshotDiffManager spy = spy(snapshotDiffManager);
+      doNothing().when(spy).recordActivity(any(), any());
+      doNothing().when(spy).updateProgress(anyString(), anyDouble());
+      Set<String> deltaFiles = spy.getDeltaFiles(
           fromSnapshot,
           toSnapshot,
           Arrays.asList("cf1", "cf2"),
@@ -580,7 +594,7 @@ public class TestSnapshotDiffManager {
           false,
           Collections.emptyMap(),
           Files.createTempDirectory("snapdiff_dir").toAbsolutePath()
-              .toString());
+              .toString(), diffJobKey);
       assertEquals(deltaStrings, deltaFiles);
 
       rcFromSnapshot.close();
@@ -692,9 +706,8 @@ public class TestSnapshotDiffManager {
           nativeLibraryLoaded, oldObjectIdKeyMap, newObjectIdKeyMap,
           objectIdsToCheck, Optional.of(oldParentIds),
           Optional.of(newParentIds),
-          ImmutableMap.of(OmMetadataManagerImpl.DIRECTORY_TABLE, "",
-              OmMetadataManagerImpl.KEY_TABLE, "",
-              OmMetadataManagerImpl.FILE_TABLE, ""));
+          ImmutableMap.of(OmMetadataManagerImpl.DIRECTORY_TABLE, "", OmMetadataManagerImpl.KEY_TABLE, "",
+              OmMetadataManagerImpl.FILE_TABLE, ""), "");
 
       try (ClosableIterator<Map.Entry<byte[], byte[]>> oldObjectIdIter =
                oldObjectIdKeyMap.iterator()) {
@@ -845,7 +858,7 @@ public class TestSnapshotDiffManager {
       assertEquals(100, totalDiffEntries);
       SnapshotDiffJob snapshotDiffJob = new SnapshotDiffJob(0, "jobId",
           JobStatus.DONE, "vol", "buck", "fs", "ts", false,
-          true, diffMap.size());
+          true, diffMap.size(), null, 0.0);
       SnapshotDiffReportOzone snapshotDiffReportOzone =
           snapshotDiffManager.createPageResponse(snapshotDiffJob, "vol",
               "buck", "fs", "ts",
@@ -906,11 +919,11 @@ public class TestSnapshotDiffManager {
 
     SnapshotDiffJob snapshotDiffJob = new SnapshotDiffJob(0, testJobId,
         JobStatus.DONE, "vol", "buck", "fs", "ts", false,
-        true, totalNumberOfRecords);
+        true, totalNumberOfRecords, null, 0.0);
 
     SnapshotDiffJob snapshotDiffJob2 = new SnapshotDiffJob(0, testJobId2,
         JobStatus.DONE, "vol", "buck", "fs", "ts", false,
-        true, totalNumberOfRecords);
+        true, totalNumberOfRecords, null, 0.0);
 
     db.get().put(snapDiffJobTable,
         codecRegistry.asRawData(testJobId),
@@ -1054,8 +1067,8 @@ public class TestSnapshotDiffManager {
 
     String jobId = UUID.randomUUID().toString();
     SnapshotDiffJob snapshotDiffJob = new SnapshotDiffJob(0L,
-        jobId, jobStatus, volumeName, bucketName,
-        fromSnapshotName, toSnapshotName, true, false, 10);
+        jobId, jobStatus, volumeName, bucketName, fromSnapshotName, toSnapshotName,
+        true, false, 10, null, 0.0);
 
     snapDiffJobMap.put(diffJobKey, snapshotDiffJob);
 
@@ -1505,8 +1518,10 @@ public class TestSnapshotDiffManager {
   @Test
   public void testGetDeltaFilesWithFullDiff() throws IOException {
     SnapshotDiffManager spy = spy(snapshotDiffManager);
-    OmSnapshot fromSnapshot = getMockedOmSnapshot(UUID.randomUUID().toString());
-    OmSnapshot toSnapshot = getMockedOmSnapshot(UUID.randomUUID().toString());
+    UUID snap1 = UUID.randomUUID();
+    OmSnapshot fromSnapshot = getMockedOmSnapshot(snap1.toString());
+    UUID snap2 = UUID.randomUUID();
+    OmSnapshot toSnapshot = getMockedOmSnapshot(snap2.toString());
     Mockito.doAnswer(invocation -> {
       OmSnapshot snapshot = invocation.getArgument(0);
       if (snapshot == fromSnapshot) {
@@ -1518,8 +1533,11 @@ public class TestSnapshotDiffManager {
       return Sets.newHashSet("6", "7", "8");
     }).when(spy).getSSTFileListForSnapshot(Mockito.any(OmSnapshot.class),
         Mockito.anyList());
+    doNothing().when(spy).recordActivity(any(), any());
+    doNothing().when(spy).updateProgress(anyString(), anyDouble());
+    String diffJobKey = snap1 + DELIMITER + snap2;
     Set<String> deltaFiles = spy.getDeltaFiles(fromSnapshot, toSnapshot, Collections.emptyList(), snapshotInfo,
-        snapshotInfo, true, Collections.emptyMap(), null);
+        snapshotInfo, true, Collections.emptyMap(), null, diffJobKey);
     Assertions.assertEquals(Sets.newHashSet("1", "2", "3", "4", "5"), deltaFiles);
   }
 
@@ -1534,13 +1552,14 @@ public class TestSnapshotDiffManager {
 
     doReturn(testDeltaFiles).when(spy).getDeltaFiles(any(OmSnapshot.class),
         any(OmSnapshot.class), anyList(), eq(fromSnapInfo), eq(toSnapInfo),
-        eq(false), anyMap(), anyString());
+        eq(false), anyMap(), anyString(),
+        anyString());
 
     doReturn(testDeltaFiles).when(spy)
         .getSSTFileListForSnapshot(any(OmSnapshot.class), anyList());
 
     doNothing().when(spy).addToObjectIdMap(eq(keyInfoTable), eq(keyInfoTable),
-        any(), anyBoolean(), any(), any(), any(), any(), any(), anyMap());
+        any(), anyBoolean(), any(), any(), any(), any(), any(), anyMap(), anyString());
     doNothing().when(spy).checkReportsIntegrity(any(), anyInt(), anyInt());
 
     doReturn(10L).when(spy).generateDiffReport(anyString(),
