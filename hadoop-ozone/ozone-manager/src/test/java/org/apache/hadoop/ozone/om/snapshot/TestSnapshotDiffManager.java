@@ -80,7 +80,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -375,7 +374,7 @@ public class TestSnapshotDiffManager {
 
     omSnapshotManager = Mockito.mock(OmSnapshotManager.class);
     Mockito.when(omSnapshotManager.isSnapshotStatus(
-        Matchers.any(), Matchers.any())).thenReturn(true);
+        any(), any())).thenReturn(true);
     snapshotCache = new SnapshotCache(omSnapshotManager, loader, 10, 0);
 
     snapshotDiffManager = new SnapshotDiffManager(db, differ, ozoneManager,

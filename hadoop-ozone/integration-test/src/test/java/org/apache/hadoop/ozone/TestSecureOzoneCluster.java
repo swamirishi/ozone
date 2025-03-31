@@ -178,7 +178,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -994,7 +994,7 @@ public final class TestSecureOzoneCluster {
             .build();
     SCMSecurityProtocolClientSideTranslatorPB scmClient =
         mock(SCMSecurityProtocolClientSideTranslatorPB.class);
-    when(scmClient.getOMCertChain(anyObject(), anyString()))
+    when(scmClient.getOMCertChain(any(), anyString()))
         .thenReturn(responseProto);
 
     try (OMCertificateClient client =
@@ -1025,7 +1025,7 @@ public final class TestSecureOzoneCluster {
           .setX509Certificate(pemCert)
           .setX509CACertificate(pemCert)
           .build();
-      when(scmClient.getOMCertChain(anyObject(), anyString()))
+      when(scmClient.getOMCertChain(any(), anyString()))
           .thenReturn(responseProto);
       String id2 = newCertHolder.getSerialNumber().toString();
 
@@ -1079,7 +1079,7 @@ public final class TestSecureOzoneCluster {
                 .SCMGetCertResponseProto.ResponseCode.success)
             .setX509Certificate(pemCert)
             .build();
-    when(scmClient.getOMCertChain(anyObject(), anyString()))
+    when(scmClient.getOMCertChain(any(), anyString()))
         .thenReturn(responseProto);
 
     try (OMCertificateClient client =
@@ -1116,7 +1116,7 @@ public final class TestSecureOzoneCluster {
           .setX509Certificate(pemCert)
           .setX509CACertificate(pemCert)
           .build();
-      when(scmClient.getOMCertChain(anyObject(), anyString()))
+      when(scmClient.getOMCertChain(any(), anyString()))
           .thenReturn(responseProto);
       String certId2 = newCertHolder.getSerialNumber().toString();
 
@@ -1165,9 +1165,9 @@ public final class TestSecureOzoneCluster {
       DNCertificateClient mockClient = mock(DNCertificateClient.class);
       when(mockClient.getCertificate()).thenReturn(
           CertificateCodec.getX509Certificate(newCertHolder));
-      when(mockClient.timeBeforeExpiryGracePeriod(anyObject()))
+      when(mockClient.timeBeforeExpiryGracePeriod(any()))
           .thenReturn(Duration.ZERO);
-      when(mockClient.renewAndStoreKeyAndCertificate(anyObject())).thenThrow(
+      when(mockClient.renewAndStoreKeyAndCertificate(any())).thenThrow(
           new CertificateException("renewAndStoreKeyAndCert failed ",
               CertificateException.ErrorCode.ROLLBACK_ERROR));
 

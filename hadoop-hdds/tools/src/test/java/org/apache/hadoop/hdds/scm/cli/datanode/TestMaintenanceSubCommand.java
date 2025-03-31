@@ -37,8 +37,8 @@ import picocli.CommandLine;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyListOf;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -71,7 +71,7 @@ public class TestMaintenanceSubCommand {
   public void testNoErrorsWhenEnteringMaintenance() throws IOException  {
     ScmClient scmClient = mock(ScmClient.class);
     Mockito.when(scmClient.startMaintenanceNodes(
-        anyListOf(String.class), anyInt()))
+                    anyList(), anyInt()))
         .thenAnswer(invocation -> new ArrayList<DatanodeAdminError>());
 
     CommandLine c = new CommandLine(cmd);
@@ -97,7 +97,7 @@ public class TestMaintenanceSubCommand {
   public void testErrorsReportedWhenEnteringMaintenance() throws IOException  {
     ScmClient scmClient = mock(ScmClient.class);
     Mockito.when(scmClient.startMaintenanceNodes(
-        anyListOf(String.class), anyInt()))
+                    anyList(), anyInt()))
         .thenAnswer(invocation -> {
           ArrayList<DatanodeAdminError> e = new ArrayList<>();
           e.add(new DatanodeAdminError("host1", "host1 error"));

@@ -37,7 +37,7 @@ import picocli.CommandLine;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Matchers.anyListOf;
+import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -69,7 +69,7 @@ public class TestRecommissionSubCommand {
   @Test
   public void testNoErrorsWhenRecommissioning() throws IOException  {
     ScmClient scmClient = mock(ScmClient.class);
-    Mockito.when(scmClient.recommissionNodes(anyListOf(String.class)))
+    Mockito.when(scmClient.recommissionNodes(anyList()))
         .thenAnswer(invocation -> new ArrayList<DatanodeAdminError>());
 
     CommandLine c = new CommandLine(cmd);
@@ -93,7 +93,7 @@ public class TestRecommissionSubCommand {
   @Test
   public void testErrorsReportedWhenRecommissioning() throws IOException  {
     ScmClient scmClient = mock(ScmClient.class);
-    Mockito.when(scmClient.recommissionNodes(anyListOf(String.class)))
+    Mockito.when(scmClient.recommissionNodes(anyList()))
         .thenAnswer(invocation -> {
           ArrayList<DatanodeAdminError> e = new ArrayList<>();
           e.add(new DatanodeAdminError("host1", "host1 error"));

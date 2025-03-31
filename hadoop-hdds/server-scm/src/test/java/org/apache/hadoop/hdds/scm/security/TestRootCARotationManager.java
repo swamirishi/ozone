@@ -123,7 +123,7 @@ public class TestRootCARotationManager {
     when(scm.getScmStorageConfig()).thenReturn(scmStorageConfig);
     when(scm.getSecurityProtocolServer()).thenReturn(scmSecurityProtocolServer);
     Mockito.doNothing().when(scmSecurityProtocolServer)
-        .setRootCertificateServer(Mockito.anyObject());
+        .setRootCertificateServer(Mockito.any());
     Mockito.doNothing().when(handler).rotationPrepare(Mockito.anyString());
   }
 

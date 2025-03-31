@@ -55,7 +55,7 @@ import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_X509_GRACE_DURATION_TOK
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_X509_RENEW_GRACE_DURATION;
 import static org.apache.hadoop.ozone.HddsDatanodeService.getLogger;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SECURITY_ENABLED_KEY;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -315,7 +315,7 @@ public class TestHddsSecureDatanodeInit {
             .setX509CACertificate(pemCert)
             .setX509RootCACertificate(pemCert)
             .build();
-    when(scmClient.getDataNodeCertificateChain(anyObject(), anyString()))
+    when(scmClient.getDataNodeCertificateChain(any(), anyString()))
         .thenReturn(responseProto);
 
     List<String> rootCaList = new ArrayList<>();
@@ -352,7 +352,7 @@ public class TestHddsSecureDatanodeInit {
         .setX509CACertificate(pemCert)
         .setX509RootCACertificate(pemCert)
         .build();
-    when(scmClient.getDataNodeCertificateChain(anyObject(), anyString()))
+    when(scmClient.getDataNodeCertificateChain(any(), anyString()))
         .thenReturn(responseProto);
     rootCaList.add(pemCert);
     when(scmClient.getAllRootCaCertificates()).thenReturn(rootCaList);
@@ -393,7 +393,7 @@ public class TestHddsSecureDatanodeInit {
                 .SCMGetCertResponseProto.ResponseCode.success)
             .setX509Certificate(pemCert)
             .build();
-    when(scmClient.getDataNodeCertificateChain(anyObject(), anyString()))
+    when(scmClient.getDataNodeCertificateChain(any(), anyString()))
         .thenReturn(responseProto);
 
     // check that new cert ID should not equal to current cert ID
@@ -424,7 +424,7 @@ public class TestHddsSecureDatanodeInit {
         .setX509Certificate(pemCert)
         .setX509CACertificate(pemCert)
         .build();
-    when(scmClient.getDataNodeCertificateChain(anyObject(), anyString()))
+    when(scmClient.getDataNodeCertificateChain(any(), anyString()))
         .thenReturn(responseProto);
     String certId2 = newCertHolder.getSerialNumber().toString();
 

@@ -70,7 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Tests upgrading a single datanode from container Schema V2 to Schema V3.
@@ -522,7 +522,7 @@ public class TestDatanodeUpgradeToSchemaV3 {
 
     HddsVolume volume = Mockito.mock(HddsVolume.class);
     Mockito.doThrow(new IOException("Failed to init DB")).when(volume).
-        createDbStore(anyObject());
+        createDbStore(any());
     Map volumeMap = new HashMap<String, StorageVolume>();
     volumeMap.put(dataVolume.getStorageID(), volume);
     dsm.getContainer().getVolumeSet().setVolumeMap(volumeMap);

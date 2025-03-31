@@ -71,7 +71,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys
     .OZONE_SCM_BLOCK_DELETION_MAX_RETRY;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -132,12 +132,12 @@ public class TestDeletedBlockLog {
         DatanodeDetails.newBuilder().setUuid(UUID.randomUUID())
             .build());
 
-    when(containerManager.getContainerReplicas(anyObject()))
+    when(containerManager.getContainerReplicas(any()))
         .thenAnswer(invocationOnMock -> {
           ContainerID cid = (ContainerID) invocationOnMock.getArguments()[0];
           return replicas.get(cid.getId());
         });
-    when(containerManager.getContainer(anyObject()))
+    when(containerManager.getContainer(any()))
         .thenAnswer(invocationOnMock -> {
           ContainerID cid = (ContainerID) invocationOnMock.getArguments()[0];
           return containerTable.get(cid);
@@ -159,7 +159,7 @@ public class TestDeletedBlockLog {
         scmHADBTransactionBuffer.addToBuffer(containerTable, e.getKey(), info);
       }
       return null;
-    }).when(containerManager).updateDeleteTransactionId(anyObject());
+    }).when(containerManager).updateDeleteTransactionId(any());
   }
 
   private void updateContainerMetadata(long cid,

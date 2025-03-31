@@ -195,7 +195,7 @@ public class TestOnDemandContainerDataScanner extends
     // Without initialization,
     // there shouldn't be interaction with containerController
     OnDemandContainerDataScanner.scanContainer(corruptData);
-    Mockito.verifyZeroInteractions(controller);
+    Mockito.verifyNoInteractions(controller);
 
     scanContainer(healthy);
     verifyContainerMarkedUnhealthy(healthy, never());

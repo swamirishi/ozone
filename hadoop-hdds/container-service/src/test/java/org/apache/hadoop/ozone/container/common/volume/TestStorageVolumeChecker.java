@@ -69,7 +69,6 @@ import static org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult.F
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
@@ -177,7 +176,7 @@ public class TestStorageVolumeChecker {
     GenericTestUtils.waitFor(() -> numCallbackInvocations.get() > 0, 5, 10000);
 
     // Ensure that the check was invoked at least once.
-    verify(volume, times(1)).check(anyObject());
+    verify(volume, times(1)).check(any());
     if (result) {
       assertThat(numCallbackInvocations.get(), is(1L));
     }
@@ -213,7 +212,7 @@ public class TestStorageVolumeChecker {
 
     // Ensure each volume's check() method was called exactly once.
     for (HddsVolume volume : volumes) {
-      verify(volume, times(1)).check(anyObject());
+      verify(volume, times(1)).check(any());
     }
 
     checker.shutdownAndWait(0, TimeUnit.SECONDS);

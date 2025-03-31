@@ -435,7 +435,7 @@ public class TestContainerReplicaPendingOps {
     pendingOps.removeExpiredEntries();
     // no entries have expired, so there should be zero interactions with the
     // subscriber
-    Mockito.verifyZeroInteractions(subscriber1);
+    verifyNoMoreInteractions(subscriber1);
   }
 
   @Test

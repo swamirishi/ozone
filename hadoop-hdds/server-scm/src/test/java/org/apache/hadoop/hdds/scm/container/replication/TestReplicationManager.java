@@ -61,7 +61,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -184,7 +183,7 @@ public class TestReplicationManager {
     when(scmContext.isInSafeMode()).thenReturn(false);
 
     PipelineManager pipelineManager = mock(PipelineManager.class);
-    when(pipelineManager.getPipeline(Matchers.any()))
+    when(pipelineManager.getPipeline(any()))
         .thenReturn(HddsTestUtils.getRandomPipeline());
 
     StorageContainerManager scm = mock(StorageContainerManager.class);
