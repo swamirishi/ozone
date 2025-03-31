@@ -74,6 +74,7 @@ interface IKeyResponse {
   Volume: string;
   Bucket: string;
   Key: string;
+  CompletePath: string;
   DataSize: number;
   Versions: number[];
   Blocks: object;
@@ -101,6 +102,12 @@ const KEY_TABLE_COLUMNS = [
     title: 'Key',
     dataIndex: 'Key',
     key: 'Key'
+  },
+  {
+    title: 'Path',
+    dataIndex: 'CompletePath',
+    key: 'CompletePath',
+    width: '270px'
   },
   {
     title: 'Size',
@@ -393,11 +400,11 @@ export class MissingContainers extends React.Component<Record<string, object>, I
 
   changeTab = (activeKey: any) => {
     let currentState = "MISSING"
-    if (activeKey == '2') {
+    if (activeKey === '2') {
       currentState = "UNDER_REPLICATED"
-    } else if (activeKey == '3') {
+    } else if (activeKey === '3') {
       currentState = "OVER_REPLICATED"
-    } else if (activeKey == '4') {
+    } else if (activeKey === '4') {
       currentState = "MIS_REPLICATED"
     }
     this.setState({
