@@ -38,11 +38,12 @@ fi
 if [[ "${FAIL_FAST:-}" == "true" ]]; then
   MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-fast -Dsurefire.skipAfterFailureCount=1"
 else
-  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-at-end"
+  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-never"
 fi
 
+mvn ${MAVEN_OPTIONS} clean
 if [[ "${CHECK}" == "integration" ]] || [[ ${ITERATIONS} -gt 1 ]]; then
-  mvn ${MAVEN_OPTIONS} -DskipTests clean install
+  mvn ${MAVEN_OPTIONS} -DskipTests install
 fi
 
 REPORT_DIR=${OUTPUT_DIR:-"$DIR/../../../target/${CHECK}"}
