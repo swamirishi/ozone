@@ -36,8 +36,10 @@ import java.util.Collection;
 
 import com.google.common.cache.Cache;
 import org.apache.hadoop.conf.StorageUnit;
+import java.util.function.BooleanSupplier;
 import org.apache.hadoop.crypto.key.KeyProvider;
 import org.apache.hadoop.crypto.key.kms.KMSClientProvider;
+import org.apache.hadoop.crypto.key.kms.LoadBalancingKMSClientProvider;
 import org.apache.hadoop.crypto.key.kms.server.MiniKMS;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.hdds.HddsConfigKeys;
@@ -64,6 +66,7 @@ import org.apache.hadoop.ozone.client.io.OzoneDataStreamOutput;
 import org.apache.hadoop.ozone.client.SecretKeyTestClient;
 import org.apache.hadoop.ozone.client.io.OzoneInputStream;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
@@ -74,6 +77,7 @@ import org.apache.hadoop.ozone.om.helpers.OmMultipartInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartUploadCompleteInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.test.Whitebox;
 import org.apache.ozone.test.GenericTestUtils;
 
 import static org.apache.hadoop.hdds.HddsConfigKeys.OZONE_METADATA_DIRS;
@@ -201,7 +205,37 @@ public class TestOzoneAtRestEncryption {
   }
 
   @Test
-  public void testPutKeyWithEncryption() throws Exception {
+  public void testWarmupEDEKCacheOnStartup() throws Exception {
+
+    createVolumeAndBucket("vol", "buck", BucketLayout.OBJECT_STORE);
+
+    @SuppressWarnings("unchecked") KMSClientProvider spy = getKMSClientProvider();
+    assertTrue(spy.getEncKeyQueueSize(TEST_KEY) > 0);
+
+    conf.setInt(OMConfigKeys.OZONE_OM_EDEKCACHELOADER_INITIAL_DELAY_MS_KEY, 0);
+    cluster.restartOzoneManager();
+
+    GenericTestUtils.waitFor(new BooleanSupplier() {
+      @Override
+      public boolean getAsBoolean() {
+        final KMSClientProvider kspy = getKMSClientProvider();
+        return kspy.getEncKeyQueueSize(TEST_KEY) > 0;
+      }
+    }, 1000, 60000);
+  }
+
+  private KMSClientProvider getKMSClientProvider() {
+    LoadBalancingKMSClientProvider lbkmscp =
+        (LoadBalancingKMSClientProvider) Whitebox.getInternalState(
+            cluster.getOzoneManager().getKmsProvider(), "extension");
+    assert lbkmscp.getProviders().length == 1;
+    return lbkmscp.getProviders()[0];
+  }
+
+
+  @ParameterizedTest
+  @EnumSource
+  void testPutKeyWithEncryption(BucketLayout bucketLayout) throws Exception {
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
 
