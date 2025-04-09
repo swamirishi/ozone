@@ -800,6 +800,7 @@ public class KeyManagerImpl implements KeyManager {
     */
     if (startKey != null) {
       tableIterator.seek(startKey);
+    } else {
       tableIterator.seekToFirst();
     }
     int currentCount = 0;

@@ -224,7 +224,7 @@
     <powermock2.version>2.0.4</powermock2.version>
     <jmockit.version>1.24</jmockit.version>
     <junit4.version>4.13.1</junit4.version>
-    <junit.jupiter.version>5.8.2</junit.jupiter.version>
+    <junit.jupiter.version>5.14.0</junit.jupiter.version>
     <junit.platform.version>1.8.2</junit.platform.version>
     <zookeeper.version>3.8.1.7.1.9.1003-SNAPSHOT</zookeeper.version>
 
