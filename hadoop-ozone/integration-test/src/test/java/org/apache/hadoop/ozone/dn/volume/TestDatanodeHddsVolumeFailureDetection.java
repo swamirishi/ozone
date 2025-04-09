@@ -19,6 +19,9 @@
  */
 package org.apache.hadoop.ozone.dn.volume;
 
+import java.io.OutputStream;
+import org.apache.commons.lang3.RandomUtils;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.StorageUnit;
@@ -27,14 +30,17 @@ import org.apache.hadoop.hdds.scm.cli.ContainerOperationClient;
 import org.apache.hadoop.hdds.scm.client.ScmClient;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.utils.IOUtils;
+import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
 import org.apache.hadoop.ozone.HddsDatanodeService;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.OzoneConsts;
+import org.apache.hadoop.ozone.TestDataUtil;
 import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.client.OzoneClient;
 import org.apache.hadoop.ozone.client.OzoneClientFactory;
 import org.apache.hadoop.ozone.client.OzoneKey;
+import org.apache.hadoop.ozone.client.OzoneKeyDetails;
 import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.client.io.OzoneInputStream;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
@@ -69,18 +75,21 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Collections.emptyMap;
 import static org.apache.hadoop.hdds.client.ReplicationFactor.ONE;
 import static org.apache.hadoop.hdds.client.ReplicationType.RATIS;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_RATIS_VOLUME_FREE_SPACE_MIN;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_CONTAINER_SIZE;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_CONTAINER_CACHE_SIZE;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_REPLICATION;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This class tests datanode can detect failed volumes.
  */
 @RunWith(Parameterized.class)
 public class TestDatanodeHddsVolumeFailureDetection {
+  private static final int KEY_SIZE = 128;
   private boolean schemaV3;
   public TestDatanodeHddsVolumeFailureDetection(boolean enableV3) {
     this.schemaV3 = enableV3;
@@ -330,5 +339,79 @@ public class TestDatanodeHddsVolumeFailureDetection {
     // restore all
     DatanodeTestUtils.restoreBadVolume(vol0);
     DatanodeTestUtils.restoreDataDirFromFailure(dbDir);
+  }
+
+  /**
+   * {@link HddsVolume#check(Boolean)} will capture the failures injected by this test and not allow the
+   * test to reach the helper method {@link HddsVolume#checkDbHealth}.
+   * As a workaround, we test the helper method directly.
+   * As we test the helper method directly, we cannot test for schemas older than V3.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void corruptDbFileWithoutDbHandleCacheInvalidation() throws Exception {
+    OzoneBucket bucket = TestDataUtil.createVolumeAndBucket(ozClient);
+
+    // write a file, will create container1
+    String keyName = UUID.randomUUID().toString();
+    long containerId = createKey(bucket, keyName);
+
+    // close container1
+    HddsDatanodeService dn = cluster.getHddsDatanodes().get(0);
+    OzoneContainer oc = dn.getDatanodeStateMachine().getContainer();
+    Container<?> c1 = oc.getContainerSet().getContainer(containerId);
+    c1.close();
+
+    // create container2, and container1 is kicked out of cache
+    OzoneConfiguration conf = cluster.getConf();
+    ContainerWithPipeline c2 = scmClient.createContainer(
+        HddsProtos.ReplicationType.STAND_ALONE, HddsProtos.ReplicationFactor.ONE,
+        OzoneConsts.OZONE);
+    assertEquals(c2.getContainerInfo().getState(), HddsProtos.LifeCycleState.OPEN);
+
+    // corrupt db by rename dir->file
+    File dbDir;
+    if (schemaV3) {
+      dbDir = new File(((KeyValueContainerData) (c1.getContainerData()))
+          .getDbFile().getAbsolutePath());
+    } else {
+      File metadataDir = new File(c1.getContainerFile().getParent());
+      dbDir = new File(metadataDir, "1" + OzoneConsts.DN_CONTAINER_DB);
+    }
+
+    MutableVolumeSet volSet = oc.getVolumeSet();
+    HddsVolume vol0 = (HddsVolume) volSet.getVolumesList().get(0);
+
+    try {
+      DatanodeTestUtils.injectDataDirFailure(dbDir);
+      // simulate bad volume by removing write permission on root dir
+      // refer to HddsVolume.check()
+      DatanodeTestUtils.simulateBadVolume(vol0);
+
+      // one volume health check got automatically executed when the cluster started
+      // the second health should log the rocksdb failure but return a healthy-volume status
+      assertEquals(VolumeCheckResult.HEALTHY, vol0.checkDbHealth(dbDir));
+      // the third health check should log the rocksdb failure and return a failed-volume status
+      assertEquals(VolumeCheckResult.FAILED, vol0.checkDbHealth(dbDir));
+    } finally {
+      // restore all
+      DatanodeTestUtils.restoreBadVolume(vol0);
+      DatanodeTestUtils.restoreDataDirFromFailure(dbDir);
+    }
+  }
+
+  private static long createKey(OzoneBucket bucket, String key)
+      throws IOException {
+    byte[] bytes = RandomUtils.nextBytes(KEY_SIZE);
+    RatisReplicationConfig replication =
+        RatisReplicationConfig.getInstance(HddsProtos.ReplicationFactor.ONE);
+    try (OutputStream out = bucket.createKey(key, bytes.length, replication,
+        emptyMap())) {
+      out.write(bytes);
+    }
+    OzoneKeyDetails keyDetails = bucket.getKey(key);
+    assertEquals(key, keyDetails.getName());
+    return keyDetails.getOzoneKeyLocations().get(0).getContainerID();
   }
 }

@@ -21,8 +21,11 @@ package org.apache.hadoop.ozone.container.common.volume;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,6 +33,8 @@ import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
 import org.apache.hadoop.hdds.annotation.InterfaceStability;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
 import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.utils.DatanodeStoreCache;
@@ -93,6 +98,11 @@ public class HddsVolume extends StorageVolume {
   private File deletedContainerDir;
   private AtomicBoolean dbLoaded = new AtomicBoolean(false);
 
+  private final int volumeTestCount;
+  private final int volumeTestFailureTolerance;
+  private AtomicInteger volumeTestFailureCount;
+  private Queue<Boolean> volumeTestResultQueue;
+
   /**
    * Builder for HddsVolume.
    */
@@ -127,6 +137,12 @@ public class HddsVolume extends StorageVolume {
           getStorageDir(), b.getStorageType(),
               getVolumeInfo().get().getCapacity());
 
+      DatanodeConfiguration df = getConf().getObject(DatanodeConfiguration.class);
+      this.volumeTestCount = df.getVolumeIOTestCount();
+      this.volumeTestFailureTolerance = df.getVolumeIOFailureTolerance();
+      this.volumeTestFailureCount = new AtomicInteger(0);
+      this.volumeTestResultQueue = new ConcurrentLinkedQueue<>();
+
       initialize();
     } else {
       // Builder is called with failedVolume set, so create a failed volume
@@ -135,6 +151,8 @@ public class HddsVolume extends StorageVolume {
       volumeIOStats = null;
       volumeInfoMetrics = new VolumeInfoMetrics(b.getVolumeRootStr(), this);
       committedBytes = null;
+      this.volumeTestCount = 0;
+      this.volumeTestFailureTolerance = 0;
     }
 
   }
@@ -281,6 +299,43 @@ public class HddsVolume extends StorageVolume {
       rawDB.getStore().compactionIfNeeded();
     }
 
+    return checkDbHealth(dbFile);
+  }
+
+  @VisibleForTesting
+  public VolumeCheckResult checkDbHealth(File dbFile) throws InterruptedException {
+    if (volumeTestCount == 0) {
+      return VolumeCheckResult.HEALTHY;
+    }
+
+    final boolean isVolumeTestResultHealthy = true;
+    try (ManagedOptions managedOptions = new ManagedOptions();
+         ManagedRocksDB readOnlyDb = ManagedRocksDB.openReadOnly(managedOptions, dbFile.toString())) {
+      volumeTestResultQueue.add(isVolumeTestResultHealthy);
+    } catch (Exception e) {
+      if (Thread.currentThread().isInterrupted()) {
+        throw new InterruptedException("Check of database for volume " + this + " interrupted.");
+      }
+      LOG.warn("Could not open Volume DB located at {}", dbFile, e);
+      volumeTestResultQueue.add(!isVolumeTestResultHealthy);
+      volumeTestFailureCount.incrementAndGet();
+    }
+
+    if (volumeTestResultQueue.size() > volumeTestCount
+        && volumeTestResultQueue.poll() != isVolumeTestResultHealthy) {
+        volumeTestFailureCount.decrementAndGet();
+    }
+
+    if (volumeTestFailureCount.get() > volumeTestFailureTolerance) {
+      LOG.error("Failed to open the database at \"{}\" for HDDS volume {}: " +
+              "the last {} runs encountered {} out of {} tolerated failures.",
+          dbFile, this, volumeTestResultQueue.size(), volumeTestFailureCount.get(), volumeTestFailureTolerance);
+      return VolumeCheckResult.FAILED;
+    }
+
+    LOG.debug("Successfully opened the database at \"{}\" for HDDS volume {}: " +
+            "the last {} runs encountered {} out of {} tolerated failures",
+        dbFile, this, volumeTestResultQueue.size(), volumeTestFailureTolerance, volumeTestFailureTolerance);
     return VolumeCheckResult.HEALTHY;
   }
 
