@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.utils.db;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
+import org.apache.hadoop.hdds.utils.db.Table.KeyValueIterator;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,8 +30,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <RAW> the raw type.
  */
-abstract class RDBStoreAbstractIterator<RAW>
-    implements TableIterator<RAW, Table.KeyValue<RAW, RAW>> {
+abstract class RDBStoreAbstractIterator<RAW> implements KeyValueIterator<RAW, RAW> {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(RDBStoreAbstractIterator.class);

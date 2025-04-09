@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.TableCacheMetrics;
@@ -71,7 +72,8 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
   private final CodecBuffer.Capacity bufferCapacity
       = new CodecBuffer.Capacity(this, BUFFER_SIZE_DEFAULT);
   private final TableCache<KEY, VALUE> cache;
-  private final RDBParallelTableOperator<KEY, VALUE> parallelTableOperator;
+  private final RDBSplitTableIterOperator<KEY, VALUE> splitTableOperator;
+  private final ThrottledThreadpoolExecutor executor;
 
   /**
    * The same as this(rawTable, codecRegistry, keyType, valueType,
@@ -142,7 +144,8 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
     } else {
       cache = TableNoCache.instance();
     }
-    this.parallelTableOperator = new RDBParallelTableOperator<>(throttledThreadpoolExecutor, this, keyCodec);
+    executor = throttledThreadpoolExecutor;
+    this.splitTableOperator = new RDBSplitTableIterOperator<>(throttledThreadpoolExecutor, this, keyCodec);
   }
 
   private CodecBuffer encodeKeyCodecBuffer(KEY key) throws IOException {
@@ -453,10 +456,46 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
   }
 
   @Override
-  public void parallelTableOperation(
+  public void splitTableOperation(
       KEY startKey, KEY endKey, CheckedFunction<KeyValue<KEY, VALUE>, Void, IOException> operation,
       Logger logger, int logPercentageThreshold) throws IOException, ExecutionException, InterruptedException {
-    this.parallelTableOperator.performTaskOnTableVals(startKey, endKey, operation, logger, logPercentageThreshold);
+    this.splitTableOperator.performTaskOnTableVals(startKey, endKey, operation, logger, logPercentageThreshold);
+  }
+
+  @Override
+  public void parallelTableOperation(KEY startKey, KEY endKey,
+                                     CheckedFunction<KeyValue<KEY, VALUE>, Void, IOException> operation, Logger logger,
+                                     int logPercentageThreshold)
+      throws IOException, ExecutionException, InterruptedException {
+    if (supportCodecBuffer) {
+      KeyValueIterator<CodecBuffer, CodecBuffer> rawItr = rawTable.iterator((CodecBuffer) null);
+      final CodecBuffer startBuffer = encodeKeyCodecBuffer(startKey);
+      if (startBuffer != null) {
+        try {
+          rawItr.seek(startBuffer);
+        } finally {
+          startBuffer.release();
+        }
+      }
+
+      Supplier<KeyValueIterator<CodecBuffer, CodecBuffer>> itrSupplier = () -> new CopyCodecBufferRawIterator(rawItr);
+      ParallelTableIterOperator<CodecBuffer, KEY, VALUE> parallelTableIterOperator =
+          new ParallelTableIterOperator<>(this.getName(), executor, itrSupplier,
+              keyCodec::fromCodecBuffer, valueCodec::fromCodecBuffer, this.keyCodec.comparator());
+      long logCountThreshold = Math.max((this.getEstimatedKeyCount() * logPercentageThreshold) / 100, 1L);
+      parallelTableIterOperator.performTaskOnTableVals(endKey, operation, logger, logCountThreshold);
+    } else {
+      KeyValueIterator<byte[], byte[]> rawItr = rawTable.iterator();
+      final byte[] startBytes = encodeKey(startKey);
+      if (startBytes != null) {
+        rawItr.seek(startBytes);
+      }
+      ParallelTableIterOperator<byte[], KEY, VALUE> parallelTableIterOperator =
+          new ParallelTableIterOperator<>(this.getName(), executor, () -> rawItr,
+              keyCodec::fromPersistedFormat, valueCodec::fromPersistedFormat, this.keyCodec.comparator());
+      long logCountThreshold = Math.max((this.getEstimatedKeyCount() * logPercentageThreshold) / 100, 1L);
+      parallelTableIterOperator.performTaskOnTableVals(endKey, operation, logger, logCountThreshold);
+    }
   }
 
   @Override
@@ -600,9 +639,9 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
     }
   }
 
-  RawIterator<CodecBuffer> newCodecBufferTableIterator(
+  RawIterator<CodecBuffer, KEY, VALUE> newCodecBufferTableIterator(
       TableIterator<CodecBuffer, KeyValue<CodecBuffer, CodecBuffer>> i) {
-    return new RawIterator<CodecBuffer>(i) {
+    return new RawIterator<CodecBuffer, KEY, VALUE>(i) {
       @Override
       AutoCloseSupplier<CodecBuffer> convert(KEY key) throws IOException {
         final CodecBuffer buffer = encodeKeyCodecBuffer(key);
@@ -633,7 +672,7 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
   /**
    * Table Iterator implementation for strongly typed tables.
    */
-  public class TypedTableIterator extends RawIterator<byte[]> {
+  public class TypedTableIterator extends RawIterator<byte[], KEY, VALUE> {
     TypedTableIterator(
         TableIterator<byte[], KeyValue<byte[], byte[]>> rawIterator) {
       super(rawIterator);
@@ -648,72 +687,6 @@ public class TypedTable<KEY, VALUE> implements BaseRDBTable<KEY, VALUE> {
     @Override
     KeyValue<KEY, VALUE> convert(KeyValue<byte[], byte[]> raw) {
       return new TypedKeyValue(raw);
-    }
-  }
-
-  /**
-   * A {@link Table.KeyValueIterator} backed by a raw iterator.
-   *
-   * @param <RAW> The raw type.
-   */
-  abstract class RawIterator<RAW>
-      implements Table.KeyValueIterator<KEY, VALUE> {
-    private final TableIterator<RAW, KeyValue<RAW, RAW>> rawIterator;
-
-    RawIterator(TableIterator<RAW, KeyValue<RAW, RAW>> rawIterator) {
-      this.rawIterator = rawIterator;
-    }
-
-    /** Covert the given key to the {@link RAW} type. */
-    abstract AutoCloseSupplier<RAW> convert(KEY key) throws IOException;
-
-    /**
-     * Covert the given {@link Table.KeyValue}
-     * from ({@link RAW}, {@link RAW}) to ({@link KEY}, {@link VALUE}).
-     */
-    abstract KeyValue<KEY, VALUE> convert(KeyValue<RAW, RAW> raw)
-        throws IOException;
-
-    @Override
-    public void seekToFirst() {
-      rawIterator.seekToFirst();
-    }
-
-    @Override
-    public void seekToLast() {
-      rawIterator.seekToLast();
-    }
-
-    @Override
-    public KeyValue<KEY, VALUE> seek(KEY key) throws IOException {
-      try (AutoCloseSupplier<RAW> rawKey = convert(key)) {
-        final KeyValue<RAW, RAW> result = rawIterator.seek(rawKey.get());
-        return result == null ? null : convert(result);
-      }
-    }
-
-    @Override
-    public void close() throws IOException {
-      rawIterator.close();
-    }
-
-    @Override
-    public boolean hasNext() {
-      return rawIterator.hasNext();
-    }
-
-    @Override
-    public KeyValue<KEY, VALUE> next() {
-      try {
-        return convert(rawIterator.next());
-      } catch (IOException e) {
-        throw new IllegalStateException("Failed next()", e);
-      }
-    }
-
-    @Override
-    public void removeFromDB() throws IOException {
-      rawIterator.removeFromDB();
     }
   }
 }

@@ -187,6 +187,22 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
    *                  @param logger Logger to log iterator status.
    * @param logPercentageThreshold Percentage b/w [1-100] which would be used to log table iteration.
    */
+  void splitTableOperation(
+      KEY startKey, KEY endKey, CheckedFunction<KeyValue<KEY, VALUE>, Void, IOException> operation,
+      Logger logger, int logPercentageThreshold)
+      throws IOException, ExecutionException, InterruptedException;
+
+  /**
+   * Performs an operation by parallely iterating through the table by delegating deserialization & key operation to
+   * parallel threads. To be used where order of keys don't matter while operating on the table key value.
+   * @param startKey startKey to begin iteration from. When null iteration should happen from the smallest key in the
+   *                 table.
+   * @param endKey endKey to end(exclusive) iteration. When null iteration will happen till the largest key in the
+   *               table.
+   * @param operation operation to be performed on the key value.
+   *                  @param logger Logger to log iterator status.
+   * @param logPercentageThreshold Percentage b/w [1-100] which would be used to log table iteration.
+   */
   void parallelTableOperation(
       KEY startKey, KEY endKey, CheckedFunction<KeyValue<KEY, VALUE>, Void, IOException> operation,
       Logger logger, int logPercentageThreshold)
@@ -357,6 +373,9 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
     default int getRawSize()  throws IOException {
       return 0;
     }
+
+    default void setRawSize(int rawSize) throws IOException {
+    }
   }
 
   static <K, V> KeyValue<K, V> newKeyValue(K key, V value) {
@@ -398,6 +417,7 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
 
   static <K, V> KeyValue<K, V> newKeyValue(K key, V value, int rawSize) {
     return new KeyValue<K, V>() {
+      private int valueSize = rawSize;
       @Override
       public K getKey() {
         return key;
@@ -410,7 +430,11 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
 
       @Override
       public int getRawSize() throws IOException {
-        return rawSize;
+        return valueSize;
+      }
+
+      public void setRawSize(int valueSize) {
+        this.valueSize = valueSize;
       }
 
       @Override

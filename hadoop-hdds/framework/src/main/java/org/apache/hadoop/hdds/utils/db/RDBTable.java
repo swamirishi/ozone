@@ -51,7 +51,8 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
   private final RocksDatabase db;
   private final ColumnFamily family;
   private final RDBMetrics rdbMetrics;
-  private final RDBParallelTableOperator<byte[], byte[]> parallelTableOperator;
+  private final RDBSplitTableIterOperator<byte[], byte[]> parallelTableOperator;
+  private final ThrottledThreadpoolExecutor executor;
 
   /**
    * Constructs a TableStore.
@@ -63,7 +64,8 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
     this.db = db;
     this.family = family;
     this.rdbMetrics = rdbMetrics;
-    this.parallelTableOperator = new RDBParallelTableOperator<>(executor, this, ByteArrayCodec.get());
+    this.executor = executor;
+    this.parallelTableOperator = new RDBSplitTableIterOperator<>(executor, this, ByteArrayCodec.get());
   }
 
   public ColumnFamily getColumnFamily() {
@@ -219,16 +221,24 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
   }
 
   @Override
-  public TableIterator<byte[], KeyValue<byte[], byte[]>> iterator()
+  public KeyValueIterator<byte[], byte[]> iterator()
       throws IOException {
     return iterator((byte[])null);
   }
 
   @Override
-  public TableIterator<byte[], KeyValue<byte[], byte[]>> iterator(byte[] prefix)
+  public KeyValueIterator<byte[], byte[]> iterator(byte[] prefix)
       throws IOException {
     return new RDBStoreByteArrayIterator(db.newIterator(family, false), this,
         prefix);
+  }
+
+  @Override
+  public void splitTableOperation(byte[] startKey, byte[] endKey,
+                                  CheckedFunction<KeyValue<byte[], byte[]>, Void, IOException> operation,
+                                  Logger logger, int logPercentageThreshold)
+      throws IOException, ExecutionException, InterruptedException {
+    this.parallelTableOperator.performTaskOnTableVals(startKey, endKey, operation, logger, logPercentageThreshold);
   }
 
   @Override
@@ -236,11 +246,21 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
                                      CheckedFunction<KeyValue<byte[], byte[]>, Void, IOException> operation,
                                      Logger logger, int logPercentageThreshold)
       throws IOException, ExecutionException, InterruptedException {
-    this.parallelTableOperator.performTaskOnTableVals(startKey, endKey, operation, logger, logPercentageThreshold);
+    try (KeyValueIterator<byte[], byte[]> itr = iterator()) {
+      if (startKey != null) {
+        itr.seek(startKey);
+      } else {
+        itr.seekToFirst();
+      }
+      ParallelTableIterOperator<byte[], byte[], byte[]> parallelTableIterOperator =
+          new ParallelTableIterOperator<>(this.getName(), executor, () -> itr, i -> i,
+              i -> i, ByteArrayCodec.get().comparator());
+      long logCountThreshold = Math.max((this.getEstimatedKeyCount() * logPercentageThreshold) / 100, 1L);
+      parallelTableIterOperator.performTaskOnTableVals(endKey, operation, logger, logCountThreshold);
+    }
   }
 
-  TableIterator<CodecBuffer, KeyValue<CodecBuffer, CodecBuffer>> iterator(
-      CodecBuffer prefix) throws IOException {
+  KeyValueIterator<CodecBuffer, CodecBuffer> iterator(CodecBuffer prefix) throws IOException {
     return new RDBStoreCodecBufferIterator(db.newIterator(family, false),
         this, prefix);
   }

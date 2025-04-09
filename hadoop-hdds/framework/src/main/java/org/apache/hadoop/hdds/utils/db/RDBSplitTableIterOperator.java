@@ -29,10 +29,10 @@ import org.rocksdb.LiveFileMetaData;
 /**
  * Class to iterate through a table in parallel by breaking table into multiple iterators for RDB store.
  */
-public class RDBParallelTableOperator<K, V> extends ParallelTableOperator<BaseRDBTable<K, V>, K, V> {
+public class RDBSplitTableIterOperator<K, V> extends SplitTableIterOperator<BaseRDBTable<K, V>, K, V> {
 
-  public RDBParallelTableOperator(ThrottledThreadpoolExecutor throttledThreadpoolExecutor,
-                                  BaseRDBTable<K, V> table, Codec<K> keyCodec) {
+  public RDBSplitTableIterOperator(ThrottledThreadpoolExecutor throttledThreadpoolExecutor,
+                                   BaseRDBTable<K, V> table, Codec<K> keyCodec) {
     super(throttledThreadpoolExecutor, table, keyCodec);
   }
 

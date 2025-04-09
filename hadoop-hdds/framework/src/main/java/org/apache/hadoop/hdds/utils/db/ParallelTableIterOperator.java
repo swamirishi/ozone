@@ -17,60 +17,71 @@
 
 package org.apache.hadoop.hdds.utils.db;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
+import org.apache.hadoop.hdds.utils.db.Table.KeyValueIterator;
 import org.apache.ratis.util.function.CheckedFunction;
 import org.slf4j.Logger;
 
 /**
  * Class to iterate through a table in parallel by breaking table into multiple iterators for RDB store.
  */
-public abstract class ParallelTableOperator<TABLE extends Table<K, V>, K, V> {
-  private final TABLE table;
-  private final Codec<K> keyCodec;
-  private final Comparator<K> comparator;
+public class ParallelTableIterOperator<RAW, K, V> {
+  private final Supplier<KeyValueIterator<RAW, RAW>> threadSafeIteratorSupplier;
+  private final String tableName;
   private final ThrottledThreadpoolExecutor executor;
+  private final Comparator<K> comparator;
+  private final CheckedFunction<RAW, K, Throwable> keyConverter;
+  private final CheckedFunction<RAW, V, Throwable> valueConverter;
+  private final Lock lock;
 
-  public ParallelTableOperator(ThrottledThreadpoolExecutor throttledThreadpoolExecutor,
-                               TABLE table, Codec<K> keyCodec) {
+  public ParallelTableIterOperator(String tableName,
+                                   ThrottledThreadpoolExecutor throttledThreadpoolExecutor,
+                                   Supplier<KeyValueIterator<RAW, RAW>> threadUnsafeIteratorSupplier,
+                                   CheckedFunction<RAW, K, Throwable> keyConverter,
+                                   CheckedFunction<RAW, V, Throwable> valueConverter,
+                                   Comparator<K> comparator) {
+    this.tableName = tableName;
     this.executor = throttledThreadpoolExecutor;
-    this.table = table;
-    this.keyCodec = keyCodec;
-    this.comparator = keyCodec.comparator();
+    this.threadSafeIteratorSupplier = threadUnsafeIteratorSupplier;
+    this.comparator = comparator;
+    this.keyConverter = keyConverter;
+    this.valueConverter = valueConverter;
+    this.lock = new ReentrantLock();
   }
-
-  /**
-   * Provide all the bounds that fall in range [startKey, endKey] in a sorted list to facilitate efficiently
-   * splitting table iteration of keys into multiple parallel iterators of the table.
-   */
-  protected abstract List<K> getBounds(K startKey, K endKey) throws IOException;
 
   @SuppressWarnings("parameternumber")
   private <THROWABLE extends Throwable> CompletableFuture<Void> submit(
-      CheckedFunction<Table.KeyValue<K, V>, Void, THROWABLE> keyOperation, K beg, K end,
-      AtomicLong keyCounter, AtomicLong prevLogCounter, long logCountThreshold, Logger log,
+      CheckedFunction<Table.KeyValue<K, V>, Void, THROWABLE> keyOperation,
+      K end, AtomicLong keyCounter, AtomicLong prevLogCounter, long logCountThreshold, Logger log,
       AtomicBoolean cancelled) throws InterruptedException {
     return executor.submit(() -> {
-      try (TableIterator<K, ? extends Table.KeyValue<K, V>> iter  = table.iterator()) {
-        if (beg != null) {
-          iter.seek(beg);
-        } else {
-          iter.seekToFirst();
-        }
+      try (KeyValueIterator<RAW, RAW> iter = threadSafeIteratorSupplier.get()) {
         while (iter.hasNext() && !cancelled.get()) {
-          Table.KeyValue<K, V> kv = iter.next();
+          lock.lock();
+          Table.KeyValue<RAW, RAW> rawKV;
+          try {
+            if (!iter.hasNext()) {
+              break;
+            }
+            rawKV = iter.next();
+          } finally {
+            lock.unlock();
+          }
+          Table.KeyValue<K, V> kv = Table.newKeyValue(keyConverter.apply(rawKV.getKey()),
+              valueConverter.apply(rawKV.getValue()));
           if (end == null || Objects.compare(kv.getKey(), end, comparator) < 0) {
             keyOperation.apply(kv);
             keyCounter.incrementAndGet();
             if (keyCounter.get() - prevLogCounter.get() > logCountThreshold) {
-              log.info("Iterated through table : {} {} keys while performing task.", table.getName(),
+              log.info("Iterated through table : {} {} keys while performing task.", tableName,
                   keyCounter.get());
               prevLogCounter.set(keyCounter.get());
             }
@@ -82,29 +93,19 @@ public abstract class ParallelTableOperator<TABLE extends Table<K, V>, K, V> {
     });
   }
 
-  public <THROWABLE extends Throwable> void performTaskOnTableVals(K startKey, K endKey,
-                                     CheckedFunction<Table.KeyValue<K, V>, Void, THROWABLE> keyOperation,
-                                     Logger log, int logPercentageThreshold)
-      throws ExecutionException, InterruptedException, IOException, THROWABLE {
-    List<K> bounds;
-    long logCountThreshold = Math.max((table.getEstimatedKeyCount() * logPercentageThreshold) / 100, 1L);
-    try {
-      bounds = getBounds(startKey, endKey);
-    } catch (IOException e) {
-      log.warn("Error while getting bounds Table: {} startKey: {}, endKey: {}", table.getName(), startKey, endKey, e);
-      bounds = Arrays.asList(startKey, endKey);
-    }
+  public  <THROWABLE extends Throwable> void performTaskOnTableVals(
+      K endKey, CheckedFunction<Table.KeyValue<K, V>, Void, THROWABLE> keyOperation,
+      Logger log, long logCountThreshold)
+      throws ExecutionException, InterruptedException {
     AtomicLong keyCounter = new AtomicLong();
     AtomicLong prevLogCounter = new AtomicLong();
     CompletableFuture<Void> iterFutures = CompletableFuture.completedFuture(null);
     AtomicBoolean cancelled = new AtomicBoolean(false);
-    for (int idx = 1; idx < bounds.size(); idx++) {
-      K beg = bounds.get(idx - 1);
-      K end = bounds.get(idx);
+    for (int idx = 0; idx < executor.getMaxNumberOfThreads(); idx++) {
       if (cancelled.get()) {
         break;
       }
-      CompletableFuture<Void> future = submit(keyOperation, beg, end, keyCounter, prevLogCounter,
+      CompletableFuture<Void> future = submit(keyOperation, endKey, keyCounter, prevLogCounter,
           logCountThreshold, log, cancelled);
       future.exceptionally((e -> {
         cancelled.set(true);
@@ -113,17 +114,5 @@ public abstract class ParallelTableOperator<TABLE extends Table<K, V>, K, V> {
       iterFutures = iterFutures.thenCombine(future, (v1, v2) -> null);
     }
     iterFutures.get();
-  }
-
-  protected TABLE getTable() {
-    return table;
-  }
-
-  public Codec<K> getKeyCodec() {
-    return keyCodec;
-  }
-
-  public Comparator<K> getComparator() {
-    return comparator;
   }
 }
