@@ -43,6 +43,7 @@ import org.apache.hadoop.ozone.container.common.impl.StorageLocationReport;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.report.IncrementalReportSender;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
@@ -144,7 +145,8 @@ public class OzoneContainer {
   public OzoneContainer(
       DatanodeDetails datanodeDetails, ConfigurationSource conf,
       StateContext context, CertificateClient certClient,
-      SecretKeyVerifierClient secretKeyClient) throws IOException {
+      SecretKeyVerifierClient secretKeyClient,
+      VolumeChoosingPolicy volumeChoosingPolicy) throws IOException {
     config = conf;
     this.datanodeDetails = datanodeDetails;
     this.context = context;
@@ -191,7 +193,7 @@ public class OzoneContainer {
           Handler.getHandlerForContainerType(
               containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, icrSender));
+              containerSet, volumeSet, volumeChoosingPolicy, metrics, icrSender));
     }
 
     SecurityConfig secConf = new SecurityConfig(conf);
@@ -216,7 +218,7 @@ public class OzoneContainer {
         secConf,
         certClient,
         new ContainerImporter(conf, containerSet, controller,
-            volumeSet));
+            volumeSet, volumeChoosingPolicy));
 
     readChannel = new XceiverServerGrpc(
         datanodeDetails, config, hddsDispatcher, certClient);
@@ -274,8 +276,8 @@ public class OzoneContainer {
   @VisibleForTesting
   public OzoneContainer(
       DatanodeDetails datanodeDetails, ConfigurationSource conf,
-      StateContext context) throws IOException {
-    this(datanodeDetails, conf, context, null, null);
+      StateContext context, VolumeChoosingPolicy volumeChoosingPolicy) throws IOException {
+    this(datanodeDetails, conf, context, null, null, volumeChoosingPolicy);
   }
 
   public GrpcTlsConfig getTlsClientConfig() {

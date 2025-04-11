@@ -49,6 +49,7 @@ import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.EndpointStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
@@ -59,6 +60,7 @@ import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainer;
 import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerUtil;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
@@ -92,6 +94,7 @@ public class TestEndPoint {
   private static RPC.Server scmServer;
   private static ScmTestMock scmServerImpl;
   private static File testDir;
+  private static VolumeChoosingPolicy volumeChoosingPolicy;
 
   @AfterAll
   public static void tearDown() throws Exception {
@@ -107,6 +110,7 @@ public class TestEndPoint {
     scmServerImpl = new ScmTestMock();
     scmServer = SCMTestUtils.startScmRpcServer(SCMTestUtils.getConf(),
         scmServerImpl, serverAddress, 10);
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(SCMTestUtils.getConf());
     testDir = PathUtils.getTestDir(TestEndPoint.class);
   }
 
@@ -145,7 +149,7 @@ public class TestEndPoint {
       conf.setBoolean(
           OzoneConfigKeys.DFS_CONTAINER_RATIS_DATASTREAM_RANDOM_PORT, true);
       OzoneContainer ozoneContainer = new OzoneContainer(
-          datanodeDetails, conf, getContext(datanodeDetails));
+          datanodeDetails, conf, getContext(datanodeDetails), volumeChoosingPolicy);
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       VersionEndpointTask versionTask = new VersionEndpointTask(rpcEndPoint,
           conf, ozoneContainer);
@@ -223,7 +227,7 @@ public class TestEndPoint {
           .captureLogs(VersionEndpointTask.LOG);
       DatanodeDetails datanodeDetails = randomDatanodeDetails();
       OzoneContainer ozoneContainer = new OzoneContainer(
-          datanodeDetails, conf, getContext(datanodeDetails));
+          datanodeDetails, conf, getContext(datanodeDetails), volumeChoosingPolicy);
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       VersionEndpointTask versionTask = new VersionEndpointTask(rpcEndPoint,
           conf, ozoneContainer);
@@ -272,7 +276,7 @@ public class TestEndPoint {
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       DatanodeDetails datanodeDetails = randomDatanodeDetails();
       OzoneContainer ozoneContainer = new OzoneContainer(
-          datanodeDetails, conf, getContext(datanodeDetails));
+          datanodeDetails, conf, getContext(datanodeDetails), volumeChoosingPolicy);
       VersionEndpointTask versionTask = new VersionEndpointTask(rpcEndPoint,
           conf, ozoneContainer);
       EndpointStateMachine.EndPointStates newState = versionTask.call();
@@ -300,7 +304,7 @@ public class TestEndPoint {
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       DatanodeDetails datanodeDetails = randomDatanodeDetails();
       OzoneContainer ozoneContainer = new OzoneContainer(
-          datanodeDetails, conf, getContext(datanodeDetails));
+          datanodeDetails, conf, getContext(datanodeDetails), volumeChoosingPolicy);
       VersionEndpointTask versionTask = new VersionEndpointTask(rpcEndPoint,
           conf, ozoneContainer);
 
@@ -600,7 +604,7 @@ public class TestEndPoint {
       throws IOException {
     DatanodeDetails datanodeDetails = randomDatanodeDetails();
     OzoneContainer ozoneContainer = new OzoneContainer(
-        datanodeDetails, conf, getContext(datanodeDetails));
+        datanodeDetails, conf, getContext(datanodeDetails), volumeChoosingPolicy);
 
     String clusterId = scmServerImpl.getClusterId();
 

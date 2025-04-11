@@ -40,6 +40,7 @@ import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
@@ -47,6 +48,7 @@ import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.ozone.test.GenericTestUtils;
 
@@ -111,7 +113,7 @@ public class TestContainerMetrics {
         handlers.put(containerType,
             Handler.getHandlerForContainerType(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics,
+                containerSet, volumeSet, VolumeChoosingPolicyFactory.getPolicy(conf), metrics,
                 c -> { }));
       }
       HddsDispatcher dispatcher = new HddsDispatcher(conf, containerSet,

@@ -37,13 +37,14 @@ import org.apache.hadoop.ozone.container.common.helpers.ChunkInfo;
 import org.apache.hadoop.ozone.container.common.impl.ContainerLayoutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.interfaces.DBHandle;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
-import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.keyvalue.ContainerTestVersionInfo;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainer;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
@@ -89,7 +90,7 @@ public class TestOzoneContainer {
   private OzoneConfiguration conf;
   private String clusterId = UUID.randomUUID().toString();
   private MutableVolumeSet volumeSet;
-  private RoundRobinVolumeChoosingPolicy volumeChoosingPolicy;
+  private VolumeChoosingPolicy volumeChoosingPolicy;
   private KeyValueContainerData keyValueContainerData;
   private KeyValueContainer keyValueContainer;
   private final DatanodeDetails datanodeDetails = createDatanodeDetails();
@@ -121,7 +122,7 @@ public class TestOzoneContainer {
     volumeSet = new MutableVolumeSet(datanodeDetails.getUuidString(),
         clusterId, conf, null, StorageVolume.VolumeType.DATA_VOLUME, null);
     createDbInstancesForTestIfNeeded(volumeSet, clusterId, clusterId, conf);
-    volumeChoosingPolicy = new RoundRobinVolumeChoosingPolicy();
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(conf);
   }
 
   @After
@@ -182,7 +183,7 @@ public class TestOzoneContainer {
     // loaded into the containerSet.
     // Also expected to initialize committed space for each volume.
     OzoneContainer ozoneContainer = new
-        OzoneContainer(datanodeDetails, conf, context);
+        OzoneContainer(datanodeDetails, conf, context, volumeChoosingPolicy);
 
     ozoneContainer.buildContainerSet();
     ContainerSet containerset = ozoneContainer.getContainerSet();
@@ -232,7 +233,7 @@ public class TestOzoneContainer {
     // loaded into the containerSet.
     // Also expected to initialize committed space for each volume.
     OzoneContainer ozoneContainer = new
-            OzoneContainer(datanodeDetails, conf, context);
+            OzoneContainer(datanodeDetails, conf, context, volumeChoosingPolicy);
     Assert.assertEquals(volumeSet.getVolumesList().size(),
             ozoneContainer.getNodeReport().getStorageReportList().size());
     Assert.assertEquals(3,
@@ -253,7 +254,7 @@ public class TestOzoneContainer {
     // loaded into the containerSet.
     // Also expected to initialize committed space for each volume.
     OzoneContainer ozoneContainer = new
-            OzoneContainer(datanodeDetails, conf, context);
+            OzoneContainer(datanodeDetails, conf, context, volumeChoosingPolicy);
     Assert.assertEquals(volumeSet.getVolumesList().size(),
             ozoneContainer.getNodeReport().getStorageReportList().size());
     Assert.assertEquals(1,

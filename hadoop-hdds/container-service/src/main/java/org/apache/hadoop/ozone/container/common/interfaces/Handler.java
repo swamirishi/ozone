@@ -21,6 +21,7 @@ package org.apache.hadoop.ozone.container.common.interfaces;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Clock;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -69,16 +70,18 @@ public abstract class Handler {
     this.icrSender = icrSender;
   }
 
+  @SuppressWarnings("checkstyle:ParameterNumber")
   public static Handler getHandlerForContainerType(
       final ContainerType containerType, final ConfigurationSource config,
       final String datanodeId, final ContainerSet contSet,
-      final VolumeSet volumeSet, final ContainerMetrics metrics,
+      final VolumeSet volumeSet, final VolumeChoosingPolicy volumeChoosingPolicy,
+      final ContainerMetrics metrics,
       IncrementalReportSender<Container> icrSender) {
     switch (containerType) {
     case KeyValueContainer:
       return new KeyValueHandler(config,
-          datanodeId, contSet, volumeSet, metrics,
-          icrSender);
+          datanodeId, contSet, volumeSet, volumeChoosingPolicy, metrics,
+          icrSender, Clock.systemUTC());
     default:
       throw new IllegalArgumentException("Handler for ContainerType: " +
           containerType + "doesn't exist.");

@@ -48,6 +48,7 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
@@ -55,6 +56,7 @@ import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerSp
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.DispatcherContext;
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
 import org.apache.ozone.test.GenericTestUtils;
@@ -83,6 +85,8 @@ public class TestContainerServer {
       .getAbsolutePath() + File.separator;
   private static final OzoneConfiguration CONF = new OzoneConfiguration();
   private static CertificateClient caClient;
+  private static VolumeChoosingPolicy volumeChoosingPolicy;
+
 
   @BeforeAll
   public static void setup() {
@@ -90,6 +94,7 @@ public class TestContainerServer {
     CONF.set(HddsConfigKeys.HDDS_METADATA_DIR_NAME, TEST_DIR);
     caClient = new DNCertificateClient(new SecurityConfig(CONF), null,
         null, null, null, null);
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(CONF);
   }
 
   @AfterAll
@@ -210,7 +215,7 @@ public class TestContainerServer {
         handlers.put(containerType,
             Handler.getHandlerForContainerType(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics,
+                containerSet, volumeSet, volumeChoosingPolicy, metrics,
                 c -> { }));
       }
       HddsDispatcher dispatcher = new HddsDispatcher(

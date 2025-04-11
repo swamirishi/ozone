@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.apache.ozone.test.GenericTestUtils;
@@ -84,7 +85,7 @@ public class TestOzoneContainer {
       DatanodeStateMachine dsm = Mockito.mock(DatanodeStateMachine.class);
       Mockito.when(dsm.getDatanodeDetails()).thenReturn(datanodeDetails);
       Mockito.when(context.getParent()).thenReturn(dsm);
-      container = new OzoneContainer(datanodeDetails, conf, context);
+      container = new OzoneContainer(datanodeDetails, conf, context, VolumeChoosingPolicyFactory.getPolicy(conf));
       //Set clusterId and manually start ozone container.
       container.start(UUID.randomUUID().toString());
 
@@ -117,7 +118,7 @@ public class TestOzoneContainer {
       DatanodeStateMachine dsm = Mockito.mock(DatanodeStateMachine.class);
       Mockito.when(dsm.getDatanodeDetails()).thenReturn(datanodeDetails);
       Mockito.when(context.getParent()).thenReturn(dsm);
-      container = new OzoneContainer(datanodeDetails, conf, context);
+      container = new OzoneContainer(datanodeDetails, conf, context, VolumeChoosingPolicyFactory.getPolicy(conf));
 
       String clusterId = UUID.randomUUID().toString();
       container.start(clusterId);

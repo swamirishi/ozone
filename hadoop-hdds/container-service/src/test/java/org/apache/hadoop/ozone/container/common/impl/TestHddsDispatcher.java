@@ -46,6 +46,7 @@ import org.apache.hadoop.ozone.container.ContainerTestHelper;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.report.IncrementalReportSender;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
@@ -56,6 +57,7 @@ import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.keyvalue.ContainerLayoutTestInfo;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainer;
@@ -66,6 +68,7 @@ import org.apache.ozone.test.LambdaTestUtils;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
@@ -103,6 +106,12 @@ public class TestHddsDispatcher {
 
   public static final IncrementalReportSender<Container>
       NO_OP_ICR_SENDER = c -> { };
+
+  private static VolumeChoosingPolicy volumeChoosingPolicy;
+  @BeforeAll
+  public static void init() {
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(new OzoneConfiguration());
+  }
 
   private final ContainerLayoutVersion layout;
 
@@ -149,7 +158,7 @@ public class TestHddsDispatcher {
         handlers.put(containerType,
             Handler.getHandlerForContainerType(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+                containerSet, volumeSet, volumeChoosingPolicy, metrics, NO_OP_ICR_SENDER));
       }
       HddsDispatcher hddsDispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);
@@ -225,7 +234,7 @@ public class TestHddsDispatcher {
         handlers.put(containerType,
             Handler.getHandlerForContainerType(containerType, conf,
                 context.getParent().getDatanodeDetails().getUuidString(),
-                containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+                containerSet, volumeSet, volumeChoosingPolicy, metrics, NO_OP_ICR_SENDER));
       }
       HddsDispatcher hddsDispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);
@@ -486,7 +495,7 @@ public class TestHddsDispatcher {
       handlers.put(containerType,
           Handler.getHandlerForContainerType(containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, NO_OP_ICR_SENDER));
+              containerSet, volumeSet, volumeChoosingPolicy, metrics, NO_OP_ICR_SENDER));
     }
 
     final HddsDispatcher hddsDispatcher = new HddsDispatcher(conf,

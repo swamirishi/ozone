@@ -38,6 +38,7 @@ import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachin
 import org.apache.hadoop.ozone.container.common.statemachine.EndpointStateMachine;
 import org.apache.hadoop.ozone.container.common.states.endpoint.VersionEndpointTask;
 import org.apache.hadoop.ozone.container.common.utils.HddsVolumeUtil;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.replication.ContainerImporter;
 import org.apache.hadoop.ozone.container.replication.ContainerReplicationSource;
@@ -666,7 +667,8 @@ public class TestDatanodeUpgradeToScmHA {
         new ContainerImporter(dsm.getConf(),
             dsm.getContainer().getContainerSet(),
             dsm.getContainer().getController(),
-            dsm.getContainer().getVolumeSet());
+            dsm.getContainer().getVolumeSet(),
+            VolumeChoosingPolicyFactory.getPolicy(conf));
 
     File tempFile = tempFolder.newFile(
         ContainerUtils.getContainerTarName(containerID));

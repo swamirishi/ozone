@@ -60,6 +60,7 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.ContainerDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerGrpc;
@@ -67,6 +68,7 @@ import org.apache.hadoop.ozone.container.common.transport.server.XceiverServerSp
 import org.apache.hadoop.ozone.container.common.transport.server.ratis.XceiverServerRatis;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenSecretManager;
@@ -125,6 +127,7 @@ public class TestSecureContainerServer {
   private static SecretKeyClient secretKeyClient;
   private static OzoneBlockTokenSecretManager blockTokenSecretManager;
   private static ContainerTokenSecretManager containerTokenSecretManager;
+  private static VolumeChoosingPolicy volumeChoosingPolicy;
 
   @BeforeClass
   public static void setup() throws Exception {
@@ -135,6 +138,7 @@ public class TestSecureContainerServer {
     CONF.setBoolean(HDDS_BLOCK_TOKEN_ENABLED, true);
     caClient = new CertificateClientTestImpl(CONF);
     secretKeyClient = new SecretKeyTestClient();
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(CONF);
 
     long tokenLifetime = TimeUnit.HOURS.toMillis(1);
 
@@ -190,7 +194,7 @@ public class TestSecureContainerServer {
       handlers.put(containerType,
           Handler.getHandlerForContainerType(containerType, conf,
               dd.getUuid().toString(),
-              containerSet, volumeSet, metrics,
+              containerSet, volumeSet, volumeChoosingPolicy, metrics,
               c -> { }));
     }
     HddsDispatcher hddsDispatcher = new HddsDispatcher(

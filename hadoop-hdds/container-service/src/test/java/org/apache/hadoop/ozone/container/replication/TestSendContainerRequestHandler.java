@@ -22,8 +22,10 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.ozone.container.common.impl.ContainerLayoutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainer;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
@@ -45,9 +47,12 @@ class TestSendContainerRequestHandler {
 
   private OzoneConfiguration conf;
 
+  private VolumeChoosingPolicy volumeChoosingPolicy;
+
   @BeforeEach
   void setup() {
     conf = new OzoneConfiguration();
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(conf);
   }
 
   @Test
@@ -58,7 +63,7 @@ class TestSendContainerRequestHandler {
     MutableVolumeSet volumeSet = new MutableVolumeSet("test", conf, null,
         StorageVolume.VolumeType.DATA_VOLUME, null);
     ContainerImporter containerImporter = new ContainerImporter(conf,
-        new ContainerSet(0), mock(ContainerController.class), volumeSet);
+        new ContainerSet(0), mock(ContainerController.class), volumeSet, volumeChoosingPolicy);
     KeyValueContainerData containerData = new KeyValueContainerData(containerId,
         ContainerLayoutVersion.FILE_PER_BLOCK, 100, "test", "test");
     // add container to container set

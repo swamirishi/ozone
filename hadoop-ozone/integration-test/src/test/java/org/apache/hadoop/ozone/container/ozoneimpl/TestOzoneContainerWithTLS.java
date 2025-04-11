@@ -35,6 +35,7 @@ import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.client.SecretKeyTestClient;
 import org.apache.hadoop.ozone.container.ContainerTestHelper;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.hdds.scm.XceiverClientGrpc;
 import org.apache.hadoop.hdds.scm.XceiverClientSpi;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
@@ -187,7 +188,7 @@ public class TestOzoneContainerWithTLS {
           OzoneConfigKeys.DFS_CONTAINER_IPC_RANDOM_PORT, false);
 
       container = new OzoneContainer(dn, conf, getContext(dn), caClient,
-          secretKeyClient);
+          secretKeyClient, VolumeChoosingPolicyFactory.getPolicy(conf));
       //Set scmId and manually start ozone container.
       container.start(UUID.randomUUID().toString());
 
@@ -227,7 +228,7 @@ public class TestOzoneContainerWithTLS {
     OzoneContainer container = null;
     try {
       container = new OzoneContainer(dn, conf, getContext(dn), caClient,
-          secretKeyClient);
+          secretKeyClient, VolumeChoosingPolicyFactory.getPolicy(conf));
 
       // Set scmId and manually start ozone container.
       container.start(UUID.randomUUID().toString());

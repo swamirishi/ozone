@@ -284,28 +284,6 @@ public class TestKeyValueHandler {
       Mockito.when(stateMachine.getDatanodeDetails())
           .thenReturn(datanodeDetails);
       Mockito.when(context.getParent()).thenReturn(stateMachine);
-      KeyValueHandler keyValueHandler = new KeyValueHandler(conf,
-          context.getParent().getDatanodeDetails().getUuidString(), cset,
-          volumeSet, metrics, c -> {
-      });
-      assertEquals("org.apache.hadoop.ozone.container.common" +
-          ".volume.RoundRobinVolumeChoosingPolicy",
-          keyValueHandler.getVolumeChoosingPolicyForTesting()
-              .getClass().getName());
-
-      //Set a class which is not of sub class of VolumeChoosingPolicy
-      conf.set(HDDS_DATANODE_VOLUME_CHOOSING_POLICY,
-          "org.apache.hadoop.ozone.container.common.impl.HddsDispatcher");
-      try {
-        new KeyValueHandler(conf,
-            context.getParent().getDatanodeDetails().getUuidString(),
-            cset, volumeSet, metrics, c -> { });
-      } catch (RuntimeException ex) {
-        GenericTestUtils.assertExceptionContains("class org.apache.hadoop" +
-            ".ozone.container.common.impl.HddsDispatcher not org.apache" +
-            ".hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy",
-            ex);
-      }
     } finally {
       volumeSet.shutdown();
       FileUtil.fullyDelete(path);
@@ -492,7 +470,7 @@ public class TestKeyValueHandler {
     final AtomicInteger icrReceived = new AtomicInteger(0);
 
     final KeyValueHandler kvHandler = new KeyValueHandler(conf,
-        datanodeId, containerSet, volumeSet, metrics,
+        datanodeId, containerSet, volumeSet, null, metrics,
         c -> icrReceived.incrementAndGet(), clock);
     kvHandler.setClusterID(clusterId);
 

@@ -38,8 +38,10 @@ import org.apache.hadoop.hdds.security.x509.certificate.client.CertificateClient
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.client.SecretKeyTestClient;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.ozone.test.GenericTestUtils;
@@ -89,6 +91,7 @@ public class TestSecureOzoneContainer {
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
   private OzoneConfiguration conf;
+  private VolumeChoosingPolicy volumeChoosingPolicy;
   private SecurityConfig secConfig;
   private final boolean requireToken;
   private final boolean hasToken;
@@ -127,6 +130,7 @@ public class TestSecureOzoneContainer {
     secretKeyClient = new SecretKeyTestClient();
     secretManager = new ContainerTokenSecretManager(
         TimeUnit.DAYS.toMillis(1), secretKeyClient);
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(conf);
   }
 
   @Test
@@ -150,7 +154,7 @@ public class TestSecureOzoneContainer {
 
       DatanodeDetails dn = MockDatanodeDetails.randomDatanodeDetails();
       container = new OzoneContainer(dn, conf, getContext(dn), caClient,
-          secretKeyClient);
+          secretKeyClient, volumeChoosingPolicy);
       //Set scmId and manually start ozone container.
       container.start(UUID.randomUUID().toString());
 

@@ -64,12 +64,14 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.impl.ContainerLayoutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
+import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
+import org.apache.hadoop.ozone.container.common.volume.VolumeChoosingPolicyFactory;
 import org.apache.hadoop.ozone.container.common.volume.VolumeInfo;
 import org.apache.hadoop.ozone.container.ec.reconstruction.ECReconstructionCommandInfo;
 import org.apache.hadoop.ozone.container.ec.reconstruction.ECReconstructionCoordinatorTask;
@@ -147,6 +149,7 @@ public class TestReplicationSupervisor {
   private StateContext context;
   private TestClock clock;
   private DatanodeDetails datanode;
+  private VolumeChoosingPolicy volumeChoosingPolicy;
 
   public TestReplicationSupervisor(ContainerLayoutVersion layout) {
     this.layout = layout;
@@ -170,6 +173,7 @@ public class TestReplicationSupervisor {
     context.setTermOfLeaderSCM(CURRENT_TERM);
     datanode = MockDatanodeDetails.randomDatanodeDetails();
     when(stateMachine.getDatanodeDetails()).thenReturn(datanode);
+    volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(new OzoneConfiguration());
   }
 
   @After
@@ -342,7 +346,7 @@ public class TestReplicationSupervisor {
         .thenReturn(singletonList(
             new HddsVolume.Builder(testDir).conf(conf).build()));
     ContainerImporter importer =
-        new ContainerImporter(conf, set, null, volumeSet);
+        new ContainerImporter(conf, set, null, volumeSet, volumeChoosingPolicy);
     ContainerReplicator replicator =
         new DownloadAndImportReplicator(conf, set, importer, moc);
 
@@ -402,7 +406,7 @@ public class TestReplicationSupervisor {
         .thenReturn(tarFile.toPath());
 
     ContainerImporter importer =
-        new ContainerImporter(conf, set, controllerMock, volumeSet);
+        new ContainerImporter(conf, set, controllerMock, volumeSet, volumeChoosingPolicy);
 
     HddsVolume vol1 = (HddsVolume) volumeSet.getVolumesList().get(0);
     // Initially volume has 0 commit space
