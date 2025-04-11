@@ -20,9 +20,12 @@ package org.apache.hadoop.hdds.utils.db.managed;
 import java.util.function.Consumer;
 import org.rocksdb.Snapshot;
 
-public class ManagedSnapshot extends ManagedObject<Snapshot> {
+/**
+ * Managed {@link Snapshot}.
+ */
+public final class ManagedSnapshot extends ManagedObject<Snapshot> {
 
-  private Consumer<ManagedSnapshot> snapshotCloseHandler;
+  private final Consumer<ManagedSnapshot> snapshotCloseHandler;
 
   private ManagedSnapshot(Snapshot snapshot, Consumer<ManagedSnapshot> snapshotCloseHandler) {
     super(snapshot);

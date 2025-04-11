@@ -22,6 +22,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator;
+import org.apache.ratis.util.ReferenceCountedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,11 +39,12 @@ abstract class RDBStoreAbstractIterator<RAW>
 
   private final ManagedRocksIterator rocksDBIterator;
   private final RDBTable rocksDBTable;
-  private final AtomicReference<AutoCloseSupplier<RawKeyValue<RAW>>> currentEntry;
+  private final AtomicReference<ReferenceCountedObject<RawKeyValue<RAW>>> currentEntry;
   // This is for schemas that use a fixed-length
   // prefix for each key.
   private final RAW prefix;
   private boolean hasNext;
+  private boolean closed;
 
   RDBStoreAbstractIterator(ManagedRocksIterator iterator, RDBTable table,
       RAW prefix) {
@@ -51,10 +53,11 @@ abstract class RDBStoreAbstractIterator<RAW>
     this.prefix = prefix;
     this.currentEntry = new AtomicReference<>();
     this.hasNext = false;
+    this.closed = false;
   }
 
   /** @return the {@link Table.KeyValue} for the current entry. */
-  abstract AutoCloseSupplier<RawKeyValue<RAW>> getKeyValue();
+  abstract ReferenceCountedObject<RawKeyValue<RAW>> getKeyValue();
 
   /** Seek to the given key. */
   abstract void seek0(RAW key);
@@ -88,10 +91,14 @@ abstract class RDBStoreAbstractIterator<RAW>
 
   private void setCurrentEntry() {
     currentEntry.updateAndGet(prev -> {
-      AutoCloseSupplier<RawKeyValue<RAW>> entry;
-      boolean isValid = rocksDBIterator.get().isValid();
+      if (prev != null) {
+        prev.release();
+      }
+      ReferenceCountedObject<RawKeyValue<RAW>> entry;
+      boolean isValid = !closed && rocksDBIterator.get().isValid();
       if (isValid) {
         entry = getKeyValue();
+        entry.retain();
       } else {
         entry = null;
       }
@@ -100,7 +107,7 @@ abstract class RDBStoreAbstractIterator<RAW>
     });
   }
 
-  public void setHasNext(boolean isValid, AutoCloseSupplier<RawKeyValue<RAW>> entry) {
+  public void setHasNext(boolean isValid, ReferenceCountedObject<RawKeyValue<RAW>> entry) {
     this.hasNext = isValid && (prefix == null || startsWithPrefix(entry.get().getKey()));
   }
 
@@ -112,7 +119,7 @@ abstract class RDBStoreAbstractIterator<RAW>
   @Override
   public final synchronized AutoCloseSupplier<RawKeyValue<RAW>> next() {
     if (hasNext()) {
-      AutoCloseSupplier<RawKeyValue<RAW>> entry = currentEntry.get();
+      AutoCloseSupplier<RawKeyValue<RAW>> entry = getCurrentAutoCloseableSupplier();
       rocksDBIterator.get().next();
       setCurrentEntry();
       return entry;
@@ -140,12 +147,33 @@ abstract class RDBStoreAbstractIterator<RAW>
     setCurrentEntry();
   }
 
+  private AutoCloseSupplier<RawKeyValue<RAW>> getCurrentAutoCloseableSupplier() {
+    ReferenceCountedObject<RawKeyValue<RAW>> entry = currentEntry.updateAndGet(curr -> {
+      if (curr != null) {
+        curr.retain();
+      }
+      return curr;
+    });
+    return new AutoCloseSupplier<RawKeyValue<RAW>>() {
+
+      @Override
+      public void close() {
+        entry.release();
+      }
+
+      @Override
+      public RawKeyValue<RAW> get() {
+        return entry.get();
+      }
+    };
+  }
+
   @Override
   public final synchronized AutoCloseSupplier<RawKeyValue<RAW>> seek(RAW key) {
     seek0(key);
     setCurrentEntry();
     // Current entry should be only closed when the next() and thus closing the returned entry should be a noop.
-    return () -> new RawKeyValue<>(currentEntry.get().get().getKey(), currentEntry.get().get().getValue());
+    return getCurrentAutoCloseableSupplier();
   }
 
   @Override
@@ -153,7 +181,7 @@ abstract class RDBStoreAbstractIterator<RAW>
     if (rocksDBTable == null) {
       throw new UnsupportedOperationException("remove");
     }
-    if (currentEntry != null) {
+    if (currentEntry.get() != null) {
       delete(currentEntry.get().get().getKey());
     } else {
       LOG.info("Failed to removeFromDB: currentEntry == null");
@@ -161,7 +189,9 @@ abstract class RDBStoreAbstractIterator<RAW>
   }
 
   @Override
-  public void close() {
+  public synchronized void close() {
     rocksDBIterator.close();
+    closed = true;
+    setCurrentEntry();
   }
 }

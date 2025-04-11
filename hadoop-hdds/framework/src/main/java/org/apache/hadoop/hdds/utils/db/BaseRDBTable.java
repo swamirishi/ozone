@@ -19,7 +19,6 @@ package org.apache.hadoop.hdds.utils.db;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.hadoop.hdds.utils.db.managed.ManagedReadOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSnapshot;
 import org.rocksdb.LiveFileMetaData;
 

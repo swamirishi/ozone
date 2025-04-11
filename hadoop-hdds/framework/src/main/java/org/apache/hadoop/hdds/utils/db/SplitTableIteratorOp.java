@@ -20,7 +20,6 @@ package org.apache.hadoop.hdds.utils.db;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;

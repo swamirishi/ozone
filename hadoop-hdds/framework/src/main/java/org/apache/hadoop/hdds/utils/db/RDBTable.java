@@ -294,7 +294,7 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
                                   CheckedFunction<KeyValue<byte[], byte[]>, Void, IOException> operation,
                                   Logger logger, int logPercentageThreshold)
       throws IOException, ExecutionException, InterruptedException {
-    try(RDBSplitTableIteratorOp<byte[], byte[]> parallelTableOperator = new RDBSplitTableIteratorOp<>(executor, this,
+    try (RDBSplitTableIteratorOp<byte[], byte[]> parallelTableOperator = new RDBSplitTableIteratorOp<>(executor, this,
         ByteArrayCodec.get())) {
       parallelTableOperator.performTaskOnTableVals(startKey, endKey, operation, logger, logPercentageThreshold);
     }

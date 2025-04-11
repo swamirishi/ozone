@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSnapshot;
 import org.rocksdb.LiveFileMetaData;
-import org.rocksdb.RocksDBException;
 
 /**
  * Class to iterate through a table in parallel by breaking table into multiple iterators for RDB store.

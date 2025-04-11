@@ -17,8 +17,6 @@
 
 package org.apache.hadoop.hdds.utils.db;
 
-import static org.apache.hadoop.hdds.HddsUtils.formatStackTrace;
-
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
@@ -30,6 +28,7 @@ import java.util.function.Function;
 import org.apache.commons.lang3.exception.UncheckedInterruptedException;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator;
 import org.apache.ratis.util.Preconditions;
+import org.apache.ratis.util.ReferenceCountedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,52 +142,30 @@ class RDBStoreCodecBufferIterator
     }
   }
 
-  private AutoCloseSupplier<RawKeyValue<CodecBuffer>> getCloseableValueSupplier(
+  private ReferenceCountedObject<RawKeyValue<CodecBuffer>> getReferenceCountedBuffer(
       RawKeyValue<Buffer> key, Stack<RawKeyValue<Buffer>> stack, Set<RawKeyValue<Buffer>> inUseSet,
       Object lock, Function<RawKeyValue<Buffer>, RawKeyValue<CodecBuffer>> transformer) {
     RawKeyValue<CodecBuffer> value = transformer.apply(key);
-    return new AutoCloseSupplier<RawKeyValue<CodecBuffer>>() {
-      private boolean isClosed;
-      private StackTraceElement[] closedStackTrace;
-
-      @Override
-      public void close() {
-        synchronized (lock) {
-          if (!isClosed) {
-            isClosed = true;
-            if (LOG.isDebugEnabled()) {
-              closedStackTrace = Thread.currentThread().getStackTrace();
-            }
-            stack.push(key);
-            inUseSet.remove(key);
-            lock.notify();
-          } else {
-            StackTraceElement[] stackTraceElements = null;
-            if (LOG.isDebugEnabled()) {
-              stackTraceElements = Thread.currentThread().getStackTrace();
-            }
-            LOG.warn("Codec Buffer has already been closed. Prev Close Stacktrace: {}. \n Current Close Stacktrace: " +
-                    "{}", formatStackTrace(closedStackTrace, 0),
-                formatStackTrace(stackTraceElements, 0));
-          }
-        }
+    return ReferenceCountedObject.wrap(value, () -> {
+    }, completelyReleased -> {
+      if (!completelyReleased) {
+        return;
       }
-
-      @Override
-      public RawKeyValue<CodecBuffer> get() {
-        return value;
+      synchronized (lock) {
+        stack.push(key);
+        inUseSet.remove(key);
+        lock.notify();
       }
-    };
+    });
   }
 
-
   @Override
-  AutoCloseSupplier<RawKeyValue<CodecBuffer>> getKeyValue() {
+  ReferenceCountedObject<RawKeyValue<CodecBuffer>> getKeyValue() {
     assertOpen();
     RawKeyValue<Buffer> kvBuffer = getFromStack(bufferLock, availableBufferStack, inUseBuffers);
     Function<RawKeyValue<Buffer>, RawKeyValue<CodecBuffer>> transformer =
         kv -> new RawKeyValue<>(kv.getKey().getFromDb(), kv.getValue().getFromDb());
-    return getCloseableValueSupplier(kvBuffer, availableBufferStack, inUseBuffers, bufferLock, transformer);
+    return getReferenceCountedBuffer(kvBuffer, availableBufferStack, inUseBuffers, bufferLock, transformer);
   }
 
   @Override
