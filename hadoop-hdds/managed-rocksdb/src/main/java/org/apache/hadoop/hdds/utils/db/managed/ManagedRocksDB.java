@@ -127,7 +127,7 @@ public class ManagedRocksDB extends ManagedObject<RocksDB> {
         return null;
       }
       Consumer<ManagedSnapshot> snapshotCloseHandler = managedSnapshot -> {
-        dbHandleLock.readLock().unlock();
+        dbHandleLock.readLock().lock();
         try {
           if (!isClosed() && !managedSnapshot.isClosed()) {
             this.get().releaseSnapshot(managedSnapshot.get());
