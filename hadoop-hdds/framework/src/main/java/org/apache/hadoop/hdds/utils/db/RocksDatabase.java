@@ -825,7 +825,7 @@ public final class RocksDatabase implements Closeable {
   }
 
   public ManagedSnapshot takeSnapshot() throws IOException {
-    try(UncheckedAutoCloseable ignored = acquire()) {
+    try (UncheckedAutoCloseable ignored = acquire()) {
       ManagedSnapshot snapshot = db.takeSnapshot();
       if (snapshot == null) {
         throw new IOException("Unable to take snapshot of the underlying rocksdb");
