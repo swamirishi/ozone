@@ -495,8 +495,4 @@ public class RDBStore implements DBStore {
   public RDBMetrics getMetrics() {
     return rdbMetrics;
   }
-
-  public static Logger getLogger() {
-    return LOG;
-  }
 }

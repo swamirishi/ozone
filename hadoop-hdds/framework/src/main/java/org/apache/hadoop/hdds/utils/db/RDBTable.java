@@ -386,7 +386,7 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
       int count, boolean sequential, byte[] prefix,
       MetadataKeyFilters.MetadataKeyFilter... filters)
       throws IOException, IllegalArgumentException {
-    long start = System.currentTimeMillis();
+    long start = Time.monotonicNow();
 
     if (count < 0) {
       throw new IllegalArgumentException(
@@ -431,7 +431,7 @@ class RDBTable implements BaseRDBTable<byte[], byte[]> {
         }
       }
     } finally {
-      long end = System.currentTimeMillis();
+      long end = Time.monotonicNow();
       long timeConsumed = end - start;
       if (LOG.isDebugEnabled()) {
         if (filters != null) {
