@@ -25,7 +25,7 @@ import org.apache.hadoop.hdds.utils.db.Table.KeyValue;
  *
  * @param <RAW> The raw type.
  */
-public abstract class RawKeyValue<RAW> implements KeyValue<RAW, RAW> {
+public class RawKeyValue<RAW> implements KeyValue<RAW, RAW> {
   /**
    * Create a KeyValue pair.
    *
@@ -56,12 +56,22 @@ public abstract class RawKeyValue<RAW> implements KeyValue<RAW, RAW> {
     public byte[] getValue() {
       return copy(super.getValue());
     }
+
+    @Override
+    String getKeyString() {
+      return Arrays.toString(getKey());
+    }
+
+    @Override
+    String getValueString() {
+      return Arrays.toString(getValue());
+    }
   }
 
   private final RAW key;
   private final RAW value;
 
-  private RawKeyValue(RAW key, RAW value) {
+  public RawKeyValue(RAW key, RAW value) {
     this.key = key;
     this.value = value;
   }
@@ -80,5 +90,18 @@ public abstract class RawKeyValue<RAW> implements KeyValue<RAW, RAW> {
   @Override
   public RAW getValue() {
     return value;
+  }
+
+  String getKeyString() {
+    return key.toString();
+  }
+
+  String getValueString() {
+    return value.toString();
+  }
+
+  @Override
+  public String toString() {
+    return "(key=" + getKeyString() + ", value=" + getValueString() + ")";
   }
 }

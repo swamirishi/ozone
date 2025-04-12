@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.container.common.impl;
 
 import java.time.Clock;
 import org.apache.hadoop.hdds.utils.db.InMemoryTestTable;
+import org.apache.hadoop.hdds.utils.db.LongCodec;
 
 /**
  * Helper utility to test container impl.
@@ -33,10 +34,10 @@ public final class ContainerImplTestUtils {
   }
 
   public static ContainerSet newContainerSet(long recoveringTimeout) {
-    return ContainerSet.newRwContainerSet(new InMemoryTestTable<>(), recoveringTimeout);
+    return ContainerSet.newRwContainerSet(new InMemoryTestTable<>(LongCodec.get()), recoveringTimeout);
   }
 
   public static ContainerSet newContainerSet(long recoveringTimeout, Clock clock) {
-    return new ContainerSet(new InMemoryTestTable<>(), recoveringTimeout, clock);
+    return new ContainerSet(new InMemoryTestTable<>(LongCodec.get()), recoveringTimeout, clock);
   }
 }

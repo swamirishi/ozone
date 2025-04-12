@@ -15,48 +15,30 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hdds.server.http;
+package org.apache.hadoop.hdds.utils.db.managed;
 
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.spi.LoggingEvent;
+import java.util.function.Consumer;
+import org.rocksdb.Snapshot;
 
 /**
- * Log4j Appender adapter for HttpRequestLog.
+ * Managed {@link Snapshot}.
  */
-public class HttpRequestLogAppender extends AppenderSkeleton {
+public final class ManagedSnapshot extends ManagedObject<Snapshot> {
 
-  private String filename;
-  private int retainDays;
+  private final Consumer<ManagedSnapshot> snapshotCloseHandler;
 
-  public HttpRequestLogAppender() {
+  private ManagedSnapshot(Snapshot snapshot, Consumer<ManagedSnapshot> snapshotCloseHandler) {
+    super(snapshot);
+    this.snapshotCloseHandler = snapshotCloseHandler;
   }
 
-  public void setRetainDays(int retainDays) {
-    this.retainDays = retainDays;
+  public static ManagedSnapshot newManagedSnapshots(Snapshot snapshot, Consumer<ManagedSnapshot> snapshotCloseHandler) {
+    return new ManagedSnapshot(snapshot, snapshotCloseHandler);
   }
-
-  public int getRetainDays() {
-    return retainDays;
-  }
-
-  public void setFilename(String filename) {
-    this.filename = filename;
-  }
-
-  public String getFilename() {
-    return filename;
-  }
-
-  @Override
-  public void append(LoggingEvent event) {
-  }
-
   @Override
   public void close() {
+    this.snapshotCloseHandler.accept(this);
+    super.close();
   }
 
-  @Override
-  public boolean requiresLayout() {
-    return false;
-  }
 }
