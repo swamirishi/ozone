@@ -17,9 +17,34 @@
  */
 package org.apache.hadoop.hdds.utils.db;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.hadoop.hdds.StringUtils.bytes2String;
+import static org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions.closeDeeply;
+import static org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator.managed;
+import static org.apache.hadoop.hdds.utils.db.managed.ManagedTransactionLogIterator.managed;
+import static org.rocksdb.RocksDB.listColumnFamilies;
+
 import com.google.common.annotations.VisibleForTesting;
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.hdds.StringUtils;
-import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedCheckpoint;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedCompactRangeOptions;
@@ -45,33 +70,6 @@ import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.apache.hadoop.hdds.StringUtils.bytes2String;
-import static org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions.closeDeeply;
-import static org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator.managed;
-import static org.apache.hadoop.hdds.utils.db.managed.ManagedTransactionLogIterator.managed;
-import static org.rocksdb.RocksDB.listColumnFamilies;
-
 /**
  * A wrapper class for {@link org.rocksdb.RocksDB}.
  * When there is a {@link RocksDBException} with error,
@@ -91,8 +89,8 @@ public final class RocksDatabase implements Closeable {
 
   private final StackTraceElement[] stackTrace;
 
-  static IOException toIOException(Object name, String op, RocksDBException e) {
-    return HddsServerUtil.toIOException(name + ": Failed to " + op, e);
+  static RocksDatabaseException toRocksDatabaseException(Object name, String op, RocksDBException e) {
+    return new RocksDatabaseException(name + ": Failed to " + op, e);
   }
 
   /**
@@ -139,7 +137,7 @@ public final class RocksDatabase implements Closeable {
 
   static RocksDatabase open(File dbFile, ManagedDBOptions dbOptions,
         ManagedWriteOptions writeOptions, Set<TableConfig> families,
-        boolean readOnly) throws IOException {
+        boolean readOnly) throws RocksDatabaseException {
     List<ColumnFamilyDescriptor> descriptors = null;
     ManagedRocksDB db = null;
     final Map<String, ColumnFamily> columnFamilies = new HashMap<>();
@@ -169,7 +167,7 @@ public final class RocksDatabase implements Closeable {
           descriptors, Collections.unmodifiableMap(columnFamilies), counter);
     } catch (RocksDBException e) {
       close(columnFamilies, db, descriptors, writeOptions, dbOptions);
-      throw toIOException(RocksDatabase.class, "open " + dbFile, e);
+      throw toRocksDatabaseException(RocksDatabase.class, "open " + dbFile, e);
     }
   }
 
@@ -236,21 +234,21 @@ public final class RocksDatabase implements Closeable {
       this.checkpoint = ManagedCheckpoint.create(db);
     }
 
-    public void createCheckpoint(Path path) throws IOException {
+    public void createCheckpoint(Path path) throws RocksDatabaseException {
       try (UncheckedAutoCloseable ignored = acquire()) {
         checkpoint.get().createCheckpoint(path.toString());
       } catch (RocksDBException e) {
         closeOnError(e);
-        throw toIOException(this, "createCheckpoint " + path, e);
+        throw toRocksDatabaseException(this, "createCheckpoint " + path, e);
       }
     }
 
-    public long getLatestSequenceNumber() throws IOException {
+    public long getLatestSequenceNumber() throws RocksDatabaseException {
       return RocksDatabase.this.getLatestSequenceNumber();
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() throws RocksDatabaseException {
       checkpoint.close();
     }
   }
@@ -294,16 +292,16 @@ public final class RocksDatabase implements Closeable {
     }
 
     public void batchDelete(ManagedWriteBatch writeBatch, byte[] key)
-        throws IOException {
+        throws RocksDatabaseException {
       try (UncheckedAutoCloseable ignored = acquire()) {
         writeBatch.delete(getHandle(), key);
       } catch (RocksDBException e) {
-        throw toIOException(this, "batchDelete key " + bytes2String(key), e);
+        throw toRocksDatabaseException(this, "batchDelete key " + bytes2String(key), e);
       }
     }
 
     public void batchPut(ManagedWriteBatch writeBatch, byte[] key, byte[] value)
-        throws IOException {
+        throws RocksDatabaseException {
       if (LOG.isDebugEnabled()) {
         LOG.debug("batchPut array key {}", bytes2String(key));
         LOG.debug("batchPut array value {}", bytes2String(value));
@@ -312,12 +310,12 @@ public final class RocksDatabase implements Closeable {
       try (UncheckedAutoCloseable ignored = acquire()) {
         writeBatch.put(getHandle(), key, value);
       } catch (RocksDBException e) {
-        throw toIOException(this, "batchPut key " + bytes2String(key), e);
+        throw toRocksDatabaseException(this, "batchPut key " + bytes2String(key), e);
       }
     }
 
     public void batchPut(ManagedWriteBatch writeBatch, ByteBuffer key,
-        ByteBuffer value) throws IOException {
+        ByteBuffer value) throws RocksDatabaseException {
       if (LOG.isDebugEnabled()) {
         LOG.debug("batchPut buffer key {}", bytes2String(key.duplicate()));
         LOG.debug("batchPut buffer value {}", bytes2String(value.duplicate()));
@@ -326,7 +324,7 @@ public final class RocksDatabase implements Closeable {
       try (UncheckedAutoCloseable ignored = acquire()) {
         writeBatch.put(getHandle(), key.duplicate(), value);
       } catch (RocksDBException e) {
-        throw toIOException(this, "batchPut ByteBuffer key "
+        throw toRocksDatabaseException(this, "batchPut ByteBuffer key "
             + bytes2String(key), e);
       }
     }
@@ -335,13 +333,13 @@ public final class RocksDatabase implements Closeable {
       isClosed.set(true);
     }
 
-    private UncheckedAutoCloseable acquire() throws IOException {
+    private UncheckedAutoCloseable acquire() throws RocksDatabaseException {
       if (isClosed.get()) {
-        throw new IOException("Rocks Database is closed");
+        throw new RocksDatabaseException("Rocks Database is closed");
       }
       if (counter.getAndIncrement() < 0) {
         counter.getAndDecrement();
-        throw new IOException("Rocks Database is closed");
+        throw new RocksDatabaseException("Rocks Database is closed");
       }
       return counter::getAndDecrement;
     }
@@ -434,19 +432,19 @@ public final class RocksDatabase implements Closeable {
     }
   }
 
-  private UncheckedAutoCloseable acquire() throws IOException {
+  private UncheckedAutoCloseable acquire() throws RocksDatabaseException {
     if (isClosed()) {
-      throw new IOException("Rocks Database is closed");
+      throw new RocksDatabaseException("Rocks Database is closed");
     }
     if (counter.getAndIncrement() < 0) {
       counter.getAndDecrement();
-      throw new IOException("Rocks Database is closed");
+      throw new RocksDatabaseException("Rocks Database is closed");
     }
     return counter::getAndDecrement;
   }
 
   public void ingestExternalFile(ColumnFamily family, List<String> files,
-      ManagedIngestExternalFileOptions ingestOptions) throws IOException {
+      ManagedIngestExternalFileOptions ingestOptions) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().ingestExternalFile(family.getHandle(), files, ingestOptions);
     } catch (RocksDBException e) {
@@ -454,31 +452,31 @@ public final class RocksDatabase implements Closeable {
       String msg = "Failed to ingest external files " +
           files.stream().collect(Collectors.joining(", ")) + " of " +
           family.getName();
-      throw toIOException(this, msg, e);
+      throw toRocksDatabaseException(this, msg, e);
     }
   }
 
   public void put(ColumnFamily family, byte[] key, byte[] value)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().put(family.getHandle(), writeOptions, key, value);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "put " + bytes2String(key), e);
+      throw toRocksDatabaseException(this, "put " + bytes2String(key), e);
     }
   }
 
   public void put(ColumnFamily family, ByteBuffer key, ByteBuffer value)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().put(family.getHandle(), writeOptions, key, value);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "put " + bytes2String(key), e);
+      throw toRocksDatabaseException(this, "put " + bytes2String(key), e);
     }
   }
 
-  public void flush() throws IOException {
+  public void flush() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire();
         ManagedFlushOptions options = new ManagedFlushOptions()) {
       options.setWaitForFlush(true);
@@ -488,14 +486,14 @@ public final class RocksDatabase implements Closeable {
       }
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "flush", e);
+      throw toRocksDatabaseException(this, "flush", e);
     }
   }
 
   /**
    * @param cfName columnFamily on which flush will run.
    */
-  public void flush(String cfName) throws IOException {
+  public void flush(String cfName) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       ColumnFamilyHandle handle = getColumnFamilyHandle(cfName);
       try (ManagedFlushOptions options = new ManagedFlushOptions()) {
@@ -509,40 +507,40 @@ public final class RocksDatabase implements Closeable {
         }
       } catch (RocksDBException e) {
         closeOnError(e);
-        throw toIOException(this, "flush", e);
+        throw toRocksDatabaseException(this, "flush", e);
       }
     }
   }
 
-  public void flushWal(boolean sync) throws IOException {
+  public void flushWal(boolean sync) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().flushWal(sync);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "flushWal with sync=" + sync, e);
+      throw toRocksDatabaseException(this, "flushWal with sync=" + sync, e);
     }
   }
 
-  public void compactRange() throws IOException {
+  public void compactRange() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().compactRange();
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "compactRange", e);
+      throw toRocksDatabaseException(this, "compactRange", e);
     }
   }
 
   public void compactRangeDefault(final ManagedCompactRangeOptions options)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().compactRange(null, null, null, options);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "compactRange", e);
+      throw toRocksDatabaseException(this, "compactRange", e);
     }
   }
 
-  public void compactDB(ManagedCompactRangeOptions options) throws IOException {
+  public void compactDB(ManagedCompactRangeOptions options) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       compactRangeDefault(options);
       for (RocksDatabase.ColumnFamily columnFamily
@@ -552,7 +550,7 @@ public final class RocksDatabase implements Closeable {
     }
   }
 
-  public int getLiveFilesMetaDataSize() throws IOException {
+  public int getLiveFilesMetaDataSize() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLiveFilesMetaData().size();
     }
@@ -561,7 +559,7 @@ public final class RocksDatabase implements Closeable {
   /**
    * @param cfName columnFamily on which compaction will run.
    */
-  public void compactRange(String cfName) throws IOException {
+  public void compactRange(String cfName) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       ColumnFamilyHandle handle = getColumnFamilyHandle(cfName);
       try {
@@ -574,13 +572,13 @@ public final class RocksDatabase implements Closeable {
         }
       } catch (RocksDBException e) {
         closeOnError(e);
-        throw toIOException(this, "compactRange", e);
+        throw toRocksDatabaseException(this, "compactRange", e);
       }
     }
   }
 
   private ColumnFamilyHandle getColumnFamilyHandle(String cfName)
-      throws IOException {
+      throws RocksDatabaseException {
     for (ColumnFamilyHandle cf : getCfHandleMap().get(db.get().getName())) {
       try {
         String table = new String(cf.getName(), UTF_8);
@@ -589,7 +587,7 @@ public final class RocksDatabase implements Closeable {
         }
       } catch (RocksDBException e) {
         closeOnError(e);
-        throw toIOException(this, "columnFamilyHandle.getName", e);
+        throw toRocksDatabaseException(this, "columnFamilyHandle.getName", e);
       }
     }
     return null;
@@ -597,16 +595,16 @@ public final class RocksDatabase implements Closeable {
 
   public void compactRange(ColumnFamily family, final byte[] begin,
       final byte[] end, final ManagedCompactRangeOptions options)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().compactRange(family.getHandle(), begin, end, options);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "compactRange", e);
+      throw toRocksDatabaseException(this, "compactRange", e);
     }
   }
 
-  public List<LiveFileMetaData> getLiveFilesMetaData() throws IOException {
+  public List<LiveFileMetaData> getLiveFilesMetaData() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLiveFilesMetaData();
     }
@@ -631,7 +629,7 @@ public final class RocksDatabase implements Closeable {
    * @see org.rocksdb.RocksDB#keyMayExist(ColumnFamilyHandle, byte[], Holder)
    */
   Supplier<byte[]> keyMayExist(ColumnFamily family, byte[] key)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       final Holder<byte[]> out = new Holder<>();
       return db.get().keyMayExist(family.getHandle(), key, out) ?
@@ -640,7 +638,7 @@ public final class RocksDatabase implements Closeable {
   }
 
   Supplier<Integer> keyMayExist(ColumnFamily family,
-      ByteBuffer key, ByteBuffer out) throws IOException {
+      ByteBuffer key, ByteBuffer out) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       final KeyMayExist result = db.get().keyMayExist(
           family.getHandle(), key, out);
@@ -663,13 +661,13 @@ public final class RocksDatabase implements Closeable {
     return Collections.unmodifiableCollection(columnFamilies.values());
   }
 
-  byte[] get(ColumnFamily family, byte[] key) throws IOException {
+  byte[] get(ColumnFamily family, byte[] key) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().get(family.getHandle(), key);
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "get " + bytes2String(key) + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
@@ -683,12 +681,12 @@ public final class RocksDatabase implements Closeable {
    *                 partial result will be written.
    * @return null if the key is not found;
    *         otherwise, return the size (possibly 0) of the value.
-   * @throws IOException if the db is closed or the db throws an exception.
+   * @throws RocksDatabaseException if the db is closed or the db throws an exception.
    * @see org.rocksdb.RocksDB#get(ColumnFamilyHandle, org.rocksdb.ReadOptions,
    *                              ByteBuffer, ByteBuffer)
    */
   Integer get(ColumnFamily family, ByteBuffer key, ByteBuffer outValue)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       final int size = db.get().get(family.getHandle(),
           DEFAULT_READ_OPTION, key, outValue);
@@ -698,82 +696,82 @@ public final class RocksDatabase implements Closeable {
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "get " + bytes2String(key) + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
-  public long estimateNumKeys() throws IOException {
+  public long estimateNumKeys() throws RocksDatabaseException {
     return getLongProperty(ESTIMATE_NUM_KEYS);
   }
 
-  public long estimateNumKeys(ColumnFamily family) throws IOException {
+  public long estimateNumKeys(ColumnFamily family) throws RocksDatabaseException {
     return getLongProperty(family, ESTIMATE_NUM_KEYS);
   }
 
-  private long getLongProperty(String key) throws IOException {
+  private long getLongProperty(String key) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLongProperty(key);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "getLongProperty " + key, e);
+      throw toRocksDatabaseException(this, "getLongProperty " + key, e);
     }
   }
 
   private long getLongProperty(ColumnFamily family, String key)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLongProperty(family.getHandle(), key);
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "getLongProperty " + key + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
-  public String getProperty(String key) throws IOException {
+  public String getProperty(String key) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getProperty(key);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "getProperty " + key, e);
+      throw toRocksDatabaseException(this, "getProperty " + key, e);
     }
   }
 
   public String getProperty(ColumnFamily family, String key)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getProperty(family.getHandle(), key);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "getProperty " + key + " from " + family, e);
+      throw toRocksDatabaseException(this, "getProperty " + key + " from " + family, e);
     }
   }
 
   public ManagedTransactionLogIterator getUpdatesSince(long sequenceNumber)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return managed(db.get().getUpdatesSince(sequenceNumber));
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "getUpdatesSince " + sequenceNumber, e);
+      throw toRocksDatabaseException(this, "getUpdatesSince " + sequenceNumber, e);
     }
   }
 
-  public long getLatestSequenceNumber() throws IOException {
+  public long getLatestSequenceNumber() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLatestSequenceNumber();
     }
   }
 
   public ManagedRocksIterator newIterator(ColumnFamily family)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return managed(db.get().newIterator(family.getHandle()));
     }
   }
 
   public ManagedRocksIterator newIterator(ColumnFamily family,
-      boolean fillCache) throws IOException {
+      boolean fillCache) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire();
          ManagedReadOptions readOptions = new ManagedReadOptions()) {
       readOptions.setFillCache(fillCache);
@@ -783,48 +781,48 @@ public final class RocksDatabase implements Closeable {
 
   public void batchWrite(ManagedWriteBatch writeBatch,
                          ManagedWriteOptions options)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().write(options, writeBatch);
     } catch (RocksDBException e) {
       closeOnError(e);
-      throw toIOException(this, "batchWrite", e);
+      throw toRocksDatabaseException(this, "batchWrite", e);
     }
   }
 
-  public void batchWrite(ManagedWriteBatch writeBatch) throws IOException {
+  public void batchWrite(ManagedWriteBatch writeBatch) throws RocksDatabaseException {
     batchWrite(writeBatch, writeOptions);
   }
 
-  public void delete(ColumnFamily family, byte[] key) throws IOException {
+  public void delete(ColumnFamily family, byte[] key) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().delete(family.getHandle(), key);
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "delete " + bytes2String(key) + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
-  public void delete(ColumnFamily family, ByteBuffer key) throws IOException {
+  public void delete(ColumnFamily family, ByteBuffer key) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().delete(family.getHandle(), writeOptions, key);
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "delete " + bytes2String(key) + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
   public void deleteRange(ColumnFamily family, byte[] beginKey, byte[] endKey)
-      throws IOException {
+      throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       db.get().deleteRange(family.getHandle(), beginKey, endKey);
     } catch (RocksDBException e) {
       closeOnError(e);
       final String message = "delete range " + bytes2String(beginKey) +
           " to " + bytes2String(endKey) + " from " + family;
-      throw toIOException(this, message, e);
+      throw toRocksDatabaseException(this, message, e);
     }
   }
 
@@ -834,7 +832,7 @@ public final class RocksDatabase implements Closeable {
   }
 
   @VisibleForTesting
-  public List<LiveFileMetaData> getSstFileList() throws IOException {
+  public List<LiveFileMetaData> getSstFileList() throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       return db.get().getLiveFilesMetaData();
     }
@@ -844,7 +842,7 @@ public final class RocksDatabase implements Closeable {
    * return the max compaction level of sst files in the db.
    * @return level
    */
-  private int getLastLevel() throws IOException {
+  private int getLastLevel() throws RocksDatabaseException {
     return getSstFileList().stream()
         .max(Comparator.comparing(LiveFileMetaData::level)).get().level();
   }
@@ -854,8 +852,7 @@ public final class RocksDatabase implements Closeable {
    * for given table.
    * @param prefixPairs, a map of TableName to prefixUsed.
    */
-  public void deleteFilesNotMatchingPrefix(Map<String, String> prefixPairs)
-      throws IOException, RocksDBException {
+  public void deleteFilesNotMatchingPrefix(Map<String, String> prefixPairs) throws RocksDatabaseException {
     try (UncheckedAutoCloseable ignored = acquire()) {
       for (LiveFileMetaData liveFileMetaData : getSstFileList()) {
         String sstFileColumnFamily =

@@ -20,6 +20,10 @@
 package org.apache.hadoop.hdds.utils.db;
 
 import com.google.common.base.Preconditions;
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
 import org.eclipse.jetty.util.StringUtil;
 import org.rocksdb.ColumnFamilyDescriptor;
@@ -28,14 +32,6 @@ import org.rocksdb.OptionsUtil;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-
-import static org.apache.hadoop.hdds.utils.HddsServerUtil.toIOException;
 
 /**
  * A Class that controls the standard config options of RocksDB.
@@ -56,7 +52,7 @@ public final class DBConfigFromFile {
   private DBConfigFromFile() {
   }
 
-  public static File getConfigLocation() throws IOException {
+  public static File getConfigLocation() {
     String path = System.getenv(CONFIG_DIR);
 
     // Make testing easy.
@@ -112,10 +108,9 @@ public final class DBConfigFromFile {
    * @param dbFileName - The DB File Name, for example, OzoneManager.db.
    * @param cfDescs - ColumnFamily Handles.
    * @return DBOptions, Options to be used for opening/creating the DB.
-   * @throws IOException
    */
   public static ManagedDBOptions readFromFile(String dbFileName,
-      List<ColumnFamilyDescriptor> cfDescs) throws IOException {
+      List<ColumnFamilyDescriptor> cfDescs) throws RocksDatabaseException {
     Preconditions.checkNotNull(dbFileName);
     Preconditions.checkNotNull(cfDescs);
     Preconditions.checkArgument(cfDescs.size() > 0);
@@ -136,7 +131,7 @@ public final class DBConfigFromFile {
               env, options, cfDescs, true);
 
         } catch (RocksDBException rdEx) {
-          toIOException("Unable to find/open Options file.", rdEx);
+          throw new RocksDatabaseException("Failed to loadOptionsFromFile " + optionsFile, rdEx);
         }
       }
     }

@@ -98,7 +98,6 @@ import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_STALENODE_INTER
 import static org.apache.hadoop.hdds.server.ServerUtils.sanitizeUserArgs;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.HDDS_DATANODE_CONTAINER_DB_DIR;
 
-import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,7 +123,7 @@ public final class HddsServerUtil {
    * @param server RPC server to which the protocol & implementation is added to
    */
   public static void addPBProtocol(Configuration conf, Class<?> protocol,
-      BlockingService service, RPC.Server server) throws IOException {
+      BlockingService service, RPC.Server server) {
     RPC.setProtocolEngine(conf, protocol, ProtobufRpcEngine.class);
     server.addProtocol(RPC.RpcKind.RPC_PROTOCOL_BUFFER, protocol, service);
   }
@@ -653,22 +652,6 @@ public final class HddsServerUtil {
   public static UserGroupInformation getRemoteUser() throws IOException {
     UserGroupInformation ugi = Server.getRemoteUser();
     return (ugi != null) ? ugi : UserGroupInformation.getCurrentUser();
-  }
-
-  /**
-   * Converts RocksDB exception to IOE.
-   * @param msg  - Message to add to exception.
-   * @param e - Original Exception.
-   * @return  IOE.
-   */
-  public static IOException toIOException(String msg, RocksDBException e) {
-    String statusCode = e.getStatus() == null ? "N/A" :
-        e.getStatus().getCodeString();
-    String errMessage = e.getMessage() == null ? "Unknown error" :
-        e.getMessage();
-    String output = msg + "; status : " + statusCode
-        + "; message : " + errMessage;
-    return new IOException(output, e);
   }
 
   /**

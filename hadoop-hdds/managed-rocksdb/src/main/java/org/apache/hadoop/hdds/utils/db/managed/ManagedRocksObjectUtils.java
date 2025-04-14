@@ -18,7 +18,11 @@
  */
 package org.apache.hadoop.hdds.utils.db.managed;
 
+import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
 import org.apache.hadoop.hdds.HddsUtils;
+import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
 import org.rocksdb.RocksDB;
@@ -26,11 +30,6 @@ import org.rocksdb.RocksObject;
 import org.rocksdb.util.Environment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 
 /**
  * Utilities to help assert RocksObject closures.
@@ -86,7 +85,7 @@ public final class ManagedRocksObjectUtils {
   public static void waitForFileDelete(File file, Duration maxDuration,
                                        Duration interval,
                                        Duration pollDelayDuration)
-      throws IOException {
+      throws RocksDatabaseException {
     Instant start = Instant.now();
     try {
       Awaitility.with().atMost(maxDuration)
@@ -98,9 +97,10 @@ public final class ManagedRocksObjectUtils {
           Duration.between(start, Instant.now()).toMillis(),
           file.getAbsoluteFile());
     } catch (ConditionTimeoutException exception) {
-      LOG.info("File: {} didn't get deleted in {} secs.",
+      String msg = String.format("File: %s didn't get deleted in %s secs.",
           file.getAbsolutePath(), maxDuration.getSeconds());
-      throw new IOException(exception);
+      LOG.info(msg);
+      throw new RocksDatabaseException(msg);
     }
   }
 
@@ -108,10 +108,10 @@ public final class ManagedRocksObjectUtils {
    * Wait for file to be deleted.
    * @param file File to be deleted.
    * @param maxDuration poll max duration.
-   * @throws IOException in case of failure.
+   * @throws RocksDatabaseException in case of failure.
    */
   public static void waitForFileDelete(File file, Duration maxDuration)
-      throws IOException {
+      throws RocksDatabaseException {
     waitForFileDelete(file, maxDuration, POLL_INTERVAL_DURATION,
         POLL_DELAY_DURATION);
   }

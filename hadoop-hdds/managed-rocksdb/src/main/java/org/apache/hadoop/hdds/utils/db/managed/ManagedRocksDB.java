@@ -18,7 +18,13 @@
  */
 package org.apache.hadoop.hdds.utils.db.managed;
 
+import java.io.File;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.DBOptions;
@@ -27,13 +33,6 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Managed BloomFilter.
@@ -102,14 +101,17 @@ public class ManagedRocksDB extends ManagedObject<RocksDB> {
    * This function makes the RocksDB#deleteFile Api synchronized by waiting
    * for the deletes to happen.
    * @param fileToBeDeleted File to be deleted.
-   * @throws RocksDBException In the underlying db throws an exception.
-   * @throws IOException In the case file is not deleted.
+   * @throws RocksDatabaseException if the underlying db throws an exception
+   *                                or the file is not deleted within a time limit.
    */
-  public void deleteFile(LiveFileMetaData fileToBeDeleted)
-      throws RocksDBException, IOException {
+  public void deleteFile(LiveFileMetaData fileToBeDeleted) throws RocksDatabaseException {
     String sstFileName = fileToBeDeleted.fileName();
-    this.get().deleteFile(sstFileName);
     File file = new File(fileToBeDeleted.path(), fileToBeDeleted.fileName());
+    try {
+      get().deleteFile(sstFileName);
+    } catch (RocksDBException e) {
+      throw new RocksDatabaseException("Failed to delete " + file, e);
+    }
     ManagedRocksObjectUtils.waitForFileDelete(file, Duration.ofSeconds(60));
   }
 
