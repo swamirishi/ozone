@@ -88,12 +88,12 @@ public class TestRDBStoreCodecBufferIterator {
   }
 
   RDBStoreCodecBufferIterator newIterator(int numberOfThreads) {
-    return new RDBStoreCodecBufferIterator(managedRocksIterator, null, null, numberOfThreads);
+    return new RDBStoreCodecBufferIterator(managedRocksIterator, null, null);
   }
 
   RDBStoreCodecBufferIterator newIterator(CodecBuffer prefix) {
     return new RDBStoreCodecBufferIterator(
-        managedRocksIterator, rdbTableMock, prefix, 1);
+        managedRocksIterator, rdbTableMock, prefix);
   }
 
   Answer<Integer> newAnswerInt(String name, int b) {

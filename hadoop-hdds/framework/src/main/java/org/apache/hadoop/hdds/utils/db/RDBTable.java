@@ -274,7 +274,7 @@ class RDBTable implements Table<byte[], byte[]> {
   TableIterator<CodecBuffer, UncheckedAutoCloseableSupplier<RawKeyValue<CodecBuffer>>> iterator(
       CodecBuffer prefix) throws IOException {
     return new RDBStoreCodecBufferIterator(db.newIterator(family, false),
-        this, prefix, 2);
+        this, prefix);
   }
 
   @Override
