@@ -547,13 +547,17 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
   }
 
   @Override
-  public void update(
-      Map<String, String> metadata, boolean forceUpdate)
+  public void update(Map<String, String> metadata, boolean forceUpdate)
       throws StorageContainerException {
+    update(metadata, forceUpdate, containerData.getMetadataPath());
+  }
 
+  @Override
+  public void update(Map<String, String> metadata, boolean forceUpdate, String containerMetadataPath)
+      throws StorageContainerException {
     // TODO: Now, when writing the updated data to .container file, we are
-    // holding lock and writing data to disk. We can have async implementation
-    // to flush the update container data to disk.
+    //  holding lock and writing data to disk. We can have async implementation
+    //  to flush the update container data to disk.
     long containerId = containerData.getContainerID();
     if (!containerData.isValid()) {
       LOG.debug("Invalid container data. ContainerID: {}", containerId);
@@ -573,7 +577,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
         containerData.addMetadata(entry.getKey(), entry.getValue());
       }
 
-      File containerFile = getContainerFile();
+      File containerFile = getContainerFile(containerMetadataPath, containerData.getContainerID());
       // update the new container data to .container File
       updateContainerFile(containerFile);
     } catch (StorageContainerException  ex) {
@@ -661,13 +665,9 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   public void importContainerData(KeyValueContainerData originalContainerData)
       throws IOException {
-    containerData.setState(originalContainerData.getState());
     containerData
         .setContainerDBType(originalContainerData.getContainerDBType());
     containerData.setSchemaVersion(originalContainerData.getSchemaVersion());
-
-    //rewriting the yaml file with new checksum calculation.
-    update(originalContainerData.getMetadata(), true);
 
     if (containerData.hasSchema(OzoneConsts.SCHEMA_V3)) {
       // load metadata from received dump files before we try to parse kv
@@ -676,6 +676,11 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
     //fill in memory stat counter (keycount, byte usage)
     KeyValueContainerUtil.parseKVContainerData(containerData, config);
+
+    // rewriting the yaml file with new checksum calculation
+    // restore imported container's state to the original state and flush the yaml file
+    containerData.setState(originalContainerData.getState());
+    update(originalContainerData.getMetadata(), true);
   }
 
   @Override

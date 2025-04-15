@@ -21,17 +21,23 @@ import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
+import org.apache.hadoop.hdds.utils.db.Codec;
 import org.apache.hadoop.hdds.utils.db.FixedLengthStringCodec;
 import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase.ColumnFamily;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedCompactRangeOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedReadOptions;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileReader;
+import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileReaderIterator;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.interfaces.BlockIterator;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.bouncycastle.util.Strings;
 import org.rocksdb.LiveFileMetaData;
+import org.rocksdb.RocksDBException;
 
 import java.io.File;
 import java.io.IOException;
@@ -121,14 +127,60 @@ public class DatanodeStoreSchemaThreeImpl extends AbstractDatanodeStore
 
   public void loadKVContainerData(File dumpDir)
       throws IOException {
-    getMetadataTable().loadFromFile(
-        getTableDumpFile(getMetadataTable(), dumpDir));
-    getBlockDataTable().loadFromFile(
-        getTableDumpFile(getBlockDataTable(), dumpDir));
-    getDeletedBlocksTable().loadFromFile(
-        getTableDumpFile(getDeletedBlocksTable(), dumpDir));
-    getDeleteTransactionTable().loadFromFile(
-        getTableDumpFile(getDeleteTransactionTable(), dumpDir));
+
+    try (BatchOperation batch = getBatchHandler().initBatchOperation()) {
+      processTable(batch, getTableDumpFile(getMetadataTable(), dumpDir),
+          getDbDef().getMetadataColumnFamily().getKeyCodec(),
+          getDbDef().getMetadataColumnFamily().getValueCodec(),
+          getMetadataTable());
+      processTable(batch, getTableDumpFile(getBlockDataTable(), dumpDir),
+          getDbDef().getBlockDataColumnFamily().getKeyCodec(),
+          getDbDef().getBlockDataColumnFamily().getValueCodec(),
+          getBlockDataTable());
+      processTable(batch, getTableDumpFile(getDeletedBlocksTable(), dumpDir),
+          getDbDef().getDeletedBlocksColumnFamily().getKeyCodec(),
+          getDbDef().getDeletedBlocksColumnFamily().getValueCodec(),
+          getDeletedBlocksTable());
+      processTable(batch, getTableDumpFile(getDeleteTransactionTable(), dumpDir),
+          ((DatanodeSchemaThreeDBDefinition)getDbDef()).getDeleteTransactionsColumnFamily().getKeyCodec(),
+          ((DatanodeSchemaThreeDBDefinition)getDbDef()).getDeleteTransactionsColumnFamily().getValueCodec(),
+          getDeleteTransactionTable());
+
+      getStore().commitBatchOperation(batch);
+    } catch (RocksDBException e) {
+      throw new IOException("Failed to load container data from dump file.", e);
+    }
+  }
+
+  private <K, V> void processTable(BatchOperation batch, File tableDumpFile,
+      Codec<K> keyCodec, Codec<V> valueCodec, Table<K, V> table) throws IOException, RocksDBException {
+    if (isFileEmpty(tableDumpFile)) {
+      LOG.debug("SST File {} is empty. Skipping processing.", tableDumpFile.getAbsolutePath());
+      return;
+    }
+
+    try (ManagedOptions managedOptions = new ManagedOptions();
+         ManagedSstFileReader sstFileReader = new ManagedSstFileReader(managedOptions)) {
+      sstFileReader.open(tableDumpFile.getAbsolutePath());
+      try (ManagedReadOptions managedReadOptions = new ManagedReadOptions();
+           ManagedSstFileReaderIterator iterator =
+               ManagedSstFileReaderIterator.managed(sstFileReader.newIterator(managedReadOptions))) {
+        for (iterator.get().seekToFirst(); iterator.get().isValid(); iterator.get().next()) {
+          byte[] key = iterator.get().key();
+          byte[] value = iterator.get().value();
+          K decodedKey = keyCodec.fromPersistedFormat(key);
+          V decodedValue = valueCodec.fromPersistedFormat(value);
+          table.putWithBatch(batch, decodedKey, decodedValue);
+        }
+      }
+    }
+  }
+
+  boolean isFileEmpty(File file) {
+    if (!file.exists()) {
+      return true;
+    }
+    return file.length() == 0;
   }
 
   public static File getTableDumpFile(Table<String, ?> table,

@@ -134,6 +134,9 @@ public interface Container<CONTAINERDATA extends ContainerData> extends RwLock {
   void update(Map<String, String> metaData, boolean forceUpdate)
       throws StorageContainerException;
 
+  void update(Map<String, String> metaData, boolean forceUpdate, String containerMetadataPath)
+      throws StorageContainerException;
+
   void updateDataScanTimestamp(Instant timestamp)
       throws StorageContainerException;
 
