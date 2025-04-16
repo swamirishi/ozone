@@ -177,6 +177,7 @@
     <!-- SLF4J/LOG4J version -->
     <slf4j.version>1.7.36</slf4j.version>
     <log4j2.version>2.18.0</log4j2.version>
+    <logredactor.version>2.0.16</logredactor.version>
     <disruptor.version>3.4.2</disruptor.version>
     <reload4j.version>1.2.22</reload4j.version>
 
@@ -1140,6 +1141,17 @@
         <version>${log4j2.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.cloudera.logredactor</groupId>
+        <artifactId>logredactor</artifactId>
+        <version>${logredactor.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
         <groupId>com.codahale.metrics</groupId>
         <artifactId>metrics-core</artifactId>
         <version>${codahale-metrics.version}</version>
@@ -1577,6 +1589,14 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.cloudera.logredactor</groupId>
+      <artifactId>logredactor</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
 
   <build>
     <extensions>
