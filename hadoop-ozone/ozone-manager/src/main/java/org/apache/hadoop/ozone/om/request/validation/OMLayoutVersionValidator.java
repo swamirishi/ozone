@@ -23,13 +23,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-<<<<<<<< HEAD:hadoop-ozone/ozone-manager/src/main/java/org/apache/hadoop/ozone/om/request/validation/OMLayoutVersionValidator.java
 import org.apache.hadoop.ozone.request.validation.RegisterValidator;
 import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.request.validation.ValidatorRegistry;
-========
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
->>>>>>>> origin/HDDS-11981:hadoop-ozone/ozone-manager/src/main/java/org/apache/hadoop/ozone/om/request/validation/RequestFeatureValidator.java
+
 
 /**
  * An annotation to mark methods that do certain request validations based on the
@@ -40,7 +37,8 @@ import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
  *
  * The conditions describe the specific use case in which the validator should be
  * applied to the request.
- * See {@link VersionExtractor} for getting all the supported different {@link org.apache.hadoop.ozone.Versioned} component's actual version.
+ * See {@link VersionExtractor} for getting all the supported different {@link org.apache.hadoop.ozone.Versioned}
+ * component's actual version.
  * The validator method will be applied to the specified request type(s).
  * To help keep these methods simple and straightforward use inheritance and annotate
  * the override method that just calls the method defined in the parent instead of specifying
