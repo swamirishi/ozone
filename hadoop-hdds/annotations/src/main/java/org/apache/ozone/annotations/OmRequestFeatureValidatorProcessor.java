@@ -17,6 +17,7 @@
 
 package org.apache.ozone.annotations;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -38,10 +39,6 @@ import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.SimpleAnnotationValueVisitor8;
 import javax.tools.Diagnostic;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.Set;
 
 /**
  * This class is an annotation processor that is hooked into the java compiler

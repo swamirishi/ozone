@@ -17,18 +17,21 @@
 
 package org.apache.hadoop.ozone.om.request.validation;
 
+import static org.apache.hadoop.ozone.om.request.validation.VersionExtractor.CLIENT_VERSION_EXTRACTOR;
+import static org.apache.hadoop.ozone.om.request.validation.VersionExtractor.LAYOUT_VERSION_EXTRACTOR;
+import static org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralValidatorsForTesting.finishValidatorTest;
+import static org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralValidatorsForTesting.startValidatorTest;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateDirectory;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateKey;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateVolume;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import org.apache.hadoop.ozone.ClientVersion;
-import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
-import org.apache.hadoop.ozone.request.validation.ValidatorRegistry;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.reflections.util.ClasspathHelper;
-
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -38,34 +41,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.apache.hadoop.ozone.om.request.validation.VersionExtractor.CLIENT_VERSION_EXTRACTOR;
-import static org.apache.hadoop.ozone.om.request.validation.VersionExtractor.LAYOUT_VERSION_EXTRACTOR;
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralValidatorsForTesting.startValidatorTest;
-import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.PRE_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.CLUSTER_NEEDS_FINALIZATION;
-import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.OLDER_CLIENT_REQUESTS;
-import static org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralValidatorsForTesting.finishValidatorTest;
-import static org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralValidatorsForTesting.startValidatorTest;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateDirectory;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateKey;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateVolume;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.Collectors;
+import org.apache.hadoop.ozone.ClientVersion;
+import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
+import org.apache.hadoop.ozone.request.validation.ValidatorRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

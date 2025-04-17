@@ -31,11 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-
-import com.google.common.base.Preconditions;
 import org.apache.hadoop.ozone.ClientVersion;
-import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
-import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -49,7 +45,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
+import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.file.OMDirectoryCreateResponse;
@@ -62,6 +58,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
+import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;

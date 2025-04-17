@@ -22,13 +22,10 @@ import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_L
 import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.util.Map;
-
-import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneConsts;
-import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
-import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -43,7 +40,7 @@ import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
 import org.apache.hadoop.ozone.om.request.util.OMMultipartUploadUtils;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
+import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.s3.multipart.S3MultipartUploadAbortResponse;
@@ -56,6 +53,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PartKeyInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
+import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;

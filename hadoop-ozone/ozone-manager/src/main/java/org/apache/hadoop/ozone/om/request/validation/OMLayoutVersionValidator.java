@@ -17,17 +17,15 @@
 
 package org.apache.hadoop.ozone.om.request.validation;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.request.validation.RegisterValidator;
 import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.request.validation.ValidatorRegistry;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 
 /**
  * An annotation to mark methods that do certain request validations based on the

@@ -17,35 +17,21 @@
 
 package org.apache.hadoop.ozone.om.request.validation.testvalidatorset1;
 
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateKey;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateVolume;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.DeleteKeys;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
 import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
 import org.apache.hadoop.ozone.om.request.validation.TestRequestValidations;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.PRE_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.CLUSTER_NEEDS_FINALIZATION;
-import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.OLDER_CLIENT_REQUESTS;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateKey;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateVolume;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.DeleteKeys;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.TestRequestValidations;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 

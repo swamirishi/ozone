@@ -17,11 +17,20 @@
 
 package org.apache.hadoop.ozone.om.request.validation;
 
-import com.google.common.collect.Sets;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase.PRE_PROCESS;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
+import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
 
+import com.google.common.collect.Sets;
 import com.google.protobuf.ServiceException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.ozone.Versioned;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
@@ -32,24 +41,6 @@ import org.apache.hadoop.ozone.request.validation.ValidatorRegistry;
 import org.jgrapht.alg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import org.apache.hadoop.ozone.om.exceptions.OMException;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.POST_PROCESS;
-import static org.apache.hadoop.ozone.request.validation.RequestProcessingPhase.PRE_PROCESS;
 
 /**
  * Main class to configure and set up and access the request/response

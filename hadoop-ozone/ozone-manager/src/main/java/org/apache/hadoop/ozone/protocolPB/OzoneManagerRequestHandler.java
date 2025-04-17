@@ -96,7 +96,6 @@ import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion;
@@ -161,6 +160,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantG
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantListUserRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantListUserResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
+import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.ozone.snapshot.ListSnapshotResponse;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization.StatusAndMessages;
