@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -u -o pipefail
 
 #
 # Test executor to test all the compose/*/test.sh test scripts.
@@ -22,8 +23,8 @@
 SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )
 ALL_RESULT_DIR="$SCRIPT_DIR/result"
 PROJECT_DIR="$SCRIPT_DIR/.."
-mkdir -p "$ALL_RESULT_DIR"
-rm "$ALL_RESULT_DIR"/* || true
+rm -rf "${ALL_RESULT_DIR}"
+mkdir -p "${ALL_RESULT_DIR}"
 
 source "$SCRIPT_DIR"/testlib.sh
 
@@ -49,7 +50,7 @@ fi
 
 if [[ "${OZONE_ACCEPTANCE_TEST_TYPE}" == "robot" ]]; then
   # does not apply to JUnit tests run via Maven
-  generate_report "acceptance" "${ALL_RESULT_DIR}" "${XUNIT_RESULT_DIR}"
+  generate_report "acceptance" "${ALL_RESULT_DIR}" "${XUNIT_RESULT_DIR:-}"
 fi
 
 exit $RESULT
