@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.ozone.recon.tasks;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
@@ -60,7 +59,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * Test for NSSummaryTaskWithFSO.
  */
-@SuppressFBWarnings
 public final class TestNSSummaryTaskWithFSO {
 
   private static ReconNamespaceSummaryManager reconNamespaceSummaryManager;

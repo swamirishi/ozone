@@ -63,8 +63,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Unit test for NSSummaryTaskWithOBS.
  */
 public final class TestNSSummaryTaskWithOBS implements Serializable {
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
   private static ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private static OMMetadataManager omMetadataManager;
   private static ReconOMMetadataManager reconOMMetadataManager;
@@ -111,15 +109,15 @@ public final class TestNSSummaryTaskWithOBS implements Serializable {
   private TestNSSummaryTaskWithOBS() {
   }
 
-  @BeforeClass
-  public static void setUp() throws Exception {
-    initializeNewOmMetadataManager(TEMPORARY_FOLDER.newFolder());
+  @BeforeAll
+  public static void setUp(@TempDir File tmpDir) throws Exception {
+    initializeNewOmMetadataManager(new File(tmpDir, "om"));
     OzoneManagerServiceProviderImpl ozoneManagerServiceProvider =
         getMockOzoneManagerServiceProviderWithFSO();
     reconOMMetadataManager = getTestReconOmMetadataManager(omMetadataManager,
-        TEMPORARY_FOLDER.newFolder());
+            new File(tmpDir, "recon"));
     ReconTestInjector reconTestInjector =
-        new ReconTestInjector.Builder(TEMPORARY_FOLDER)
+        new ReconTestInjector.Builder(tmpDir)
             .withReconOm(reconOMMetadataManager)
             .withOmServiceProvider(ozoneManagerServiceProvider)
             .withReconSqlDb()

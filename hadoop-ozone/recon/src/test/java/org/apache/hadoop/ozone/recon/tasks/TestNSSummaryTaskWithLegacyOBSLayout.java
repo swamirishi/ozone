@@ -40,6 +40,10 @@ import org.junit.Test;
 import org.junit.ClassRule;
 import org.junit.Assert;
 import org.junit.experimental.runners.Enclosed;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 
@@ -59,10 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * Test for NSSummaryTaskWithLegacy focusing on the OBS (Object Store) layout.
  */
-@RunWith(Enclosed.class)
 public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable {
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
   private static ReconNamespaceSummaryManager reconNamespaceSummaryManager;
   private static ReconOMMetadataManager reconOMMetadataManager;
   private static OzoneConfiguration ozoneConfiguration;
@@ -111,9 +112,9 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
   private TestNSSummaryTaskWithLegacyOBSLayout() {
   }
 
-  @BeforeClass
-  public static void setUp() throws Exception {
-    initializeNewOmMetadataManager(TEMPORARY_FOLDER.newFolder());
+  @BeforeAll
+  public static void setUp(@TempDir File tmpDir) throws Exception {
+    initializeNewOmMetadataManager(new File(tmpDir, "om"));
     OzoneManagerServiceProviderImpl ozoneManagerServiceProvider =
         getMockOzoneManagerServiceProvider();
     ozoneConfiguration = new OzoneConfiguration();
@@ -121,10 +122,10 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
         false);
     setConfiguration(ozoneConfiguration);
     reconOMMetadataManager = getTestReconOmMetadataManager(omMetadataManager,
-        TEMPORARY_FOLDER.newFolder());
+            new File(tmpDir, "recon"));
 
     ReconTestInjector reconTestInjector =
-        new ReconTestInjector.Builder(TEMPORARY_FOLDER)
+        new ReconTestInjector.Builder(tmpDir)
             .withReconOm(reconOMMetadataManager)
             .withOmServiceProvider(ozoneManagerServiceProvider)
             .withReconSqlDb()
@@ -147,13 +148,14 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
   /**
    * Nested class for testing NSSummaryTaskWithLegacy reprocess.
    */
-  public static class TestReprocess {
+  @Nested
+  public class TestReprocess {
 
-    private static NSSummary nsSummaryForBucket1;
-    private static NSSummary nsSummaryForBucket2;
+    private NSSummary nsSummaryForBucket1;
+    private NSSummary nsSummaryForBucket2;
 
-    @BeforeClass
-    public static void setUp() throws IOException {
+    @BeforeEach
+    public void setUp() throws IOException {
       // write a NSSummary prior to reprocess
       // verify it got cleaned up after.
       NSSummary staleNSSummary = new NSSummary();
@@ -230,18 +232,19 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
   /**
    * Nested class for testing NSSummaryTaskWithLegacy process.
    */
-  public static class TestProcess {
+  @Nested
+  public class TestProcess {
 
-    private static NSSummary nsSummaryForBucket1;
-    private static NSSummary nsSummaryForBucket2;
+    private NSSummary nsSummaryForBucket1;
+    private NSSummary nsSummaryForBucket2;
 
-    private static OMDBUpdateEvent keyEvent1;
-    private static OMDBUpdateEvent keyEvent2;
-    private static OMDBUpdateEvent keyEvent3;
-    private static OMDBUpdateEvent keyEvent4;
+    private OMDBUpdateEvent keyEvent1;
+    private OMDBUpdateEvent keyEvent2;
+    private OMDBUpdateEvent keyEvent3;
+    private OMDBUpdateEvent keyEvent4;
 
-    @BeforeClass
-    public static void setUp() throws IOException {
+    @BeforeEach
+    public void setUp() throws IOException {
       // reinit Recon RocksDB's namespace CF.
       reconNamespaceSummaryManager.clearNSSummaryTable();
       nSSummaryTaskWithLegacy.reprocessWithLegacy(reconOMMetadataManager);
@@ -255,7 +258,7 @@ public final class TestNSSummaryTaskWithLegacyOBSLayout implements Serializable 
       assertNotNull(nsSummaryForBucket2);
     }
 
-    private static OMUpdateEventBatch processEventBatch() throws IOException {
+    private OMUpdateEventBatch processEventBatch() throws IOException {
       // Test PUT Event.
       // PUT Key6 in Bucket2.
       String omPutKey =

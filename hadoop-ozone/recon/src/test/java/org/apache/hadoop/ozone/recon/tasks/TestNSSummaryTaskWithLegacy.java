@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.ozone.recon.tasks;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
@@ -59,7 +58,6 @@ import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.getTestRe
 /**
  * Test for NSSummaryTaskWithLegacy.
  */
-@SuppressFBWarnings
 public final class TestNSSummaryTaskWithLegacy {
 
   private static ReconNamespaceSummaryManager reconNamespaceSummaryManager;
