@@ -220,7 +220,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
 
     OMClientResponse omClientResponse =
         expiredMultipartUploadsAbortRequest.validateAndUpdateCache(ozoneManager,
-            transactionId, ozoneManagerDoubleBufferHelper);
+            transactionId);
 
     Assert.assertEquals(Status.OK,
         omClientResponse.getOMResponse().getStatus());
@@ -353,7 +353,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
 
     OMClientResponse omClientResponse =
         expiredMultipartUploadsAbortRequest.validateAndUpdateCache(
-            ozoneManager, 100L, ozoneManagerDoubleBufferHelper);
+            ozoneManager, 100L);
 
     Assert.assertEquals(Status.OK,
         omClientResponse.getOMResponse().getStatus());
@@ -443,8 +443,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
               BucketLayout.FILE_SYSTEM_OPTIMIZED);
 
       OMClientResponse omClientResponse = s3InitiateMultipartUploadRequest
-          .validateAndUpdateCache(ozoneManager, trxnLogIndex,
-              ozoneManagerDoubleBufferHelper);
+          .validateAndUpdateCache(ozoneManager, trxnLogIndex);
 
       Assert.assertTrue(omClientResponse.getOMResponse().getStatus() ==
           OzoneManagerProtocolProtos.Status.OK);
@@ -486,7 +485,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
 
         OMClientResponse commitResponse =
             s3MultipartUploadCommitPartRequest.validateAndUpdateCache(
-                ozoneManager, trxnLogIndex, ozoneManagerDoubleBufferHelper);
+                ozoneManager, trxnLogIndex);
         trxnLogIndex++;
 
         Assert.assertTrue(commitResponse.getOMResponse().getStatus() ==
@@ -526,8 +525,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
           getS3InitiateMultipartUploadReq(initiateMPURequest);
 
       OMClientResponse omClientResponse = s3InitiateMultipartUploadRequest
-          .validateAndUpdateCache(ozoneManager, trxnLogIndex,
-              ozoneManagerDoubleBufferHelper);
+          .validateAndUpdateCache(ozoneManager, trxnLogIndex);
 
       Assert.assertTrue(omClientResponse.getOMResponse().getStatus() ==
           OzoneManagerProtocolProtos.Status.OK);
@@ -565,7 +563,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
 
         OMClientResponse commitResponse =
             s3MultipartUploadCommitPartRequest.validateAndUpdateCache(
-                ozoneManager, trxnLogIndex, ozoneManagerDoubleBufferHelper);
+                ozoneManager, trxnLogIndex);
         trxnLogIndex++;
 
         Assert.assertTrue(commitResponse.getOMResponse().getStatus() ==
