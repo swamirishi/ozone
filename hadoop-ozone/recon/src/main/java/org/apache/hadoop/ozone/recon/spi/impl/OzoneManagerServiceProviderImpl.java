@@ -1,14 +1,13 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,28 +17,45 @@
 
 package org.apache.hadoop.ozone.recon.spi.impl;
 
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import static org.apache.hadoop.ozone.OzoneConsts.OZONE_DB_CHECKPOINT_HTTP_ENDPOINT;
+import static org.apache.hadoop.ozone.OzoneConsts.OZONE_DB_CHECKPOINT_REQUEST_FLUSH;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_HTTP_AUTH_TYPE;
+import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_OM_SNAPSHOT_DB;
+import static org.apache.hadoop.ozone.recon.ReconConstants.STAGING;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_CONNECTION_REQUEST_TIMEOUT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_CONNECTION_REQUEST_TIMEOUT_DEFAULT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_CONNECTION_TIMEOUT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_CONNECTION_TIMEOUT_DEFAULT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_DB_DIR;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_TASK_FLUSH_PARAM;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_TASK_INITIAL_DELAY;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_TASK_INITIAL_DELAY_DEFAULT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_TASK_INTERVAL_DEFAULT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.OZONE_RECON_OM_SNAPSHOT_TASK_INTERVAL_DELAY;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.RECON_OM_DELTA_UPDATE_LAG_THRESHOLD;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.RECON_OM_DELTA_UPDATE_LAG_THRESHOLD_DEFAULT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.RECON_OM_DELTA_UPDATE_LIMIT;
+import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.RECON_OM_DELTA_UPDATE_LIMIT_DEFAULT;
+import static org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterators;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterators;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.hadoop.hdds.recon.ReconConfigKeys;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase;
@@ -63,6 +79,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DBUpdat
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ServicePort.Type;
 import org.apache.hadoop.ozone.recon.ReconServerConfigKeys;
 import org.apache.hadoop.ozone.recon.ReconUtils;
+import org.apache.hadoop.ozone.recon.TarExtractor;
 import org.apache.hadoop.ozone.recon.metrics.OzoneManagerSyncMetrics;
 import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.spi.OzoneManagerServiceProvider;
@@ -72,14 +89,7 @@ import org.apache.hadoop.ozone.recon.tasks.ReconTaskController;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.Time;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.io.FileUtils;
-import static org.apache.hadoop.ozone.OzoneConsts.OZONE_DB_CHECKPOINT_REQUEST_FLUSH;
-import static org.apache.hadoop.ozone.OzoneConsts.OZONE_DB_CHECKPOINT_HTTP_ENDPOINT;
-import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_HTTP_AUTH_TYPE;
-import static org.apache.hadoop.ozone.recon.ReconConstants.RECON_OM_SNAPSHOT_DB;
-import static org.apache.hadoop.ozone.recon.ReconServerConfigKeys.*;
-import static org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER;
 
 import org.hadoop.ozone.recon.schema.tables.daos.ReconTaskStatusDao;
 import org.hadoop.ozone.recon.schema.tables.pojos.ReconTaskStatus;
@@ -98,7 +108,10 @@ public class OzoneManagerServiceProviderImpl
       LoggerFactory.getLogger(OzoneManagerServiceProviderImpl.class);
   private URLConnectionFactory connectionFactory;
 
+  private int omDBTarProcessorThreadCount; // Number of parallel workers
+
   private File omSnapshotDBParentDir = null;
+  private File reconDbDir = null;
   private String omDBSnapshotUrl;
 
   private OzoneManagerProtocol ozoneManagerClient;
@@ -115,6 +128,7 @@ public class OzoneManagerServiceProviderImpl
   private final long omDBLagThreshold;
 
   private AtomicBoolean isSyncDataFromOMRunning;
+  private TarExtractor tarExtractor;
 
   /**
    * OM Snapshot related task names.
@@ -162,6 +176,8 @@ public class OzoneManagerServiceProviderImpl
 
     omSnapshotDBParentDir = reconUtils.getReconDbDir(configuration,
         OZONE_RECON_OM_SNAPSHOT_DB_DIR);
+    reconDbDir = reconUtils.getReconDbDir(configuration,
+        ReconConfigKeys.OZONE_RECON_DB_DIR);
 
     HttpConfig.Policy policy = HttpConfig.getHttpPolicy(configuration);
 
@@ -193,8 +209,10 @@ public class OzoneManagerServiceProviderImpl
     this.metrics = OzoneManagerSyncMetrics.create();
     this.deltaUpdateLimit = deltaUpdateLimits;
     this.isSyncDataFromOMRunning = new AtomicBoolean();
+    this.omDBTarProcessorThreadCount = Math.max(64, Runtime.getRuntime().availableProcessors());
     this.omDBLagThreshold = configuration.getLong(RECON_OM_DELTA_UPDATE_LAG_THRESHOLD,
         RECON_OM_DELTA_UPDATE_LAG_THRESHOLD_DEFAULT);
+    this.tarExtractor = new TarExtractor(omDBTarProcessorThreadCount);
   }
 
   public void registerOMDBTasks() {
@@ -230,6 +248,7 @@ public class OzoneManagerServiceProviderImpl
     scheduler = Executors.newScheduledThreadPool(1);
     registerOMDBTasks();
     try {
+      tarExtractor.start();
       omMetadataManager.start(configuration);
     } catch (IOException ioEx) {
       LOG.error("Error starting Recon OM Metadata Manager.", ioEx);
@@ -288,6 +307,7 @@ public class OzoneManagerServiceProviderImpl
 
   private void stopSyncDataFromOMThread() {
     scheduler.shutdownNow();
+    tarExtractor.stop();
     LOG.debug("Shutdown the OM DB sync scheduler.");
   }
 
@@ -299,6 +319,7 @@ public class OzoneManagerServiceProviderImpl
       // immediately.
       stopSyncDataFromOMThread();
       scheduler = Executors.newScheduledThreadPool(1);
+      tarExtractor.start();
       startSyncDataFromOM(0L);
       return true;
     } else {
@@ -313,6 +334,7 @@ public class OzoneManagerServiceProviderImpl
     reconTaskController.stop();
     omMetadataManager.stop();
     scheduler.shutdownNow();
+    tarExtractor.stop();
     metrics.unRegister();
     connectionFactory.destroy();
   }
@@ -355,32 +377,68 @@ public class OzoneManagerServiceProviderImpl
    * @return DBCheckpoint instance.
    */
   @VisibleForTesting
-  DBCheckpoint getOzoneManagerDBSnapshot() {
-    String snapshotFileName = RECON_OM_SNAPSHOT_DB + "_" +
-        System.currentTimeMillis();
-    File targetFile = new File(omSnapshotDBParentDir, snapshotFileName +
-        ".tar");
+  public DBCheckpoint getOzoneManagerDBSnapshot() {
+    String snapshotFileName = RECON_OM_SNAPSHOT_DB + "_" + System.currentTimeMillis();
+    Path untarredDbDir = Paths.get(omSnapshotDBParentDir.getAbsolutePath(), snapshotFileName);
+
+    // Before fetching full snapshot again and create a new OM DB snapshot directory, check and delete
+    // any existing OM DB snapshot directories under recon om db dir location and delete all such
+    // om db snapshot dirs including the last known om db snapshot dir returned by reconUtils.getLastKnownDB
+    File lastKnownDB = reconUtils.getLastKnownDB(omSnapshotDBParentDir, RECON_OM_SNAPSHOT_DB);
+    if (lastKnownDB != null) {
+      boolean existingOmSnapshotDBDeleted = FileUtils.deleteQuietly(lastKnownDB);
+      if (existingOmSnapshotDBDeleted) {
+        LOG.info("Successfully deleted existing OM DB snapshot directory: {}",
+            lastKnownDB.getAbsolutePath());
+      } else {
+        LOG.warn("Failed to delete existing OM DB snapshot directory: {}",
+            lastKnownDB.getAbsolutePath());
+      }
+    }
+
+    // Now below cleanup operation will even remove any left over staging dirs in recon om db dir location which
+    // may be left due to any previous partial extraction of tar entries and during copy sst files process by
+    // tarExtractor.extractTar
+    File[] leftOverStagingDirs = omSnapshotDBParentDir.listFiles(f -> f.getName().startsWith(STAGING));
+    if (leftOverStagingDirs != null) {
+      for (File stagingDir : leftOverStagingDirs) {
+        LOG.warn("Cleaning up leftover staging folder from failed extraction: {}", stagingDir.getAbsolutePath());
+        boolean stagingDirDeleted = FileUtils.deleteQuietly(stagingDir);
+        if (stagingDirDeleted) {
+          LOG.info("Successfully deleted leftover staging folder: {}", stagingDir.getAbsolutePath());
+        } else {
+          LOG.warn("Failed to delete leftover staging folder: {}", stagingDir.getAbsolutePath());
+        }
+      }
+    }
+
     try {
       SecurityUtil.doAsLoginUser(() -> {
         try (InputStream inputStream = reconUtils.makeHttpCall(
-            connectionFactory, getOzoneManagerSnapshotUrl(),
-            isOmSpnegoEnabled()).getInputStream()) {
-          FileUtils.copyInputStreamToFile(inputStream, targetFile);
+            connectionFactory, getOzoneManagerSnapshotUrl(), isOmSpnegoEnabled()).getInputStream()) {
+          tarExtractor.extractTar(inputStream, untarredDbDir);
+        } catch (IOException | InterruptedException e) {
+          throw new RuntimeException("Error while extracting OM DB Snapshot TAR.", e);
         }
         return null;
       });
-      // Untar the checkpoint file.
-      Path untarredDbDir = Paths.get(omSnapshotDBParentDir.getAbsolutePath(),
-          snapshotFileName);
-      reconUtils.untarCheckpointFile(targetFile, untarredDbDir);
+
+      // Validate extracted files
+      File[] sstFiles = untarredDbDir.toFile().listFiles((dir, name) -> name.endsWith(".sst"));
+      if (sstFiles != null && sstFiles.length > 0) {
+        LOG.info("Number of SST files found in the OM snapshot directory: {} - {}", untarredDbDir, sstFiles.length);
+      }
+
+      List<String> sstFileNames = Arrays.stream(sstFiles)
+          .map(File::getName)
+          .collect(Collectors.toList());
+      LOG.info("Valid SST files found: {}", sstFileNames);
 
       // Currently, OM DB type is not configurable. Hence, defaulting to
       // RocksDB.
       return new RocksDBCheckpoint(untarredDbDir);
     } catch (IOException e) {
-      LOG.error("Unable to obtain Ozone Manager DB Snapshot. ", e);
-    } finally {
-      FileUtils.deleteQuietly(targetFile);
+      LOG.error("Unable to obtain Ozone Manager DB Snapshot.", e);
     }
     return null;
   }

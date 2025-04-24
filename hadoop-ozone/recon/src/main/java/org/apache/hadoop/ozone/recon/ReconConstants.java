@@ -71,6 +71,8 @@ public final class ReconConstants {
   public static final String CONTAINER_COUNT = "CONTAINER_COUNT";
   public static final String TOTAL_KEYS = "TOTAL_KEYS";
   public static final String TOTAL_USED_BYTES = "TOTAL_USED_BYTES";
+  public static final String STAGING = ".staging_";
+
 
   public static final String RECON_SCM_CONTAINER_DB =
       "recon-" + CONTAINER_DB_SUFFIX;
