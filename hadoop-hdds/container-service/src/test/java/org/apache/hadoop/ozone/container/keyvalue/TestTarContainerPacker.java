@@ -260,10 +260,9 @@ public class TestTarContainerPacker {
     assertExampleChunkFileIsGood(
         Paths.get(destinationContainerData.getChunksPath()),
         TEST_CHUNK_FILE_NAME);
-    Assert.assertFalse(
-        "Descriptor file should not have been extracted by the "
-            + "unpackContainerData Call",
-        destinationContainer.getContainerFile().exists());
+    String containerFileData = new String(Files.readAllBytes(destinationContainer.getContainerFile().toPath()), UTF_8);
+    Assert.assertTrue("The state of the container is not 'RECOVERING' in the container file",
+            containerFileData.contains("RECOVERING"));
     Assert.assertEquals(TEST_DESCRIPTOR_FILE_CONTENT, descriptor);
     inputForUnpackData.assertClosedExactlyOnce();
   }
