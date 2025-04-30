@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdds.scm.block;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -32,11 +33,13 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto.DeleteBlockTransactionResult;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.CommandStatus;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.command.CommandStatusReportHandler.DeleteBlockStatus;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerManager;
@@ -62,7 +65,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A implement class of {@link DeletedBlockLog}, and it uses
+ * An implement class of {@link DeletedBlockLog}, and it uses
  * K/V db to maintain block deletion transactions between scm and datanode.
  * This is a very basic implementation, it simply scans the log and
  * memorize the position that scanned by last time, and uses this to
@@ -86,12 +89,14 @@ public class DeletedBlockLogImpl
   private final Map<Long, Integer> transactionToRetryCountMap;
   // The access to DeletedBlocksTXTable is protected by
   // DeletedBlockLogStateManager.
-  private final DeletedBlockLogStateManager deletedBlockLogStateManager;
+  private DeletedBlockLogStateManager deletedBlockLogStateManager;
   private final SCMContext scmContext;
   private final SequenceIdGenerator sequenceIdGen;
   private final ScmBlockDeletingServiceMetrics metrics;
 
   private static final int LIST_ALL_FAILED_TRANSACTIONS = -1;
+  private long lastProcessedTransactionId = -1;
+  private final int logAppenderQueueByteLimit;
 
   @SuppressWarnings("parameternumber")
   public DeletedBlockLogImpl(ConfigurationSource conf,
@@ -124,6 +129,16 @@ public class DeletedBlockLogImpl
     this.scmContext = scmContext;
     this.sequenceIdGen = sequenceIdGen;
     this.metrics = metrics;
+    int limit = (int) conf.getStorageSize(
+        ScmConfigKeys.OZONE_SCM_HA_RAFT_LOG_APPENDER_QUEUE_BYTE_LIMIT,
+        ScmConfigKeys.OZONE_SCM_HA_RAFT_LOG_APPENDER_QUEUE_BYTE_LIMIT_DEFAULT,
+        StorageUnit.BYTES);
+    this.logAppenderQueueByteLimit = (int) (limit * 0.9);
+  }
+
+  @VisibleForTesting
+  void setDeletedBlockLogStateManager(DeletedBlockLogStateManager manager) {
+    this.deletedBlockLogStateManager = manager;
   }
 
   @Override
@@ -381,16 +396,27 @@ public class DeletedBlockLogImpl
     lock.lock();
     try {
       ArrayList<DeletedBlocksTransaction> txsToBeAdded = new ArrayList<>();
+      long currentBatchSizeBytes = 0;
       for (Map.Entry< Long, List< Long > > entry :
           containerBlocksMap.entrySet()) {
         long nextTXID = sequenceIdGen.getNextId(DEL_TXN_ID);
         DeletedBlocksTransaction tx = constructNewTransaction(nextTXID,
             entry.getKey(), entry.getValue());
         txsToBeAdded.add(tx);
-      }
+        long txSize = tx.getSerializedSize();
+        currentBatchSizeBytes += txSize;
 
-      deletedBlockLogStateManager.addTransactionsToDB(txsToBeAdded);
-      metrics.incrBlockDeletionTransactionCreated(txsToBeAdded.size());
+        if (currentBatchSizeBytes >= logAppenderQueueByteLimit) {
+          deletedBlockLogStateManager.addTransactionsToDB(txsToBeAdded);
+          metrics.incrBlockDeletionTransactionCreated(txsToBeAdded.size());
+          txsToBeAdded.clear();
+          currentBatchSizeBytes = 0;
+        }
+      }
+      if (!txsToBeAdded.isEmpty()) {
+        deletedBlockLogStateManager.addTransactionsToDB(txsToBeAdded);
+        metrics.incrBlockDeletionTransactionCreated(txsToBeAdded.size());
+      }
     } finally {
       lock.unlock();
     }

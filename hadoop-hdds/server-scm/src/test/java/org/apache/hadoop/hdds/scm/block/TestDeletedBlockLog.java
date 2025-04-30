@@ -21,11 +21,15 @@ import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.conf.StorageUnit;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.ContainerReplicaProto;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.ContainerManager;
 import org.apache.hadoop.hdds.scm.container.ContainerReplica;
@@ -74,6 +78,9 @@ import static org.apache.hadoop.hdds.scm.ScmConfigKeys
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for DeletedBlockLog.
@@ -413,6 +420,25 @@ public class TestDeletedBlockLog {
     }
 
     Assertions.assertEquals(30 * THREE, blocks.size());
+  }
+
+  @Test
+  public void testAddTransactionsIsBatched() throws Exception {
+    conf.setStorageSize(ScmConfigKeys.OZONE_SCM_HA_RAFT_LOG_APPENDER_QUEUE_BYTE_LIMIT, 1, StorageUnit.KB);
+
+    DeletedBlockLogStateManager mockStateManager = mock(DeletedBlockLogStateManager.class);
+    DeletedBlockLogImpl log = new DeletedBlockLogImpl(conf, containerManager,
+        scm.getScmHAManager().getRatisServer(),
+        scm.getScmMetadataStore().getDeletedBlocksTXTable(),
+        scmHADBTransactionBuffer, scm.getScmContext(), scm.getSequenceIdGen(),
+        metrics);
+
+    log.setDeletedBlockLogStateManager(mockStateManager);
+
+    Map<Long, List<Long>> containerBlocksMap = generateData(100);
+    log.addTransactions(containerBlocksMap);
+
+    verify(mockStateManager, atLeast(2)).addTransactionsToDB(any());
   }
 
   @Test
