@@ -204,7 +204,6 @@ public class ValidatorRegistry<RequestType extends Enum<RequestType>> {
     return callAnnotationMethod(validator, RegisterValidator.REQUEST_TYPE_METHOD_NAME, requestType);
   }
 
-
   private <V> void checkAllowedAnnotationValues(Set<V> values, V value, String valueName, String methodName) {
     if (!values.contains(value)) {
       throw new IllegalArgumentException(
