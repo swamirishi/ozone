@@ -23,6 +23,7 @@ import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +32,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * InMemory Table implementation for tests.
  */
 public final class InMemoryTestTable<KEY, VALUE> implements Table<KEY, VALUE> {
-  private final Map<KEY, VALUE> map = new ConcurrentHashMap<>();
+  private final Map<KEY, VALUE> map;
+
+  public InMemoryTestTable() {
+    this(Collections.emptyMap());
+  }
+
+  public InMemoryTestTable(Map<KEY, VALUE> map) {
+    this.map = new ConcurrentHashMap<>();
+    this.map.putAll(map);
+  }
 
   @Override
   public void close() {

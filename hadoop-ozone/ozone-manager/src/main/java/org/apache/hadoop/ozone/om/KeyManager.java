@@ -22,6 +22,8 @@ import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
+import org.apache.hadoop.ozone.om.helpers.OmDirectoryInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartUploadList;
@@ -34,6 +36,7 @@ import org.apache.hadoop.ozone.om.service.DirectoryDeletingService;
 import org.apache.hadoop.ozone.om.service.KeyDeletingService;
 import org.apache.hadoop.ozone.om.service.SnapshotDeletingService;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ExpiredMultipartUploadsBucket;
+import org.apache.ratis.util.function.CheckedFunction;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -82,7 +85,6 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
    */
   OmKeyInfo getKeyInfo(OmKeyArgs args, ResolvedBucket buctket,
       String clientAddress) throws IOException;
-
 
   /**
    * Returns a list of keys represented by {@link OmKeyInfo}
@@ -151,6 +153,18 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
   List<Table.KeyValue<String, String>> getRenamesKeyEntries(
       String volume, String bucket, String startKey, int size) throws IOException;
 
+
+  /**
+   * Returns the previous snapshot's ozone directorInfo corresponding for the object.
+   */
+  CheckedFunction<KeyManager, OmDirectoryInfo, IOException> getPreviousSnapshotOzoneDirInfo(
+      long volumeId, OmBucketInfo bucketInfo, OmDirectoryInfo directoryInfo) throws IOException;
+
+  /**
+   * Returns the previous snapshot's ozone directoryInfo corresponding for the object.
+   */
+  CheckedFunction<KeyManager, OmDirectoryInfo, IOException> getPreviousSnapshotOzoneDirInfo(
+      long volumeId, OmBucketInfo bucketInfo, OmKeyInfo directoryInfo) throws IOException;
 
   /**
    * Returns a list deleted entries from the deletedTable.
