@@ -55,6 +55,8 @@ import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
 import org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator;
+import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
+import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.bucket.OMBucketCreateResponse;
@@ -83,6 +85,7 @@ public class OMBucketCreateRequest extends OMClientRequest {
   public OMBucketCreateRequest(OMRequest omRequest) {
     super(omRequest);
   }
+
   @Override
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
 
@@ -310,7 +313,6 @@ public class OMBucketCreateRequest extends OMClientRequest {
     return bucketInfo.hasDefaultReplicationConfig() && bucketInfo
         .getDefaultReplicationConfig().hasEcReplicationConfig();
   }
-
 
   /**
    * Add default acls for bucket. These acls are inherited from volume

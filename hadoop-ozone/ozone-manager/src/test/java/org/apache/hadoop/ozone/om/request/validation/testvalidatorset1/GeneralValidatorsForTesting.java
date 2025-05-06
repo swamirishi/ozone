@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.ozone.om.request.validation.testvalidatorset1;
 
+import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.CLUSTER_NEEDS_FINALIZATION;
+import static org.apache.hadoop.ozone.om.request.validation.ValidationCondition.OLDER_CLIENT_REQUESTS;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateKey;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.CreateVolume;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.DeleteKeys;
@@ -53,6 +55,8 @@ public final class GeneralValidatorsForTesting {
    */
   private static boolean validatorTestsRunning = false;
 
+  private static List<ValidationListener> listeners = new ArrayList<>();
+
   public static void startValidatorTest() {
     validatorTestsRunning = true;
   }
@@ -74,8 +78,6 @@ public final class GeneralValidatorsForTesting {
   public interface ValidationListener {
     void validationCalled(String calledMethodName);
   }
-
-  private static List<ValidationListener> listeners = new ArrayList<>();
 
   public static void addListener(ValidationListener listener) {
     listeners.add(listener);

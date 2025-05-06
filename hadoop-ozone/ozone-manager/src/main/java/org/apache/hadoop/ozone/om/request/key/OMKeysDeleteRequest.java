@@ -59,6 +59,8 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OzoneFileStatus;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
+import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
+import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.key.OMKeysDeleteResponse;
@@ -354,9 +356,9 @@ public class OMKeysDeleteRequest extends OMKeyRequest {
     StringBuilder keys = new StringBuilder();
     for (int i = 0; i < deletedKeyInfos.size(); i++) {
       OmKeyInfo key = deletedKeyInfos.get(i);
-      keys.append("{").append(KEY).append("=").append(key.getKeyName()).append(", ");
-      keys.append(DATA_SIZE).append("=").append(key.getDataSize()).append(", ");
-      keys.append(REPLICATION_CONFIG).append("=").append(key.getReplicationConfig()).append("}");
+      keys.append('{').append(KEY).append('=').append(key.getKeyName()).append(", ");
+      keys.append(DATA_SIZE).append('=').append(key.getDataSize()).append(", ");
+      keys.append(REPLICATION_CONFIG).append('=').append(key.getReplicationConfig()).append('}');
       if (i < deletedKeyInfos.size() - 1) {
         keys.append(", ");
       }

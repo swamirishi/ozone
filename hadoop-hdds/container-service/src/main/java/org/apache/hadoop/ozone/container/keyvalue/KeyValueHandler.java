@@ -1441,7 +1441,7 @@ public class KeyValueHandler extends Handler {
       StringBuilder stringBuilder = new StringBuilder();
       for (Path block : dir) {
         if (notEmpty) {
-          stringBuilder.append(",");
+          stringBuilder.append(',');
         }
         stringBuilder.append(block);
         notEmpty = true;
@@ -1553,7 +1553,10 @@ public class KeyValueHandler extends Handler {
     }
     // Avoid holding write locks for disk operations
     sendICR(container);
+    long bytesUsed = container.getContainerData().getBytesUsed();
+    HddsVolume volume = container.getContainerData().getVolume();
     container.delete();
+    volume.decrementUsedSpace(bytesUsed);
   }
 
   private void triggerVolumeScanAndThrowException(Container container,

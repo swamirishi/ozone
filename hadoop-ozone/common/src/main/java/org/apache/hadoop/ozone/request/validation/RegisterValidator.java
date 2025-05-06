@@ -23,7 +23,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import org.apache.hadoop.ozone.Versioned;
 
-
 /**
  * Annotations to register a validator. {@link org.apache.ozone.annotations.RegisterValidatorProcessor}
  * enforces other annotation to have the following methods:

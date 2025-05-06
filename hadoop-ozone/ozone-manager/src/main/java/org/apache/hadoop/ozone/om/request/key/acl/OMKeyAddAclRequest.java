@@ -34,6 +34,8 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.util.ObjectParser;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator;
+import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
+import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.key.acl.OMKeyAclResponse;
@@ -57,6 +59,10 @@ public class OMKeyAddAclRequest extends OMKeyAclRequest {
   private static final Logger LOG =
       LoggerFactory.getLogger(OMKeyAddAclRequest.class);
 
+  private String path;
+  private List<OzoneAcl> ozoneAcls;
+  private OzoneObj obj;
+
   @Override
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
     long modificationTime = Time.now();
@@ -69,10 +75,6 @@ public class OMKeyAddAclRequest extends OMKeyAclRequest {
         .setUserInfo(getUserInfo())
         .build();
   }
-
-  private String path;
-  private List<OzoneAcl> ozoneAcls;
-  private OzoneObj obj;
 
   public OMKeyAddAclRequest(OMRequest omRequest, OzoneManager ozoneManager) {
     super(omRequest);
