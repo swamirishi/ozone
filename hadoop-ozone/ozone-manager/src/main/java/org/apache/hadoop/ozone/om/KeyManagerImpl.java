@@ -716,7 +716,7 @@ public class KeyManagerImpl implements KeyManager {
     int currentCount = 0;
     while (tableIterator.hasNext() && currentCount < size) {
       Table.KeyValue<String, V> kv = tableIterator.next();
-      if (kv != null) {
+      if (kv != null && filter.apply(kv)) {
         entries.add(Table.newKeyValue(kv.getKey(), valueFunction.apply(kv.getValue())));
         currentCount++;
       }
