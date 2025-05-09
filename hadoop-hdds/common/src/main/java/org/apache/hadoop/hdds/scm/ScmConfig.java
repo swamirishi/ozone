@@ -128,6 +128,20 @@ public class ScmConfig {
   )
   private int defaultLayoutVersionOnInit = -1;
 
+  @Config(key = "hdds.scm.block.deletion.txn.dn.commit.map.limit",
+      defaultValue = "5000000",
+      type = ConfigType.INT,
+      tags = { ConfigTag.SCM },
+      description =
+          " This value indicates the size of the transactionToDNsCommitMap after which" +
+              " we will skip one round of scm block deleting interval."
+  )
+  private int transactionToDNsCommitMapLimit = 5000000;
+
+  public int getTransactionToDNsCommitMapLimit() {
+    return transactionToDNsCommitMapLimit;
+  }
+
   public Duration getBlockDeletionInterval() {
     return Duration.ofMillis(blockDeletionInterval);
   }

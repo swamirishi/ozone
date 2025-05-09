@@ -29,6 +29,7 @@ import org.apache.hadoop.hdds.client.ContainerBlockID;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.StorageUnit;
+import org.apache.hadoop.hdds.scm.ScmConfig;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
@@ -78,7 +79,7 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
    * @param scm
    * @throws IOException
    */
-  public BlockManagerImpl(final ConfigurationSource conf,
+  public BlockManagerImpl(final ConfigurationSource conf, ScmConfig scmConfig,
                           final StorageContainerManager scm)
       throws IOException {
     Objects.requireNonNull(scm, "SCM cannot be null");
@@ -108,7 +109,7 @@ public class BlockManagerImpl implements BlockManager, BlockmanagerMXBean {
         new SCMBlockDeletingService(deletedBlockLog,
             scm.getScmNodeManager(), scm.getEventQueue(), scm.getScmContext(),
             scm.getSCMServiceManager(), conf,
-            metrics, scm.getSystemClock());
+            metrics, scm.getSystemClock(), scmConfig);
   }
 
   /**

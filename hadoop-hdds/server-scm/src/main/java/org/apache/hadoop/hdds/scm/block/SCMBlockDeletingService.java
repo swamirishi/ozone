@@ -93,6 +93,7 @@ public class SCMBlockDeletingService extends BackgroundService
   private final long safemodeExitRunDelayMillis;
   private final long deleteBlocksPendingCommandLimit;
   private final Clock clock;
+  private final int transactionToDNsCommitMapLimit;
   private final ScmConfig scmConf;
 
   @SuppressWarnings("parameternumber")
@@ -101,7 +102,7 @@ public class SCMBlockDeletingService extends BackgroundService
              SCMContext scmContext, SCMServiceManager serviceManager,
              ConfigurationSource conf,
              ScmBlockDeletingServiceMetrics metrics,
-             Clock clock) {
+             Clock clock, ScmConfig scmConfig) {
     super("SCMBlockDeletingService",
         conf.getObject(ScmConfig.class).getBlockDeletionInterval().toMillis(),
         TimeUnit.MILLISECONDS, BLOCK_DELETING_SERVICE_CORE_POOL_SIZE,
@@ -116,6 +117,7 @@ public class SCMBlockDeletingService extends BackgroundService
     DatanodeConfiguration dnConf =
         conf.getObject(DatanodeConfiguration.class);
     this.deleteBlocksPendingCommandLimit = dnConf.getBlockDeleteQueueLimit();
+    this.transactionToDNsCommitMapLimit = scmConfig.getTransactionToDNsCommitMapLimit();
     this.clock = clock;
     this.deletedBlockLog = deletedBlockLog;
     this.nodeManager = nodeManager;
@@ -170,6 +172,12 @@ public class SCMBlockDeletingService extends BackgroundService
           final Set<DatanodeDetails> included =
               getDatanodesWithinCommandLimit(datanodes);
           int blockDeletionLimit = getBlockDeleteTXNum();
+          int txnToDNsCommitMapSize = deletedBlockLog.getTransactionToDNsCommitMapSize();
+          if (txnToDNsCommitMapSize >= transactionToDNsCommitMapLimit) {
+            LOG.warn("Skipping block deletion as transactionToDNsCommitMap size = {}, exceeds threshold {}",
+                txnToDNsCommitMapSize, transactionToDNsCommitMapLimit);
+            return EmptyTaskResult.newResult();
+          }
           DatanodeDeletedBlockTransactions transactions =
               deletedBlockLog.getTransactions(blockDeletionLimit, included);
 

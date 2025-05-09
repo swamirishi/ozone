@@ -582,4 +582,8 @@ public class SCMDeletedBlockTransactionStatusManager {
     }
     return false;
   }
+
+  public int getTransactionToDNsCommitMapSize() {
+    return transactionToDNsCommitMap.size();
+  }
 }
