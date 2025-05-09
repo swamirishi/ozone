@@ -116,7 +116,6 @@ import org.apache.hadoop.ozone.om.helpers.SnapshotDiffJob;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.helpers.WithObjectID;
 import org.apache.hadoop.ozone.om.helpers.WithParentObjectId;
-import org.apache.hadoop.ozone.om.service.SnapshotDeletingService;
 import org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffReportOzone;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
@@ -1441,8 +1440,7 @@ public class SnapshotDiffManager implements AutoCloseable {
   private boolean isKeyModified(OmKeyInfo fromKey, OmKeyInfo toKey) {
     return !fromKey.isKeyInfoSame(toKey,
         false, false, false, false)
-        || !SnapshotDeletingService.isBlockLocationInfoSame(
-        fromKey, toKey);
+        || !SnapshotUtils.isBlockLocationInfoSame(fromKey, toKey);
   }
 
   private boolean isObjectModified(String fromObjectName, String toObjectName,
@@ -1470,28 +1468,6 @@ public class SnapshotDiffManager implements AutoCloseable {
   private boolean areAclsSame(OmDirectoryInfo fromObject,
                               OmDirectoryInfo toObject) {
     return fromObject.getAcls().equals(toObject.getAcls());
-  }
-
-  private boolean isBlockLocationSame(
-      String fromObjectName,
-      String toObjectName,
-      final Table<String, ? extends WithObjectID> fromSnapshotTable,
-      final Table<String, ? extends WithObjectID> toSnapshotTable
-  ) throws IOException {
-    Objects.requireNonNull(fromObjectName, "fromObjectName is null.");
-    Objects.requireNonNull(toObjectName, "toObjectName is null.");
-
-    final WithObjectID fromObject = fromSnapshotTable.get(fromObjectName);
-    final WithObjectID toObject = toSnapshotTable.get(toObjectName);
-
-    if (!(fromObject instanceof OmKeyInfo) ||
-        !(toObject instanceof OmKeyInfo)) {
-      throw new IllegalStateException("fromObject or toObject is not of " +
-          "OmKeyInfo");
-    }
-
-    return SnapshotDeletingService.isBlockLocationInfoSame(
-        (OmKeyInfo) fromObject, (OmKeyInfo) toObject);
   }
 
   private PersistentList<byte[]> createDiffReportPersistentList(
