@@ -1,33 +1,49 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- *  with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.hadoop.ozone.container.keyvalue;
+
+import static org.apache.hadoop.hdds.HddsConfigKeys.OZONE_METADATA_DIRS;
+import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_DATANODE_DIR_KEY;
+import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_CONTAINER_LAYOUT_KEY;
+import static org.apache.hadoop.ozone.container.common.impl.ContainerImplTestUtils.newContainerSet;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.fs.FileUtil;
@@ -46,41 +62,23 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
-import org.apache.ozone.test.GenericTestUtils;
-
-import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_DATANODE_VOLUME_CHOOSING_POLICY;
-import static org.apache.hadoop.hdds.HddsConfigKeys.OZONE_METADATA_DIRS;
-import static org.apache.hadoop.hdds.scm.ScmConfigKeys.HDDS_DATANODE_DIR_KEY;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.any;
-
+import org.apache.hadoop.util.Time;
+import org.apache.ozone.test.GenericTestUtils.LogCapturer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
-
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import org.mockito.Mockito;
 
 /**
  * Unit tests for {@link KeyValueHandler}.
  */
-@Timeout(300)
 public class TestKeyValueHandler {
 
   @TempDir
@@ -111,7 +109,6 @@ public class TestKeyValueHandler {
         mock(ContainerMetrics.class),
         mock(TokenVerifier.class)
     );
-
   }
 
   /**
@@ -131,7 +128,13 @@ public class TestKeyValueHandler {
             .build();
 
     KeyValueContainer container = mock(KeyValueContainer.class);
-
+    KeyValueContainerData containerData = mock(KeyValueContainerData.class);
+    Mockito.when(container.getContainerData()).thenReturn(containerData);
+    Mockito.when(containerData.getReplicaIndex()).thenReturn(1);
+    ContainerProtos.ContainerCommandResponseProto responseProto = KeyValueHandler.dispatchRequest(handler,
+        createContainerRequest, container, null);
+    assertEquals(ContainerProtos.Result.INVALID_ARGUMENT, responseProto.getResult());
+    Mockito.when(handler.getDatanodeId()).thenReturn(DATANODE_UUID);
     KeyValueHandler
         .dispatchRequest(handler, createContainerRequest, container, null);
     verify(handler, times(0)).handleListBlock(
@@ -269,32 +272,20 @@ public class TestKeyValueHandler {
         volumeSet = new MutableVolumeSet(UUID.randomUUID().toString(), conf,
         null, StorageVolume.VolumeType.DATA_VOLUME, null);
     try {
-      ContainerSet cset = new ContainerSet(1000);
+      ContainerSet cset = newContainerSet();
       int[] interval = new int[1];
       interval[0] = 2;
       ContainerMetrics metrics = new ContainerMetrics(interval);
       DatanodeDetails datanodeDetails = mock(DatanodeDetails.class);
       StateContext context = ContainerTestUtils.getMockContext(
           datanodeDetails, conf);
-      KeyValueHandler keyValueHandler = new KeyValueHandler(conf,
-          context.getParent().getDatanodeDetails().getUuidString(), cset,
-          volumeSet, metrics, c -> {
-      });
-      assertEquals("org.apache.hadoop.ozone.container.common" +
-          ".volume.CapacityVolumeChoosingPolicy",
-          keyValueHandler.getVolumeChoosingPolicyForTesting()
-              .getClass().getName());
 
-      //Set a class which is not of sub class of VolumeChoosingPolicy
-      conf.set(HDDS_DATANODE_VOLUME_CHOOSING_POLICY,
-          "org.apache.hadoop.ozone.container.common.impl.HddsDispatcher");
-      RuntimeException exception = assertThrows(RuntimeException.class,
-          () -> new KeyValueHandler(conf, context.getParent().getDatanodeDetails().getUuidString(), cset, volumeSet,
-              metrics, c -> { }));
-
-      assertThat(exception).hasMessageEndingWith(
-          "class org.apache.hadoop.ozone.container.common.impl.HddsDispatcher " +
-              "not org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy");
+      // Ensures that KeyValueHandler falls back to FILE_PER_BLOCK.
+      conf.set(OZONE_SCM_CONTAINER_LAYOUT_KEY, "FILE_PER_CHUNK");
+      new KeyValueHandler(conf, context.getParent().getDatanodeDetails().getUuidString(), cset, volumeSet,
+          metrics, c -> { });
+      assertEquals(ContainerLayoutVersion.FILE_PER_BLOCK,
+          conf.getEnum(OZONE_SCM_CONTAINER_LAYOUT_KEY, ContainerLayoutVersion.FILE_PER_CHUNK));
     } finally {
       volumeSet.shutdown();
       FileUtil.fullyDelete(datanodeDir);
@@ -355,7 +346,7 @@ public class TestKeyValueHandler {
       final String clusterId = UUID.randomUUID().toString();
       final String datanodeId = UUID.randomUUID().toString();
       final ConfigurationSource conf = new OzoneConfiguration();
-      final ContainerSet containerSet = new ContainerSet(1000);
+      final ContainerSet containerSet = newContainerSet();
       final MutableVolumeSet volumeSet = mock(MutableVolumeSet.class);
 
       HddsVolume hddsVolume = new HddsVolume.Builder(testDir).conf(conf)
@@ -427,8 +418,7 @@ public class TestKeyValueHandler {
 
       // Case 3:  Delete Container on a failed volume
       hddsVolume.failVolume();
-      GenericTestUtils.LogCapturer kvHandlerLogs =
-          GenericTestUtils.LogCapturer.captureLogs(KeyValueHandler.getLogger());
+      LogCapturer kvHandlerLogs = LogCapturer.captureLogs(KeyValueHandler.class);
       // add the container back to containerSet as removed in previous delete
       containerSet.addContainer(container);
       kvHandler.deleteContainer(container, true);
@@ -439,6 +429,123 @@ public class TestKeyValueHandler {
     } finally {
       FileUtils.deleteDirectory(new File(testDir));
     }
+  }
+
+  /**
+   * Tests that deleting a container decrements the cached used space of its volume.
+   */
+  @Test
+  public void testDeleteDecrementsVolumeUsedSpace() throws IOException {
+    final long containerID = 1;
+    final String clusterId = UUID.randomUUID().toString();
+    final String datanodeId = UUID.randomUUID().toString();
+    final ContainerSet containerSet = newContainerSet();
+    final MutableVolumeSet volumeSet = mock(MutableVolumeSet.class);
+    final HddsVolume hddsVolume = mock(HddsVolume.class);
+    when(hddsVolume.getDeletedContainerDir()).thenReturn(new File(""));
+
+    final ConfigurationSource conf = new OzoneConfiguration();
+    final ContainerMetrics metrics = ContainerMetrics.create(conf);
+    final AtomicInteger icrReceived = new AtomicInteger(0);
+    final long containerBytesUsed = 1024 * 1024;
+
+    // We're testing KeyValueHandler in this test, all the other objects are mocked
+    final KeyValueHandler kvHandler = new KeyValueHandler(conf,
+        datanodeId, containerSet, volumeSet, metrics,
+        c -> icrReceived.incrementAndGet());
+    kvHandler.setClusterID(clusterId);
+
+    // Setup ContainerData and Container mocks
+    KeyValueContainerData containerData = mock(KeyValueContainerData.class);
+    when(containerData.getContainerID()).thenReturn(containerID);
+    when(containerData.getVolume()).thenReturn(hddsVolume);
+    when(containerData.getBytesUsed()).thenReturn(containerBytesUsed);
+    when(containerData.getState()).thenReturn(ContainerProtos.ContainerDataProto.State.CLOSED);
+    when(containerData.isOpen()).thenReturn(false);
+    when(containerData.getLayoutVersion()).thenReturn(ContainerLayoutVersion.FILE_PER_BLOCK);
+    when(containerData.getDbFile()).thenReturn(new File(tempDir.toFile(), "dummy.db"));
+    when(containerData.getContainerPath()).thenReturn(tempDir.toString());
+    when(containerData.getMetadataPath()).thenReturn(tempDir.toString());
+
+    KeyValueContainer container = mock(KeyValueContainer.class);
+    when(container.getContainerData()).thenReturn(containerData);
+    when(container.hasBlocks()).thenReturn(true);
+
+    containerSet.addContainer(container);
+    assertNotNull(containerSet.getContainer(containerID));
+
+    // This is the method we're testing. It should decrement used space in the volume when deleting this container
+    kvHandler.deleteContainer(container, true);
+    assertNull(containerSet.getContainer(containerID));
+
+    // Verify ICR was sent (once for delete)
+    assertEquals(1, icrReceived.get(), "ICR should be sent for delete");
+    verify(container, times(1)).delete();
+    // Verify decrementUsedSpace was called with the correct amount
+    verify(hddsVolume, times(1)).decrementUsedSpace(eq(containerBytesUsed));
+  }
+
+  @Test
+  public void testDeleteContainerTimeout() throws IOException {
+    final String testDir = tempDir.toString();
+    final long containerID = 1L;
+    final String clusterId = UUID.randomUUID().toString();
+    final String datanodeId = UUID.randomUUID().toString();
+    final ConfigurationSource conf = new OzoneConfiguration();
+    final ContainerSet containerSet = newContainerSet();
+    final MutableVolumeSet volumeSet = mock(MutableVolumeSet.class);
+    final Clock clock = mock(Clock.class);
+    long startTime = Time.monotonicNow();
+
+    DatanodeConfiguration dnConf = conf.getObject(DatanodeConfiguration.class);
+    when(clock.millis())
+        .thenReturn(startTime)
+        .thenReturn(startTime + dnConf.getDeleteContainerTimeoutMs() + 1);
+
+    HddsVolume hddsVolume = new HddsVolume.Builder(testDir).conf(conf)
+        .clusterID(clusterId).datanodeUuid(datanodeId)
+        .volumeSet(volumeSet)
+        .build();
+    hddsVolume.format(clusterId);
+    hddsVolume.createWorkingDir(clusterId, null);
+    hddsVolume.createTmpDirs(clusterId);
+
+    when(volumeSet.getVolumesList())
+        .thenReturn(Collections.singletonList(hddsVolume));
+
+    List<HddsVolume> hddsVolumeList = StorageVolumeUtil
+        .getHddsVolumesList(volumeSet.getVolumesList());
+
+    assertEquals(1, hddsVolumeList.size());
+
+    final ContainerMetrics metrics = ContainerMetrics.create(conf);
+
+    final AtomicInteger icrReceived = new AtomicInteger(0);
+
+    final KeyValueHandler kvHandler = new KeyValueHandler(conf,
+        datanodeId, containerSet, volumeSet, null, metrics,
+        c -> icrReceived.incrementAndGet(), clock);
+    kvHandler.setClusterID(clusterId);
+
+    final ContainerCommandRequestProto createContainer =
+        createContainerRequest(datanodeId, containerID);
+    kvHandler.handleCreateContainer(createContainer, null);
+    assertEquals(1, icrReceived.get());
+    assertNotNull(containerSet.getContainer(containerID));
+
+    // The delete should not have gone through due to the mocked clock. The implementation calls the clock twice:
+    // Once at the start of the method prior to taking the lock, when the clock will return the start time of the test.
+    // On the second call to the clock, where the implementation checks if the timeout has expired, the clock will
+    // return start_time + timeout + 1. This will cause the delete to timeout and the container will not be deleted.
+    kvHandler.deleteContainer(containerSet.getContainer(containerID), true);
+    assertEquals(1, icrReceived.get());
+    assertNotNull(containerSet.getContainer(containerID));
+
+    // Delete the container normally, and it should go through. At this stage all calls to the clock mock will return
+    // the same value, indicating no delay to the delete operation will succeed.
+    kvHandler.deleteContainer(containerSet.getContainer(containerID), true);
+    assertEquals(2, icrReceived.get());
+    assertNull(containerSet.getContainer(containerID));
   }
 
   private static ContainerCommandRequestProto createContainerRequest(

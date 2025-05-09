@@ -31,7 +31,7 @@ if [[ ${ITERATIONS} -le 0 ]]; then
 fi
 
 export MAVEN_OPTS="-Xmx4096m ${MAVEN_OPTS:-}"
-MAVEN_OPTIONS="-B -V -Dskip.npx -Dskip.installnpx -Dnative.lib.tmp.dir=/tmp --no-transfer-progress"
+MAVEN_OPTIONS="-B -V -DskipRecon -Dnative.lib.tmp.dir=/tmp --no-transfer-progress"
 
 if [[ "${OZONE_WITH_COVERAGE}" != "true" ]]; then
   MAVEN_OPTIONS="${MAVEN_OPTIONS} -Djacoco.skip"
@@ -40,7 +40,7 @@ fi
 if [[ "${FAIL_FAST}" == "true" ]]; then
   MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-fast -Dsurefire.skipAfterFailureCount=1"
 else
-  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-at-end"
+  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-never"
 fi
 
 # apply module access args (for Java 9+)
@@ -50,8 +50,10 @@ if [[ -f hadoop-ozone/dist/src/shell/ozone/ozone-functions.sh ]]; then
   ozone_java_setup
 fi
 
+mvn ${MAVEN_OPTIONS} clean
+
 if [[ ${ITERATIONS} -gt 1 ]] && [[ ${OZONE_REPO_CACHED} == "false" ]]; then
-  mvn ${MAVEN_OPTIONS} -DskipTests clean install
+  mvn ${MAVEN_OPTIONS} -DskipTests install
 fi
 
 REPORT_DIR=${OUTPUT_DIR:-"$DIR/../../../target/${CHECK}"}
@@ -100,14 +102,10 @@ for i in $(seq 1 ${ITERATIONS}); do
   fi
 done
 
-# check if Maven failed due to some error other than test failure
-if [[ ${rc} -ne 0 ]] && [[ ! -s "${REPORT_FILE}" ]]; then
-  grep -m1 -F '[ERROR]' "${REPORT_DIR}/output.log" > "${REPORT_FILE}"
-fi
-
 if [[ "${OZONE_WITH_COVERAGE}" == "true" ]]; then
   #Archive combined jacoco records
   mvn -B -N jacoco:merge -Djacoco.destFile=$REPORT_DIR/jacoco-combined.exec -Dscan=false
 fi
 
-exit ${rc}
+ERROR_PATTERN="BUILD FAILURE"
+source "${DIR}/_post_process.sh"

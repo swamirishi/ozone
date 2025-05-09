@@ -17,6 +17,8 @@
 
 #suite:unsecure
 
+set -u -o pipefail
+
 COMPOSE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export COMPOSE_DIR
 
@@ -48,12 +50,11 @@ execute_robot_test scm freon
 execute_robot_test scm cli
 execute_robot_test scm admincli
 
-execute_robot_test scm debug/ozone-debug-lease-recovery.robot
-
 execute_robot_test scm -v USERNAME:httpfs httpfs
-execute_debug_tests
+source "$COMPOSE_DIR/../common/replicas-test.sh"
 
 execute_robot_test scm -v SCHEME:o3fs -v BUCKET_TYPE:bucket -N ozonefs-o3fs-bucket ozonefs/ozonefs.robot
+execute_robot_test scm -v SCHEME:ofs -N ozonefs-obs ozonefs/ozonefs-obs.robot
 
 execute_robot_test s3g grpc/grpc-om-s3-metrics.robot
 

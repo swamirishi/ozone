@@ -1,32 +1,53 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.ozone.rocksdiff;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.hadoop.hdds.StringUtils.bytes2String;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED_DEFAULT;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_PRUNE_DAEMON_RUN_INTERVAL;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_PRUNE_COMPACTION_DAG_DAEMON_RUN_INTERVAL_DEFAULT;
+import static org.apache.hadoop.util.Time.now;
+import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COLUMN_FAMILIES_TO_TRACK_IN_DAG;
+import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COMPACTION_LOG_FILE_NAME_SUFFIX;
+import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.SST_FILE_EXTENSION;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.GraphBuilder;
+import com.google.common.graph.MutableGraph;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,9 +59,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,10 +70,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import com.google.common.graph.MutableGraph;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
@@ -65,16 +87,21 @@ import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksIterator;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedSstFileReader;
 import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
+import org.apache.hadoop.util.Time;
 import org.apache.ozone.compaction.log.CompactionFileInfo;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
+import org.apache.ozone.rocksdb.util.RdbUtil;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.NodeComparator;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.LiveFileMetaData;
@@ -84,33 +111,169 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
-import static org.apache.hadoop.hdds.StringUtils.bytes2String;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_MAX_TIME_ALLOWED_DEFAULT;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_COMPACTION_DAG_PRUNE_DAEMON_RUN_INTERVAL;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_OM_SNAPSHOT_PRUNE_COMPACTION_DAG_DAEMON_RUN_INTERVAL_DEFAULT;
-import static org.apache.hadoop.util.Time.now;
-import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COLUMN_FAMILIES_TO_TRACK_IN_DAG;
-import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COMPACTION_LOG_FILE_NAME_SUFFIX;
-import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.DEBUG_DAG_LIVE_NODES;
-import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.DEBUG_READ_ALL_DB_KEYS;
-import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.SST_FILE_EXTENSION;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 /**
  * Test RocksDBCheckpointDiffer basic functionality.
  */
 public class TestRocksDBCheckpointDiffer {
 
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TestRocksDBCheckpointDiffer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TestRocksDBCheckpointDiffer.class);
+
+  private static final List<List<String>> SST_FILES_BY_LEVEL = Arrays.asList(
+      Arrays.asList("000015", "000013", "000011", "000009"),
+      Arrays.asList("000018", "000016", "000017", "000026", "000024", "000022",
+          "000020"),
+      Arrays.asList("000027", "000030", "000028", "000029", "000031", "000039",
+          "000037", "000035", "000033"),
+      Arrays.asList("000040", "000044", "000042", "000043", "000045", "000041",
+          "000046", "000054", "000052", "000050", "000048"),
+      Arrays.asList("000059", "000055", "000056", "000060", "000057", "000058")
+  );
+
+  private static final List<List<CompactionNode>> COMPACTION_NODES_BY_LEVEL =
+      SST_FILES_BY_LEVEL.stream()
+          .map(sstFiles ->
+              sstFiles.stream()
+                  .map(
+                      sstFile -> new CompactionNode(sstFile,
+                          1000L,
+                          null, null, null
+                      ))
+                  .collect(Collectors.toList()))
+          .collect(Collectors.toList());
+
+  private final List<CompactionLogEntry> compactionLogEntryList = Arrays.asList(
+      new CompactionLogEntry(101, System.currentTimeMillis(),
+          Arrays.asList(
+              new CompactionFileInfo("000068", "/volume/bucket2",
+                  "/volume/bucket2", "bucketTable"),
+              new CompactionFileInfo("000057", "/volume/bucket1",
+                  "/volume/bucket1", "bucketTable")),
+          Collections.singletonList(
+              new CompactionFileInfo("000086", "/volume/bucket1",
+                  "/volume/bucket2", "bucketTable")),
+          null),
+      new CompactionLogEntry(178, System.currentTimeMillis(),
+          Arrays.asList(new CompactionFileInfo("000078",
+                  "/volume/bucket1/key-0000001411",
+                  "/volume/bucket2/key-0000099649",
+                  "keyTable"),
+              new CompactionFileInfo("000075",
+                  "/volume/bucket1/key-0000016536",
+                  "/volume/bucket2/key-0000098897",
+                  "keyTable"),
+              new CompactionFileInfo("000073",
+                  "/volume/bucket1/key-0000000730",
+                  "/volume/bucket2/key-0000097010",
+                  "keyTable"),
+              new CompactionFileInfo("000071",
+                  "/volume/bucket1/key-0000001820",
+                  "/volume/bucket2/key-0000097895",
+                  "keyTable"),
+              new CompactionFileInfo("000063",
+                  "/volume/bucket1/key-0000001016",
+                  "/volume/bucket1/key-0000099930",
+                  "keyTable")),
+          Collections.singletonList(new CompactionFileInfo("000081",
+              "/volume/bucket1/key-0000000730",
+              "/volume/bucket2/key-0000099649",
+              "keyTable")),
+          null
+      ),
+      new CompactionLogEntry(233, System.currentTimeMillis(),
+          Arrays.asList(
+              new CompactionFileInfo("000086", "/volume/bucket1",
+                  "/volume/bucket2", "bucketTable"),
+              new CompactionFileInfo("000088", "/volume/bucket3",
+                  "/volume/bucket3", "bucketTable")),
+          Collections.singletonList(
+              new CompactionFileInfo("000110", "/volume/bucket1",
+                  "/volume/bucket3", "bucketTable")
+          ),
+          null),
+      new CompactionLogEntry(256, System.currentTimeMillis(),
+          Arrays.asList(new CompactionFileInfo("000081",
+                  "/volume/bucket1/key-0000000730",
+                  "/volume/bucket2/key-0000099649",
+                  "keyTable"),
+              new CompactionFileInfo("000103",
+                  "/volume/bucket1/key-0000017460",
+                  "/volume/bucket3/key-0000097450",
+                  "keyTable"),
+              new CompactionFileInfo("000099",
+                  "/volume/bucket1/key-0000002310",
+                  "/volume/bucket3/key-0000098286",
+                  "keyTable"),
+              new CompactionFileInfo("000097",
+                  "/volume/bucket1/key-0000005965",
+                  "/volume/bucket3/key-0000099136",
+                  "keyTable"),
+              new CompactionFileInfo("000095",
+                  "/volume/bucket1/key-0000012424",
+                  "/volume/bucket3/key-0000083904",
+                  "keyTable")),
+          Collections.singletonList(new CompactionFileInfo("000106",
+              "/volume/bucket1/key-0000000730",
+              "/volume/bucket3/key-0000099136",
+              "keyTable")),
+          null),
+      new CompactionLogEntry(397, now(),
+          Arrays.asList(new CompactionFileInfo("000106",
+                  "/volume/bucket1/key-0000000730",
+                  "/volume/bucket3/key-0000099136",
+                  "keyTable"),
+              new CompactionFileInfo("000128",
+                  "/volume/bucket2/key-0000005031",
+                  "/volume/bucket3/key-0000084385",
+                  "keyTable"),
+              new CompactionFileInfo("000125",
+                  "/volume/bucket2/key-0000003491",
+                  "/volume/bucket3/key-0000088414",
+                  "keyTable"),
+              new CompactionFileInfo("000123",
+                  "/volume/bucket2/key-0000007390",
+                  "/volume/bucket3/key-0000094627",
+                  "keyTable"),
+              new CompactionFileInfo("000121",
+                  "/volume/bucket2/key-0000003232",
+                  "/volume/bucket3/key-0000094246",
+                  "keyTable")),
+          Collections.singletonList(new CompactionFileInfo("000131",
+              "/volume/bucket1/key-0000000730",
+              "/volume/bucket3/key-0000099136",
+              "keyTable")),
+          null
+      )
+  );
+
+  private static Map<String, String> columnFamilyToPrefixMap1 =
+      new HashMap<String, String>() {
+        {
+          put("keyTable", "/volume/bucket1/");
+          // Simply using bucketName instead of ID for the test.
+          put("directoryTable", "/volume/bucket1/");
+          put("fileTable", "/volume/bucket1/");
+        }
+      };
+
+  private static Map<String, String> columnFamilyToPrefixMap2 =
+      new HashMap<String, String>() {
+        {
+          put("keyTable", "/volume/bucket2/");
+          // Simply using bucketName instead of ID for the test.
+          put("directoryTable", "/volume/bucket2/");
+          put("fileTable", "/volume/bucket2/");
+        }
+      };
+
+  private static Map<String, String> columnFamilyToPrefixMap3 =
+      new HashMap<String, String>() {
+        {
+          put("keyTable", "/volume/bucket3/");
+          // Simply using bucketName instead of ID for the test.
+          put("directoryTable", "/volume/bucket3/");
+          put("fileTable", "/volume/bucket3/");
+        }
+      };
 
   private static final int NUM_ROW = 250000;
   private static final int SNAPSHOT_EVERY_SO_MANY_KEYS = 49999;
@@ -144,12 +307,24 @@ public class TestRocksDBCheckpointDiffer {
   private ColumnFamilyHandle fileTableCFHandle;
   private ColumnFamilyHandle compactionLogTableCFHandle;
 
+  public static final Integer DEBUG_DAG_BUILD_UP = 2;
+  public static final Integer DEBUG_DAG_TRAVERSAL = 3;
+  public static final Integer DEBUG_DAG_LIVE_NODES = 4;
+  public static final Integer DEBUG_READ_ALL_DB_KEYS = 5;
+  private static final HashSet<Integer> DEBUG_LEVEL = new HashSet<>();
+
+  static {
+    DEBUG_LEVEL.add(DEBUG_DAG_BUILD_UP);
+    DEBUG_LEVEL.add(DEBUG_DAG_TRAVERSAL);
+    DEBUG_LEVEL.add(DEBUG_DAG_LIVE_NODES);
+  }
+
   @BeforeEach
   public void init() throws RocksDBException {
     // Checkpoint differ log level. Set to DEBUG for verbose output
-    GenericTestUtils.setLogLevel(RocksDBCheckpointDiffer.getLog(), Level.INFO);
+    GenericTestUtils.setLogLevel(RocksDBCheckpointDiffer.class, Level.INFO);
     // Test class log level. Set to DEBUG for verbose output
-    GenericTestUtils.setLogLevel(TestRocksDBCheckpointDiffer.LOG, Level.INFO);
+    GenericTestUtils.setLogLevel(TestRocksDBCheckpointDiffer.class, Level.INFO);
 
     activeDbDir = new File(ACTIVE_DB_DIR_NAME);
     createDir(activeDbDir, ACTIVE_DB_DIR_NAME);
@@ -231,6 +406,29 @@ public class TestRocksDBCheckpointDiffer {
     }
   }
 
+  private static List<CompactionLogEntry> getPrunedCompactionEntries(boolean prune, Map<String, String[]> metadata) {
+    List<CompactionLogEntry> entries = new ArrayList<>();
+    if (!prune) {
+      entries.add(createCompactionEntry(1,
+          now(),
+          Arrays.asList("1", "2"),
+          Arrays.asList("4", "5"), metadata));
+    }
+    entries.addAll(Arrays.asList(createCompactionEntry(2,
+            now(),
+            Arrays.asList("4", "5"),
+            Collections.singletonList("10"), metadata),
+        createCompactionEntry(3,
+            now(),
+            Arrays.asList("3", "13", "14"),
+            Arrays.asList("6", "7"), metadata),
+        createCompactionEntry(4,
+            now(),
+            Arrays.asList("6", "7"),
+            Collections.singletonList("11"), metadata)));
+    return entries;
+  }
+
   /**
    * Test cases for testGetSSTDiffListWithoutDB.
    */
@@ -306,13 +504,19 @@ public class TestRocksDBCheckpointDiffer {
     );
 
     DifferSnapshotInfo snapshotInfo1 = new DifferSnapshotInfo(
-        "/path/to/dbcp1", UUID.randomUUID(), 3008L, null, null);
+        "/path/to/dbcp1", UUID.randomUUID(), 3008L, null, Mockito.mock(ManagedRocksDB.class));
     DifferSnapshotInfo snapshotInfo2 = new DifferSnapshotInfo(
-        "/path/to/dbcp2", UUID.randomUUID(), 14980L, null, null);
+        "/path/to/dbcp2", UUID.randomUUID(), 14980L, null, Mockito.mock(ManagedRocksDB.class));
     DifferSnapshotInfo snapshotInfo3 = new DifferSnapshotInfo(
-        "/path/to/dbcp3", UUID.randomUUID(), 17975L, null, null);
+        "/path/to/dbcp3", UUID.randomUUID(), 17975L, null, Mockito.mock(ManagedRocksDB.class));
     DifferSnapshotInfo snapshotInfo4 = new DifferSnapshotInfo(
-        "/path/to/dbcp4", UUID.randomUUID(), 18000L, null, null);
+        "/path/to/dbcp4", UUID.randomUUID(), 18000L, null, Mockito.mock(ManagedRocksDB.class));
+
+    Map<String, String> prefixMap = ImmutableMap.of("col1", "c", "col2", "d");
+    DifferSnapshotInfo snapshotInfo5 = new DifferSnapshotInfo(
+        "/path/to/dbcp2", UUID.randomUUID(), 0L, prefixMap, Mockito.mock(ManagedRocksDB.class));
+    DifferSnapshotInfo snapshotInfo6 = new DifferSnapshotInfo(
+        "/path/to/dbcp2", UUID.randomUUID(), 100L, prefixMap, Mockito.mock(ManagedRocksDB.class));
 
     Set<String> snapshotSstFiles1 = ImmutableSet.of("000059", "000053");
     Set<String> snapshotSstFiles2 = ImmutableSet.of("000088", "000059",
@@ -342,7 +546,9 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
                 "000095"),
-            false),
+            ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
+                "000095"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 2: Compaction log file crafted input: " +
                 "One source ('to' snapshot) SST file is never compacted " +
                 "(newly flushed)",
@@ -354,7 +560,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles3,
             ImmutableSet.of("000088", "000105", "000059", "000053", "000095"),
             ImmutableSet.of("000108"),
-            false),
+            ImmutableSet.of("000108"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 3: Compaction log file crafted input: " +
                 "Same SST files found during SST expansion",
             compactionLog,
@@ -365,7 +572,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1Alt1,
             ImmutableSet.of("000066", "000059", "000053"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
-            false),
+            ImmutableSet.of("000080", "000087", "000073", "000095"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 4: Compaction log file crafted input: " +
                 "Skipping known processed SST.",
             compactionLog,
@@ -376,7 +584,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1Alt2,
             Collections.emptySet(),
             Collections.emptySet(),
-            true),
+            Collections.emptySet(),
+            true, Collections.emptyMap()),
         Arguments.of("Test 5: Compaction log file hit snapshot" +
                 " generation early exit condition",
             compactionLog,
@@ -387,7 +596,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1,
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
-            false),
+            ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 6: Compaction log table regular case. " +
                 "Expands expandable SSTs in the initial diff.",
             null,
@@ -399,7 +609,9 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
                 "000095"),
-            false),
+            ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
+                "000095"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 7: Compaction log table crafted input: " +
                 "One source ('to' snapshot) SST file is never compacted " +
                 "(newly flushed)",
@@ -411,7 +623,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles3,
             ImmutableSet.of("000088", "000105", "000059", "000053", "000095"),
             ImmutableSet.of("000108"),
-            false),
+            ImmutableSet.of("000108"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 8: Compaction log table crafted input: " +
                 "Same SST files found during SST expansion",
             null,
@@ -422,7 +635,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1Alt1,
             ImmutableSet.of("000066", "000059", "000053"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
-            false),
+            ImmutableSet.of("000080", "000087", "000073", "000095"),
+            false, Collections.emptyMap()),
         Arguments.of("Test 9: Compaction log table crafted input: " +
                 "Skipping known processed SST.",
             null,
@@ -433,7 +647,8 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1Alt2,
             Collections.emptySet(),
             Collections.emptySet(),
-            true),
+            Collections.emptySet(),
+            true, Collections.emptyMap()),
         Arguments.of("Test 10: Compaction log table hit snapshot " +
                 "generation early exit condition",
             null,
@@ -444,7 +659,64 @@ public class TestRocksDBCheckpointDiffer {
             snapshotSstFiles1,
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
-            false)
+            ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
+            false, Collections.emptyMap()),
+        Arguments.of("Test 11: Older Compaction log got pruned and source snapshot delta files would be " +
+                "unreachable",
+            null,
+            getPrunedCompactionEntries(false, Collections.emptyMap()),
+            snapshotInfo6,
+            snapshotInfo5,
+            ImmutableSet.of("10", "11", "8", "9", "12"),
+            ImmutableSet.of("1", "3", "13", "14"),
+            ImmutableSet.of("1", "3", "13", "14"),
+            ImmutableSet.of("2", "8", "9", "12"),
+            ImmutableSet.of("2", "8", "9", "12"),
+            false, Collections.emptyMap()),
+        Arguments.of("Test 12: Older Compaction log got pruned and source snapshot delta files would be " +
+                "unreachable",
+            null,
+            getPrunedCompactionEntries(true, Collections.emptyMap()),
+            snapshotInfo6,
+            snapshotInfo5,
+            ImmutableSet.of("10", "11", "8", "9", "12"),
+            ImmutableSet.of("1", "3", "13", "14"),
+            ImmutableSet.of("3", "13", "14"),
+            ImmutableSet.of("4", "5", "8", "9", "12"),
+            null,
+            false, Collections.emptyMap()),
+        Arguments.of("Test 13: Compaction log to test filtering logic based on range and column family",
+            null,
+            getPrunedCompactionEntries(false,
+                new HashMap<String, String[]>() {{
+                  put("1", new String[]{"a", "c", "col1"});
+                  put("3", new String[]{"a", "d", "col2"});
+                  put("13", new String[]{"a", "c", "col13"});
+                  put("14", new String[]{"a", "c", "col1"});
+                  put("2", new String[]{"a", "c", "col1"});
+                  put("4", new String[]{"a", "b", "col1"});
+                  put("5", new String[]{"b", "b", "col1"});
+                  put("10", new String[]{"a", "b", "col1"});
+                  put("8", new String[]{"a", "b", "col1"});
+                  put("6", new String[]{"a", "z", "col13"});
+                  put("7", new String[]{"a", "z", "col13"});
+                }}),
+            snapshotInfo6,
+            snapshotInfo5,
+            ImmutableSet.of("10", "11", "8", "9", "12", "15"),
+            ImmutableSet.of("1", "3", "13", "14"),
+            ImmutableSet.of("1", "13", "3", "14"),
+            ImmutableSet.of("2", "8", "9", "12", "15"),
+            ImmutableSet.of("2", "9", "12"),
+            false,
+            ImmutableMap.of(
+                "2", new String[]{"a", "b", "col1"},
+                "12", new String[]{"a", "d", "col2"},
+                "8", new String[]{"a", "b", "col1"},
+                "9", new String[]{"a", "c", "col1"},
+                "15", new String[]{"a", "z", "col13"}
+            ))
+
     );
   }
 
@@ -464,48 +736,94 @@ public class TestRocksDBCheckpointDiffer {
       Set<String> destSnapshotSstFiles,
       Set<String> expectedSameSstFiles,
       Set<String> expectedDiffSstFiles,
-      boolean expectingException) {
-
-    boolean exceptionThrown = false;
-
-    if (compactionLog != null) {
-      // Construct DAG from compaction log input
-      Arrays.stream(compactionLog.split("\n")).forEach(
-          rocksDBCheckpointDiffer::processCompactionLogLine);
-    } else if (compactionLogEntries != null) {
-      compactionLogEntries.forEach(entry ->
-          rocksDBCheckpointDiffer.addToCompactionLogTable(entry));
-    } else {
-      throw new IllegalArgumentException("One of compactionLog and " +
-          "compactionLogEntries should be non-null.");
-    }
-    rocksDBCheckpointDiffer.loadAllCompactionLogs();
-
-    Set<String> actualSameSstFiles = new HashSet<>();
-    Set<String> actualDiffSstFiles = new HashSet<>();
-
-    try {
-      rocksDBCheckpointDiffer.internalGetSSTDiffList(
-          srcSnapshot,
-          destSnapshot,
-          srcSnapshotSstFiles,
-          destSnapshotSstFiles,
-          actualSameSstFiles,
-          actualDiffSstFiles);
-    } catch (RuntimeException rtEx) {
-      if (!expectingException) {
-        fail("Unexpected exception thrown in test.");
+      Set<String> expectedSSTDiffFiles,
+      boolean expectingException,
+      Map<String, String[]> metaDataMap) {
+    try (MockedStatic<RocksDiffUtils> mockedRocksdiffUtil = Mockito.mockStatic(RocksDiffUtils.class,
+        Mockito.CALLS_REAL_METHODS)) {
+      mockedRocksdiffUtil.when(() -> RocksDiffUtils.constructBucketKey(anyString())).thenAnswer(i -> i.getArgument(0));
+      boolean exceptionThrown = false;
+      if (compactionLog != null) {
+        // Construct DAG from compaction log input
+        Arrays.stream(compactionLog.split("\n")).forEach(
+            rocksDBCheckpointDiffer::processCompactionLogLine);
+      } else if (compactionLogEntries != null) {
+        compactionLogEntries.forEach(entry ->
+            rocksDBCheckpointDiffer.addToCompactionLogTable(entry));
       } else {
-        exceptionThrown = true;
+        throw new IllegalArgumentException("One of compactionLog and " +
+            "compactionLogEntries should be non-null.");
       }
-    }
+      rocksDBCheckpointDiffer.loadAllCompactionLogs();
 
-    // Check same and different SST files result
-    assertEquals(expectedSameSstFiles, actualSameSstFiles);
-    assertEquals(expectedDiffSstFiles, actualDiffSstFiles);
+      Set<String> actualSameSstFiles = new HashSet<>();
+      Set<String> actualDiffSstFiles = new HashSet<>();
 
-    if (expectingException && !exceptionThrown) {
-      fail("Expecting exception but none thrown.");
+      try {
+        rocksDBCheckpointDiffer.internalGetSSTDiffList(
+            srcSnapshot,
+            destSnapshot,
+            srcSnapshotSstFiles,
+            destSnapshotSstFiles,
+            actualSameSstFiles,
+            actualDiffSstFiles);
+      } catch (RuntimeException rtEx) {
+        if (!expectingException) {
+          fail("Unexpected exception thrown in test.");
+        } else {
+          exceptionThrown = true;
+        }
+      }
+
+      if (expectingException && !exceptionThrown) {
+        fail("Expecting exception but none thrown.");
+      }
+
+      // Check same and different SST files result
+      assertEquals(expectedSameSstFiles, actualSameSstFiles);
+      assertEquals(expectedDiffSstFiles, actualDiffSstFiles);
+      try (MockedStatic<RdbUtil> mockedHandler = Mockito.mockStatic(RdbUtil.class, Mockito.CALLS_REAL_METHODS)) {
+        RocksDB rocksDB = Mockito.mock(RocksDB.class);
+        Mockito.when(rocksDB.getName()).thenReturn("dummy");
+        Mockito.when(srcSnapshot.getRocksDB().get()).thenReturn(rocksDB);
+        Mockito.when(destSnapshot.getRocksDB().get()).thenReturn(rocksDB);
+        Mockito.when(srcSnapshot.getRocksDB().getLiveMetadataForSSTFiles())
+            .thenAnswer(invocation -> srcSnapshotSstFiles.stream().filter(metaDataMap::containsKey).map(file -> {
+              LiveFileMetaData liveFileMetaData = Mockito.mock(LiveFileMetaData.class);
+              String[] metaData = metaDataMap.get(file);
+              Mockito.when(liveFileMetaData.fileName()).thenReturn("/" + file + SST_FILE_EXTENSION);
+              Mockito.when(liveFileMetaData.smallestKey()).thenReturn(metaData[0].getBytes(UTF_8));
+              Mockito.when(liveFileMetaData.largestKey()).thenReturn(metaData[1].getBytes(UTF_8));
+              Mockito.when(liveFileMetaData.columnFamilyName()).thenReturn(metaData[2].getBytes(UTF_8));
+              return liveFileMetaData;
+            }).collect(Collectors.toMap(liveFileMetaData -> FilenameUtils.getBaseName(liveFileMetaData.fileName()),
+                Function.identity())));
+        mockedHandler.when(() -> RdbUtil.getLiveSSTFilesForCFs(any(), any()))
+            .thenAnswer(i -> {
+              Set<String> sstFiles = i.getArgument(0).equals(srcSnapshot.getRocksDB()) ? srcSnapshotSstFiles
+                  : destSnapshotSstFiles;
+              return sstFiles.stream().map(fileName -> {
+                LiveFileMetaData liveFileMetaData = Mockito.mock(LiveFileMetaData.class);
+                Mockito.when(liveFileMetaData.fileName()).thenReturn("/" + fileName + SST_FILE_EXTENSION);
+                return liveFileMetaData;
+              }).collect(Collectors.toList());
+            });
+        try {
+          Assertions.assertEquals(Optional.ofNullable(expectedSSTDiffFiles)
+                  .map(files -> files.stream().sorted().collect(Collectors.toList())).orElse(null),
+              rocksDBCheckpointDiffer.getSSTDiffList(srcSnapshot, destSnapshot)
+                  .map(i -> i.stream().sorted().collect(Collectors.toList())).orElse(null));
+        } catch (RuntimeException rtEx) {
+          if (!expectingException) {
+            fail("Unexpected exception thrown in test.");
+          } else {
+            exceptionThrown = true;
+          }
+        }
+      }
+      if (expectingException && !exceptionThrown) {
+        fail("Expecting exception but none thrown.");
+      }
     }
   }
 
@@ -539,7 +857,12 @@ public class TestRocksDBCheckpointDiffer {
               "000017.sst", "000019.sst", "000021.sst", "000023.sst",
           "000024.sst", "000026.sst", "000029.sst"));
     }
-
+    rocksDBCheckpointDiffer.getForwardCompactionDAG().nodes().stream().forEach(compactionNode -> {
+      Assertions.assertNotNull(compactionNode.getStartKey());
+      Assertions.assertNotNull(compactionNode.getEndKey());
+    });
+    GenericTestUtils.waitFor(() -> rocksDBCheckpointDiffer.getInflightCompactions().isEmpty(), 1000,
+        10000);
     if (LOG.isDebugEnabled()) {
       rocksDBCheckpointDiffer.dumpCompactionNodeTable();
     }
@@ -587,7 +910,7 @@ public class TestRocksDBCheckpointDiffer {
     int index = 0;
     for (DifferSnapshotInfo snap : snapshots) {
       // Returns a list of SST files to be fed into RocksDiff
-      List<String> sstDiffList = differ.getSSTDiffList(src, snap);
+      List<String> sstDiffList = differ.getSSTDiffList(src, snap).orElse(Collections.emptyList());
       LOG.info("SST diff list from '{}' to '{}': {}",
           src.getDbPath(), snap.getDbPath(), sstDiffList);
 
@@ -602,7 +925,7 @@ public class TestRocksDBCheckpointDiffer {
   private void createCheckpoint(ManagedRocksDB rocksDB) throws RocksDBException {
 
     LOG.trace("Current time: " + System.currentTimeMillis());
-    long t1 = System.currentTimeMillis();
+    long t1 = Time.monotonicNow();
 
     final long snapshotGeneration = rocksDB.get().getLatestSequenceNumber();
     final String cpPath = CP_PATH_PREFIX + snapshotGeneration;
@@ -624,7 +947,7 @@ public class TestRocksDBCheckpointDiffer {
                 colHandle));
     this.snapshots.add(currentSnapshot);
 
-    long t2 = System.currentTimeMillis();
+    long t2 = Time.monotonicNow();
     LOG.trace("Current time: " + t2);
     LOG.debug("Time elapsed: " + (t2 - t1) + " ms");
   }
@@ -665,7 +988,7 @@ public class TestRocksDBCheckpointDiffer {
 
   private void writeKeysAndCheckpointing() throws RocksDBException {
     for (int i = 0; i < NUM_ROW; ++i) {
-      String generatedString = RandomStringUtils.randomAlphabetic(7);
+      String generatedString = RandomStringUtils.secure().nextAlphabetic(7);
       String keyStr = "Key-" + i + "-" + generatedString;
       String valueStr = "Val-" + i + "-" + generatedString;
       byte[] key = keyStr.getBytes(UTF_8);
@@ -721,7 +1044,7 @@ public class TestRocksDBCheckpointDiffer {
         LOG.debug("\tLevel: {}", m.level());
         LOG.debug("\tTable: {}", bytes2String(m.columnFamilyName()));
         LOG.debug("\tKey Range: {}", bytes2String(m.smallestKey()) + " <-> " + bytes2String(m.largestKey()));
-        if (differ.debugEnabled(DEBUG_DAG_LIVE_NODES)) {
+        if (debugEnabled(DEBUG_DAG_LIVE_NODES)) {
           printMutableGraphFromAGivenNode(
               differ.getCompactionNodeMap(),
               m.fileName(), m.level(),
@@ -729,7 +1052,7 @@ public class TestRocksDBCheckpointDiffer {
         }
       }
 
-      if (differ.debugEnabled(DEBUG_READ_ALL_DB_KEYS)) {
+      if (debugEnabled(DEBUG_READ_ALL_DB_KEYS)) {
         try (ManagedRocksIterator iter = new ManagedRocksIterator(rocksDB.get().newIterator())) {
           for (iter.get().seekToFirst(); iter.get().isValid(); iter.get().next()) {
             LOG.debug(
@@ -751,6 +1074,10 @@ public class TestRocksDBCheckpointDiffer {
     }
   }
 
+  public boolean debugEnabled(Integer level) {
+    return DEBUG_LEVEL.contains(level);
+  }
+
   /**
    * Helper that traverses the graphs for testing.
    * @param compactionNodeMap
@@ -758,7 +1085,7 @@ public class TestRocksDBCheckpointDiffer {
    * @param fwdMutableGraph
    */
   private void traverseGraph(
-      ConcurrentHashMap<String, CompactionNode> compactionNodeMap,
+      ConcurrentMap<String, CompactionNode> compactionNodeMap,
       MutableGraph<CompactionNode> reverseMutableGraph,
       MutableGraph<CompactionNode> fwdMutableGraph) {
 
@@ -769,7 +1096,7 @@ public class TestRocksDBCheckpointDiffer {
       // fist go through fwdGraph to find nodes that don't have successors.
       // These nodes will be the top level nodes in reverse graph
       Set<CompactionNode> successors = fwdMutableGraph.successors(infileNode);
-      if (successors.size() == 0) {
+      if (successors.isEmpty()) {
         LOG.debug("No successors. Cumulative keys: {}, total keys: {}",
             infileNode.getCumulativeKeysReverseTraversal(),
             infileNode.getTotalNumberOfKeys());
@@ -818,7 +1145,7 @@ public class TestRocksDBCheckpointDiffer {
   }
 
   private void printMutableGraphFromAGivenNode(
-      ConcurrentHashMap<String, CompactionNode> compactionNodeMap,
+      ConcurrentMap<String, CompactionNode> compactionNodeMap,
       String fileName,
       int sstLevel,
       MutableGraph<CompactionNode> mutableGraph) {
@@ -839,7 +1166,7 @@ public class TestRocksDBCheckpointDiffer {
       for (CompactionNode current : currentLevel) {
         Set<CompactionNode> successors = mutableGraph.successors(current);
         for (CompactionNode succNode : successors) {
-          sb.append(succNode.getFileName()).append(" ");
+          sb.append(succNode.getFileName()).append(' ');
           nextLevel.add(succNode);
         }
       }
@@ -847,30 +1174,6 @@ public class TestRocksDBCheckpointDiffer {
       currentLevel = nextLevel;
     }
   }
-
-  private static final List<List<String>> SST_FILES_BY_LEVEL = Arrays.asList(
-      Arrays.asList("000015", "000013", "000011", "000009"),
-      Arrays.asList("000018", "000016", "000017", "000026", "000024", "000022",
-          "000020"),
-      Arrays.asList("000027", "000030", "000028", "000029", "000031", "000039",
-          "000037", "000035", "000033"),
-      Arrays.asList("000040", "000044", "000042", "000043", "000045", "000041",
-          "000046", "000054", "000052", "000050", "000048"),
-      Arrays.asList("000059", "000055", "000056", "000060", "000057", "000058")
-  );
-
-  private static final List<List<CompactionNode>> COMPACTION_NODES_BY_LEVEL =
-      SST_FILES_BY_LEVEL.stream()
-          .map(sstFiles ->
-              sstFiles.stream()
-                  .map(
-                      sstFile -> new CompactionNode(sstFile,
-                          1000L,
-                          Long.parseLong(sstFile.substring(0, 6)),
-                          null, null, null
-                      ))
-                  .collect(Collectors.toList()))
-          .collect(Collectors.toList());
 
   /**
    * Creates a backward compaction DAG from a list of level nodes.
@@ -894,9 +1197,9 @@ public class TestRocksDBCheckpointDiffer {
       List<CompactionNode> currentLevel = COMPACTION_NODES_BY_LEVEL.get(level);
       List<CompactionNode> nextLevel = COMPACTION_NODES_BY_LEVEL.get(level + 1);
 
-      for (int i = 0; i < currentLevel.size(); i++) {
+      for (CompactionNode compactionNode : currentLevel) {
         for (int j = 0; j < nextLevel.size(); j++) {
-          dag.addNode(currentLevel.get(i));
+          dag.addNode(compactionNode);
           dag.addNode(nextLevel.get(j));
 
           int child = nextLevel.size();
@@ -905,7 +1208,7 @@ public class TestRocksDBCheckpointDiffer {
           }
 
           if (j < child) {
-            dag.putEdge(currentLevel.get(i), nextLevel.get(j));
+            dag.putEdge(compactionNode, nextLevel.get(j));
           }
         }
       }
@@ -938,9 +1241,9 @@ public class TestRocksDBCheckpointDiffer {
       List<CompactionNode> nextLevel = COMPACTION_NODES_BY_LEVEL.get(level - 1);
 
       for (int i = 0; i < currentLevel.size(); i++) {
-        for (int j = 0; j < nextLevel.size(); j++) {
+        for (CompactionNode compactionNode : nextLevel) {
           dag.addNode(currentLevel.get(i));
-          dag.addNode(nextLevel.get(j));
+          dag.addNode(compactionNode);
 
           int parent = currentLevel.size();
           if (level < COMPACTION_NODES_BY_LEVEL.size() - 1) {
@@ -948,7 +1251,7 @@ public class TestRocksDBCheckpointDiffer {
           }
 
           if (i < parent) {
-            dag.putEdge(currentLevel.get(i), nextLevel.get(j));
+            dag.putEdge(currentLevel.get(i), compactionNode);
           }
         }
       }
@@ -1010,7 +1313,6 @@ public class TestRocksDBCheckpointDiffer {
     assertEquals(expectedDag, originalDag);
     assertEquals(actualFileNodesRemoved, expectedFileNodesRemoved);
   }
-
 
   /**
    * Test cases for pruneBackwardDag.
@@ -1452,19 +1754,30 @@ public class TestRocksDBCheckpointDiffer {
     );
   }
 
-  private static CompactionLogEntry createCompactionEntry(
-      long dbSequenceNumber,
-      long compactionTime,
-      List<String> inputFiles,
-      List<String> outputFiles
-  ) {
-    return new CompactionLogEntry.Builder(dbSequenceNumber, compactionTime,
-        toFileInfoList(inputFiles), toFileInfoList(outputFiles)).build();
+  private static CompactionLogEntry createCompactionEntry(long dbSequenceNumber,
+                                                          long compactionTime,
+                                                          List<String> inputFiles,
+                                                          List<String> outputFiles) {
+    return createCompactionEntry(dbSequenceNumber, compactionTime, inputFiles, outputFiles, Collections.emptyMap());
   }
 
-  private static List<CompactionFileInfo> toFileInfoList(List<String> files) {
+  private static CompactionLogEntry createCompactionEntry(long dbSequenceNumber,
+                                                          long compactionTime,
+                                                          List<String> inputFiles,
+                                                          List<String> outputFiles,
+                                                          Map<String, String[]> metadata) {
+    return new CompactionLogEntry.Builder(dbSequenceNumber, compactionTime,
+        toFileInfoList(inputFiles, metadata), toFileInfoList(outputFiles, metadata)).build();
+  }
+
+  private static List<CompactionFileInfo> toFileInfoList(List<String> files,
+                                                         Map<String, String[]> metadata) {
     return files.stream()
-        .map(fileName -> new CompactionFileInfo.Builder(fileName).build())
+        .map(fileName -> new CompactionFileInfo.Builder(fileName)
+            .setStartRange(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[0]).orElse(null))
+            .setEndRange(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[1]).orElse(null))
+            .setColumnFamily(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[2]).orElse(null))
+            .build())
         .collect(Collectors.toList());
   }
 
@@ -1531,144 +1844,10 @@ public class TestRocksDBCheckpointDiffer {
 
   private void createFileWithContext(String fileName, String context)
       throws IOException {
-    try (FileOutputStream fileOutputStream = new FileOutputStream(fileName)) {
+    try (OutputStream fileOutputStream = Files.newOutputStream(Paths.get(fileName))) {
       fileOutputStream.write(context.getBytes(UTF_8));
     }
   }
-
-  private final List<CompactionLogEntry> compactionLogEntryList = Arrays.asList(
-      new CompactionLogEntry(101, System.currentTimeMillis(),
-          Arrays.asList(
-              new CompactionFileInfo("000068", "/volume/bucket2",
-                  "/volume/bucket2", "bucketTable"),
-              new CompactionFileInfo("000057", "/volume/bucket1",
-                  "/volume/bucket1", "bucketTable")),
-          Collections.singletonList(
-              new CompactionFileInfo("000086", "/volume/bucket1",
-                  "/volume/bucket2", "bucketTable")),
-          null),
-      new CompactionLogEntry(178, System.currentTimeMillis(),
-          Arrays.asList(new CompactionFileInfo("000078",
-                  "/volume/bucket1/key-0000001411",
-                  "/volume/bucket2/key-0000099649",
-                  "keyTable"),
-              new CompactionFileInfo("000075",
-                  "/volume/bucket1/key-0000016536",
-                  "/volume/bucket2/key-0000098897",
-                  "keyTable"),
-              new CompactionFileInfo("000073",
-                  "/volume/bucket1/key-0000000730",
-                  "/volume/bucket2/key-0000097010",
-                  "keyTable"),
-              new CompactionFileInfo("000071",
-                  "/volume/bucket1/key-0000001820",
-                  "/volume/bucket2/key-0000097895",
-                  "keyTable"),
-              new CompactionFileInfo("000063",
-                  "/volume/bucket1/key-0000001016",
-                  "/volume/bucket1/key-0000099930",
-                  "keyTable")),
-          Collections.singletonList(new CompactionFileInfo("000081",
-              "/volume/bucket1/key-0000000730",
-              "/volume/bucket2/key-0000099649",
-              "keyTable")),
-          null
-      ),
-      new CompactionLogEntry(233, System.currentTimeMillis(),
-          Arrays.asList(
-              new CompactionFileInfo("000086", "/volume/bucket1",
-                  "/volume/bucket2", "bucketTable"),
-              new CompactionFileInfo("000088", "/volume/bucket3",
-                  "/volume/bucket3", "bucketTable")),
-          Collections.singletonList(
-              new CompactionFileInfo("000110", "/volume/bucket1",
-                  "/volume/bucket3", "bucketTable")
-          ),
-          null),
-      new CompactionLogEntry(256, System.currentTimeMillis(),
-          Arrays.asList(new CompactionFileInfo("000081",
-                  "/volume/bucket1/key-0000000730",
-                  "/volume/bucket2/key-0000099649",
-                  "keyTable"),
-              new CompactionFileInfo("000103",
-                  "/volume/bucket1/key-0000017460",
-                  "/volume/bucket3/key-0000097450",
-                  "keyTable"),
-              new CompactionFileInfo("000099",
-                  "/volume/bucket1/key-0000002310",
-                  "/volume/bucket3/key-0000098286",
-                  "keyTable"),
-              new CompactionFileInfo("000097",
-                  "/volume/bucket1/key-0000005965",
-                  "/volume/bucket3/key-0000099136",
-                  "keyTable"),
-              new CompactionFileInfo("000095",
-                  "/volume/bucket1/key-0000012424",
-                  "/volume/bucket3/key-0000083904",
-                  "keyTable")),
-          Collections.singletonList(new CompactionFileInfo("000106",
-              "/volume/bucket1/key-0000000730",
-              "/volume/bucket3/key-0000099136",
-              "keyTable")),
-          null),
-      new CompactionLogEntry(397, now(),
-          Arrays.asList(new CompactionFileInfo("000106",
-                  "/volume/bucket1/key-0000000730",
-                  "/volume/bucket3/key-0000099136",
-                  "keyTable"),
-              new CompactionFileInfo("000128",
-                  "/volume/bucket2/key-0000005031",
-                  "/volume/bucket3/key-0000084385",
-                  "keyTable"),
-              new CompactionFileInfo("000125",
-                  "/volume/bucket2/key-0000003491",
-                  "/volume/bucket3/key-0000088414",
-                  "keyTable"),
-              new CompactionFileInfo("000123",
-                  "/volume/bucket2/key-0000007390",
-                  "/volume/bucket3/key-0000094627",
-                  "keyTable"),
-              new CompactionFileInfo("000121",
-                  "/volume/bucket2/key-0000003232",
-                  "/volume/bucket3/key-0000094246",
-                  "keyTable")),
-          Collections.singletonList(new CompactionFileInfo("000131",
-              "/volume/bucket1/key-0000000730",
-              "/volume/bucket3/key-0000099136",
-              "keyTable")),
-          null
-      )
-  );
-
-  private static Map<String, String> columnFamilyToPrefixMap1 =
-      new HashMap<String, String>() {
-        {
-          put("keyTable", "/volume/bucket1/");
-          // Simply using bucketName instead of ID for the test.
-          put("directoryTable", "/volume/bucket1/");
-          put("fileTable", "/volume/bucket1/");
-        }
-      };
-
-  private static Map<String, String> columnFamilyToPrefixMap2 =
-      new HashMap<String, String>() {
-        {
-          put("keyTable", "/volume/bucket2/");
-          // Simply using bucketName instead of ID for the test.
-          put("directoryTable", "/volume/bucket2/");
-          put("fileTable", "/volume/bucket2/");
-        }
-      };
-
-  private static Map<String, String> columnFamilyToPrefixMap3 =
-      new HashMap<String, String>() {
-        {
-          put("keyTable", "/volume/bucket3/");
-          // Simply using bucketName instead of ID for the test.
-          put("directoryTable", "/volume/bucket3/");
-          put("fileTable", "/volume/bucket3/");
-        }
-      };
 
   /**
    * Test cases for testGetSSTDiffListWithoutDB.
@@ -1794,7 +1973,7 @@ public class TestRocksDBCheckpointDiffer {
         .getCompactionNodeMap().values().stream()
         .sorted(Comparator.comparing(CompactionNode::getFileName))
         .map(node ->
-            rocksDBCheckpointDiffer.shouldSkipNode(node,
+            RocksDiffUtils.shouldSkipNode(node,
                 columnFamilyToPrefixMap))
         .collect(Collectors.toList());
 
@@ -1802,14 +1981,10 @@ public class TestRocksDBCheckpointDiffer {
   }
 
   private static Stream<Arguments> shouldSkipNodeEdgeCases() {
-    CompactionNode node = new CompactionNode("fileName",
-        100, 100, "startKey", "endKey", "columnFamily");
-    CompactionNode nullColumnFamilyNode = new CompactionNode("fileName",
-        100, 100, "startKey", "endKey", null);
-    CompactionNode nullStartKeyNode = new CompactionNode("fileName",
-        100, 100, null, "endKey", "columnFamily");
-    CompactionNode nullEndKeyNode = new CompactionNode("fileName",
-        100, 100, "startKey", null, "columnFamily");
+    CompactionNode node = new CompactionNode("fileName", 100, "startKey", "endKey", "columnFamily");
+    CompactionNode nullColumnFamilyNode = new CompactionNode("fileName", 100, "startKey", "endKey", null);
+    CompactionNode nullStartKeyNode = new CompactionNode("fileName", 100, null, "endKey", "columnFamily");
+    CompactionNode nullEndKeyNode = new CompactionNode("fileName", 100, "startKey", null, "columnFamily");
 
     return Stream.of(
         Arguments.of(node, Collections.emptyMap(), false),
@@ -1831,7 +2006,7 @@ public class TestRocksDBCheckpointDiffer {
 
     rocksDBCheckpointDiffer.loadAllCompactionLogs();
 
-    assertEquals(expectedResponse, rocksDBCheckpointDiffer.shouldSkipNode(node,
+    assertEquals(expectedResponse, RocksDiffUtils.shouldSkipNode(node,
         columnFamilyToPrefixMap));
   }
 
@@ -1842,7 +2017,7 @@ public class TestRocksDBCheckpointDiffer {
 
     try (ManagedFlushOptions flushOptions = new ManagedFlushOptions()) {
       for (int i = 0; i < numberOfKeys; ++i) {
-        String generatedString = RandomStringUtils.randomAlphabetic(7);
+        String generatedString = RandomStringUtils.secure().nextAlphabetic(7);
         String keyStr = keyPrefix + i + "-" + generatedString;
         String valueStr = valuePrefix + i + "-" + generatedString;
         byte[] key = keyStr.getBytes(UTF_8);

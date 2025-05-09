@@ -16,25 +16,11 @@
 
 # This check verifies build reproducibility.
 
+set -u -o pipefail
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$DIR/../../.." || exit 1
 
-BASE_DIR="$(pwd -P)"
-REPORT_DIR=${OUTPUT_DIR:-"${BASE_DIR}/target/repro"}
+CHECK=repro
+ERROR_PATTERN='ERROR.*mismatch'
 
-rc=0
-source "${DIR}"/_build.sh verify artifact:compare "$@" | tee output.log
-
-mkdir -p "$REPORT_DIR"
-mv output.log "$REPORT_DIR"/
-
-REPORT_FILE="$REPORT_DIR/summary.txt"
-grep 'ERROR.*mismatch' "${REPORT_DIR}/output.log" > "${REPORT_FILE}"
-
-wc -l "${REPORT_FILE}" | awk '{ print $1 }' > "${REPORT_DIR}/failures"
-
-if [[ -s "${REPORT_FILE}" ]]; then
-   exit 1
-fi
-
-exit $rc # result of mvn
+source "${DIR}"/_build.sh verify artifact:compare "$@"

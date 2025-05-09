@@ -1,11 +1,10 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- *  with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,30 +13,38 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 package org.apache.hadoop.ozone.om;
 
-import org.apache.hadoop.hdds.HddsConfigKeys;
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.scm.HddsWhiteboxTestUtils;
-import org.apache.hadoop.hdds.utils.db.DBStore;
-import org.apache.hadoop.hdds.utils.db.RDBBatchOperation;
-import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
-import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
-import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
-import org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils;
-import org.apache.hadoop.util.Time;
-import org.apache.ozone.test.GenericTestUtils;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.io.TempDir;
+import static org.apache.commons.io.file.PathUtils.copyDirectory;
+import static org.apache.hadoop.hdds.utils.HAUtils.getExistingSstFiles;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_CHECKPOINT_DIR;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_CHECKPOINT_DIR;
+import static org.apache.hadoop.ozone.OzoneConsts.SNAPSHOT_CANDIDATE_DIR;
+import static org.apache.hadoop.ozone.OzoneConsts.SNAPSHOT_INFO_TABLE;
+import static org.apache.hadoop.ozone.om.OMDBCheckpointServlet.processFile;
+import static org.apache.hadoop.ozone.om.OmSnapshotManager.OM_HARDLINK_FILE;
+import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.BUCKET_TABLE;
+import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.VOLUME_TABLE;
+import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.getINode;
+import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.truncateFileName;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -48,35 +55,37 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-
-import static org.apache.commons.io.file.PathUtils.copyDirectory;
-import static org.apache.hadoop.hdds.utils.HAUtils.getExistingSstFiles;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_CHECKPOINT_DIR;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
-import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_CHECKPOINT_DIR;
-import static org.apache.hadoop.ozone.OzoneConsts.SNAPSHOT_CANDIDATE_DIR;
-import static org.apache.hadoop.ozone.om.OMDBCheckpointServlet.processFile;
-import static org.apache.hadoop.ozone.OzoneConsts.SNAPSHOT_INFO_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.BUCKET_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.VOLUME_TABLE;
-import static org.apache.hadoop.ozone.om.OmSnapshotManager.OM_HARDLINK_FILE;
-import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.getINode;
-import static org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils.truncateFileName;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import java.util.concurrent.TimeoutException;
+import org.apache.hadoop.hdds.HddsConfigKeys;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.scm.HddsWhiteboxTestUtils;
+import org.apache.hadoop.hdds.utils.db.DBStore;
+import org.apache.hadoop.hdds.utils.db.RDBBatchOperation;
+import org.apache.hadoop.hdds.utils.db.RDBStore;
+import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.hdds.utils.db.TypedTable;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
+import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
+import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
+import org.apache.hadoop.ozone.om.snapshot.OmSnapshotUtils;
+import org.apache.hadoop.util.Time;
+import org.apache.ozone.test.GenericTestUtils;
+import org.apache.ozone.test.GenericTestUtils.LogCapturer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.event.Level;
 
 /**
  * Unit test ozone snapshot manager.
@@ -85,6 +94,9 @@ import static org.mockito.Mockito.when;
 class TestOmSnapshotManager {
 
   private OzoneManager om;
+  private SnapshotChainManager snapshotChainManager;
+  private OmMetadataManagerImpl omMetadataManager;
+  private OmSnapshotManager omSnapshotManager;
   private static final String CANDIDATE_DIR_NAME = OM_DB_NAME +
       SNAPSHOT_CANDIDATE_DIR;
   private File leaderDir;
@@ -107,9 +119,17 @@ class TestOmSnapshotManager {
     // Only allow one entry in cache so each new one causes an eviction
     configuration.setInt(
         OMConfigKeys.OZONE_OM_SNAPSHOT_CACHE_MAX_SIZE, 1);
+    configuration.setBoolean(
+        OMConfigKeys.OZONE_OM_SNAPSHOT_ROCKSDB_METRICS_ENABLED, false);
+    // Allow 2 fs snapshots
+    configuration.setInt(
+        OMConfigKeys.OZONE_OM_FS_SNAPSHOT_MAX_LIMIT, 2);
 
     OmTestManagers omTestManagers = new OmTestManagers(configuration);
     om = omTestManagers.getOzoneManager();
+    omMetadataManager = (OmMetadataManagerImpl) om.getMetadataManager();
+    omSnapshotManager = om.getOmSnapshotManager();
+    snapshotChainManager = omMetadataManager.getSnapshotChainManager();
   }
 
   @AfterAll
@@ -117,12 +137,26 @@ class TestOmSnapshotManager {
     om.stop();
   }
 
+  @AfterEach
+  void cleanup() throws IOException {
+    Table<String, SnapshotInfo> snapshotInfoTable = omMetadataManager.getSnapshotInfoTable();
+
+    Iterator<UUID> iter = snapshotChainManager.iterator(true);
+    while (iter.hasNext()) {
+      UUID snapshotId = iter.next();
+      String snapshotInfoKey = snapshotChainManager.getTableKey(snapshotId);
+      SnapshotInfo snapshotInfo = snapshotInfoTable.get(snapshotInfoKey);
+      snapshotChainManager.deleteSnapshot(snapshotInfo);
+      snapshotInfoTable.delete(snapshotInfoKey);
+    }
+    omSnapshotManager.invalidateCache();
+  }
+
   @Test
   public void testSnapshotFeatureFlagSafetyCheck() throws IOException {
     // Verify that the snapshot feature config safety check method
     // is returning the expected value.
-
-    Table<String, SnapshotInfo> snapshotInfoTable = mock(Table.class);
+    final TypedTable<String, SnapshotInfo> snapshotInfoTable = mock(TypedTable.class);
     HddsWhiteboxTestUtils.setInternalState(
         om.getMetadataManager(), SNAPSHOT_INFO_TABLE, snapshotInfoTable);
 
@@ -134,18 +168,21 @@ class TestOmSnapshotManager {
   }
 
   @Test
-  public void testCloseOnEviction() throws IOException {
+  public void testCloseOnEviction() throws IOException,
+      InterruptedException, TimeoutException {
 
+    GenericTestUtils.setLogLevel(RDBStore.class, Level.DEBUG);
+    LogCapturer logCapture = LogCapturer.captureLogs(RDBStore.class);
     // set up db tables
-    Table<String, OmVolumeArgs> volumeTable = mock(Table.class);
-    Table<String, OmBucketInfo> bucketTable = mock(Table.class);
-    Table<String, SnapshotInfo> snapshotInfoTable = mock(Table.class);
+    final TypedTable<String, OmVolumeArgs> volumeTable = mock(TypedTable.class);
+    final TypedTable<String, OmBucketInfo> bucketTable = mock(TypedTable.class);
+    final TypedTable<String, SnapshotInfo> snapshotInfoTable = mock(TypedTable.class);
     HddsWhiteboxTestUtils.setInternalState(
-        om.getMetadataManager(), VOLUME_TABLE, volumeTable);
+        omMetadataManager, VOLUME_TABLE, volumeTable);
     HddsWhiteboxTestUtils.setInternalState(
-        om.getMetadataManager(), BUCKET_TABLE, bucketTable);
+        omMetadataManager, BUCKET_TABLE, bucketTable);
     HddsWhiteboxTestUtils.setInternalState(
-        om.getMetadataManager(), SNAPSHOT_INFO_TABLE, snapshotInfoTable);
+        omMetadataManager, SNAPSHOT_INFO_TABLE, snapshotInfoTable);
 
     final String volumeName = UUID.randomUUID().toString();
     final String dbVolumeKey = om.getMetadataManager().getVolumeKey(volumeName);
@@ -175,8 +212,8 @@ class TestOmSnapshotManager {
     when(snapshotInfoTable.get(first.getTableKey())).thenReturn(first);
     when(snapshotInfoTable.get(second.getTableKey())).thenReturn(second);
 
-    ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager().addSnapshot(first);
-    ((OmMetadataManagerImpl) om.getMetadataManager()).getSnapshotChainManager().addSnapshot(second);
+    snapshotChainManager.addSnapshot(first);
+    snapshotChainManager.addSnapshot(second);
     RDBBatchOperation rdbBatchOperation = new RDBBatchOperation();
     // create the first snapshot checkpoint
     OmSnapshotManager.createOmSnapshotCheckpoint(om.getMetadataManager(),
@@ -184,7 +221,6 @@ class TestOmSnapshotManager {
     om.getMetadataManager().getStore().commitBatchOperation(rdbBatchOperation);
 
     // retrieve it and setup store mock
-    OmSnapshotManager omSnapshotManager = om.getOmSnapshotManager();
     OmSnapshot firstSnapshot = omSnapshotManager
         .getActiveSnapshot(first.getVolumeName(), first.getBucketName(), first.getName())
         .get();
@@ -212,6 +248,43 @@ class TestOmSnapshotManager {
 
     // confirm store was closed
     verify(firstSnapshotStore, timeout(3000).times(1)).close();
+
+    // Verify RocksDBStoreMetrics registration is skipped.
+    String msg = "Skipped Metrics registration during RocksDB init";
+    GenericTestUtils.waitFor(() -> {
+      return logCapture.getOutput().contains(msg);
+    }, 100, 30_000);
+  }
+
+  @Test
+  public void testValidateSnapshotLimit() throws IOException {
+    TypedTable<String, SnapshotInfo> snapshotInfoTable = mock(TypedTable.class);
+    HddsWhiteboxTestUtils.setInternalState(
+        omMetadataManager, SNAPSHOT_INFO_TABLE, snapshotInfoTable);
+
+    SnapshotInfo first = createSnapshotInfo("vol1", "buck1");
+    SnapshotInfo second = createSnapshotInfo("vol1", "buck1");
+
+    first.setGlobalPreviousSnapshotId(null);
+    first.setPathPreviousSnapshotId(null);
+    second.setGlobalPreviousSnapshotId(first.getSnapshotId());
+    second.setPathPreviousSnapshotId(first.getSnapshotId());
+
+    when(snapshotInfoTable.get(first.getTableKey())).thenReturn(first);
+    when(snapshotInfoTable.get(second.getTableKey())).thenReturn(second);
+
+    snapshotChainManager.addSnapshot(first);
+    assertDoesNotThrow(() -> omSnapshotManager.snapshotLimitCheck());
+    omSnapshotManager.decrementInFlightSnapshotCount();
+
+    snapshotChainManager.addSnapshot(second);
+
+    OMException exception = assertThrows(OMException.class, () -> omSnapshotManager.snapshotLimitCheck());
+    assertEquals(OMException.ResultCodes.TOO_MANY_SNAPSHOTS, exception.getResult());
+
+    snapshotChainManager.deleteSnapshot(second);
+
+    assertDoesNotThrow(() -> omSnapshotManager.snapshotLimitCheck());
   }
 
   @BeforeEach
@@ -314,6 +387,31 @@ class TestOmSnapshotManager {
         getINode(f1FileLink.toPath()), "link matches original file");
   }
 
+  @Test
+  public void testGetSnapshotInfo() throws IOException {
+    SnapshotInfo s1 = createSnapshotInfo("vol", "buck");
+    UUID latestGlobalSnapId = snapshotChainManager.getLatestGlobalSnapshotId();
+    UUID latestPathSnapId =
+        snapshotChainManager.getLatestPathSnapshotId(String.join("/", "vol", "buck"));
+    s1.setPathPreviousSnapshotId(latestPathSnapId);
+    s1.setGlobalPreviousSnapshotId(latestGlobalSnapId);
+    snapshotChainManager.addSnapshot(s1);
+    OMException ome = assertThrows(OMException.class,
+        () -> om.getOmSnapshotManager().getSnapshot(s1.getSnapshotId()));
+    assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
+    // not present in snapshot chain too
+    SnapshotInfo s2 = createSnapshotInfo("vol", "buck");
+    ome = assertThrows(OMException.class,
+        () -> om.getOmSnapshotManager().getSnapshot(s2.getSnapshotId()));
+    assertEquals(OMException.ResultCodes.FILE_NOT_FOUND, ome.getResult());
+
+    // add to make cleanup work
+    TypedTable<String, SnapshotInfo> snapshotInfoTable = mock(TypedTable.class);
+    HddsWhiteboxTestUtils.setInternalState(
+        omMetadataManager, SNAPSHOT_INFO_TABLE, snapshotInfoTable);
+    when(snapshotInfoTable.get(s1.getTableKey())).thenReturn(s1);
+  }
+
   /*
    * Test that exclude list is generated correctly.
    */
@@ -346,17 +444,17 @@ class TestOmSnapshotManager {
         "backup.sst");
     truncateLength = leaderDir.toString().length() + 1;
     existingSstList.add(truncateFileName(truncateLength, destSstBackup));
-    Map<Path, Path> normalizedMap =
+    Map<String, Map<Path, Path>> normalizedMap =
         OMDBCheckpointServlet.normalizeExcludeList(existingSstList,
         leaderCheckpointDir.toPath(), sstBackupDir);
-    Map<Path, Path> expectedMap = new TreeMap<>();
+    Map<String, Map<Path, Path>> expectedMap = new TreeMap<>();
     Path s1 = Paths.get(leaderSnapDir1.toString(), "s1.sst");
     Path noLink = Paths.get(leaderSnapDir2.toString(), "noLink.sst");
     Path f1 = Paths.get(leaderCheckpointDir.toString(), "f1.sst");
-    expectedMap.put(s1, s1);
-    expectedMap.put(noLink, noLink);
-    expectedMap.put(f1, f1);
-    expectedMap.put(srcSstBackup, destSstBackup);
+    expectedMap.put("s1.sst", ImmutableMap.of(s1, s1));
+    expectedMap.put("noLink.sst", ImmutableMap.of(noLink, noLink));
+    expectedMap.put("f1.sst", ImmutableMap.of(f1, f1));
+    expectedMap.put("backup.sst", ImmutableMap.of(srcSstBackup, destSstBackup));
     assertEquals(expectedMap, new TreeMap<>(normalizedMap));
   }
 
@@ -371,11 +469,15 @@ class TestOmSnapshotManager {
     assertTrue(new File(testDir, "snap2").mkdirs());
     Path copyFile = Paths.get(testDir.toString(),
         "snap1/copyfile.sst");
+    Path copyFileName = copyFile.getFileName();
+    assertNotNull(copyFileName);
     Files.write(copyFile,
         "dummyData".getBytes(StandardCharsets.UTF_8));
     long expectedFileSize = Files.size(copyFile);
     Path excludeFile = Paths.get(testDir.toString(),
         "snap1/excludeFile.sst");
+    Path excludeFileName = excludeFile.getFileName();
+    assertNotNull(excludeFileName);
     Files.write(excludeFile,
         "dummyData".getBytes(StandardCharsets.UTF_8));
     Path linkToExcludedFile = Paths.get(testDir.toString(),
@@ -393,10 +495,12 @@ class TestOmSnapshotManager {
     Files.write(addNonSstToCopiedFiles,
         "dummyData".getBytes(StandardCharsets.UTF_8));
 
-    Map<Path, Path> toExcludeFiles = new HashMap<>();
-    toExcludeFiles.put(excludeFile, excludeFile);
-    Map<Path, Path> copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, copyFile);
+    Map<String, Map<Path, Path>> toExcludeFiles = new HashMap<>();
+    toExcludeFiles.computeIfAbsent(excludeFileName.toString(), (k) -> new HashMap<>()).put(excludeFile,
+        excludeFile);
+    Map<String, Map<Path, Path>> copyFiles = new HashMap<>();
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile,
+        copyFile);
     List<String> excluded = new ArrayList<>();
     Map<Path, Path> hardLinkFiles = new HashMap<>();
     long fileSize;
@@ -436,10 +540,10 @@ class TestOmSnapshotManager {
         toExcludeFiles, excluded, null);
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
-    assertEquals(copyFiles.get(addToCopiedFiles), addToCopiedFiles);
+    assertEquals(copyFiles.get(addToCopiedFiles.getFileName().toString()).get(addToCopiedFiles), addToCopiedFiles);
     assertEquals(fileSize, expectedFileSize);
     copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, copyFile);
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile, copyFile);
 
     // Confirm the addNonSstToCopiedFiles gets added to list of copied files
     fileSize = processFile(addNonSstToCopiedFiles, copyFiles, hardLinkFiles,
@@ -447,7 +551,7 @@ class TestOmSnapshotManager {
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
     assertEquals(fileSize, 0);
-    assertEquals(copyFiles.get(addNonSstToCopiedFiles),
+    assertEquals(copyFiles.get(addNonSstToCopiedFiles.getFileName().toString()).get(addNonSstToCopiedFiles),
         addNonSstToCopiedFiles);
   }
 
@@ -467,6 +571,8 @@ class TestOmSnapshotManager {
     // Create test files.
     Path copyFile = Paths.get(testDir.toString(),
         "snap1/copyfile.sst");
+    Path copyFileName = copyFile.getFileName();
+    assertNotNull(copyFileName);
     Path destCopyFile = Paths.get(destDir.toString(),
         "snap1/copyfile.sst");
     Files.write(copyFile,
@@ -480,6 +586,8 @@ class TestOmSnapshotManager {
     long expectedFileSize = Files.size(copyFile);
     Path excludeFile = Paths.get(testDir.toString(),
         "snap1/excludeFile.sst");
+    Path excludeFileName = excludeFile.getFileName();
+    assertNotNull(excludeFileName);
     Path destExcludeFile = Paths.get(destDir.toString(),
         "snap1/excludeFile.sst");
     Files.write(excludeFile,
@@ -514,10 +622,10 @@ class TestOmSnapshotManager {
         "dummyData".getBytes(StandardCharsets.UTF_8));
 
     // Create test data structures.
-    Map<Path, Path> toExcludeFiles = new HashMap<>();
-    toExcludeFiles.put(excludeFile, destExcludeFile);
-    Map<Path, Path> copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, destCopyFile);
+    Map<String, Map<Path, Path>> toExcludeFiles = new HashMap<>();
+    toExcludeFiles.put(excludeFileName.toString(), ImmutableMap.of(excludeFile, destExcludeFile));
+    Map<String, Map<Path, Path>> copyFiles = new HashMap<>();
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile, destCopyFile);
     List<String> excluded = new ArrayList<>();
     Map<Path, Path> hardLinkFiles = new HashMap<>();
     long fileSize;
@@ -550,11 +658,11 @@ class TestOmSnapshotManager {
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
     assertEquals(hardLinkFiles.size(), 0);
-    assertEquals(copyFiles.get(sameNameAsExcludeFile),
+    assertEquals(copyFiles.get(sameNameAsExcludeFile.getFileName().toString()).get(sameNameAsExcludeFile),
         destSameNameAsExcludeFile);
     assertEquals(fileSize, expectedFileSize);
     copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, destCopyFile);
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile, destCopyFile);
 
 
     // Confirm the file with same name as copy file gets copied.
@@ -563,11 +671,11 @@ class TestOmSnapshotManager {
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
     assertEquals(hardLinkFiles.size(), 0);
-    assertEquals(copyFiles.get(sameNameAsCopyFile),
+    assertEquals(copyFiles.get(sameNameAsCopyFile.getFileName().toString()).get(sameNameAsCopyFile),
         destSameNameAsCopyFile);
     assertEquals(fileSize, expectedFileSize);
     copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, destCopyFile);
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile, destCopyFile);
 
 
     // Confirm the linkToCopiedFile gets added as a link.
@@ -586,11 +694,11 @@ class TestOmSnapshotManager {
         toExcludeFiles, excluded, destAddToCopiedFiles.getParent());
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
-    assertEquals(copyFiles.get(addToCopiedFiles),
+    assertEquals(copyFiles.get(addToCopiedFiles.getFileName().toString()).get(addToCopiedFiles),
         destAddToCopiedFiles);
     assertEquals(fileSize, expectedFileSize);
     copyFiles = new HashMap<>();
-    copyFiles.put(copyFile, destCopyFile);
+    copyFiles.computeIfAbsent(copyFileName.toString(), (k) -> new HashMap<>()).put(copyFile, destCopyFile);
 
     // Confirm the addNonSstToCopiedFiles gets added to list of copied files
     fileSize = processFile(addNonSstToCopiedFiles, copyFiles, hardLinkFiles,
@@ -598,18 +706,17 @@ class TestOmSnapshotManager {
     assertEquals(excluded.size(), 0);
     assertEquals(copyFiles.size(), 2);
     assertEquals(fileSize, 0);
-    assertEquals(copyFiles.get(addNonSstToCopiedFiles),
+    assertEquals(copyFiles.get(addNonSstToCopiedFiles.getFileName().toString()).get(addNonSstToCopiedFiles),
         destAddNonSstToCopiedFiles);
   }
 
   @Test
   public void testCreateSnapshotIdempotent() throws Exception {
     // set up db tables
-    GenericTestUtils.LogCapturer logCapturer = GenericTestUtils.LogCapturer
-        .captureLogs(OmSnapshotManager.LOG);
-    Table<String, OmVolumeArgs> volumeTable = mock(Table.class);
-    Table<String, OmBucketInfo> bucketTable = mock(Table.class);
-    Table<String, SnapshotInfo> snapshotInfoTable = mock(Table.class);
+    LogCapturer logCapturer = LogCapturer.captureLogs(OmSnapshotManager.class);
+    final TypedTable<String, OmVolumeArgs> volumeTable = mock(TypedTable.class);
+    final TypedTable<String, OmBucketInfo> bucketTable = mock(TypedTable.class);
+    final TypedTable<String, SnapshotInfo> snapshotInfoTable = mock(TypedTable.class);
     HddsWhiteboxTestUtils.setInternalState(
         om.getMetadataManager(), VOLUME_TABLE, volumeTable);
     HddsWhiteboxTestUtils.setInternalState(
