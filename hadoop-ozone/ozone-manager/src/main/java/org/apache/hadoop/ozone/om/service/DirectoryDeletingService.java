@@ -261,8 +261,7 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
             optimizeDirDeletesAndSubmitRequest(dirNum, subDirNum,
                 subFileNum, allSubDirList, purgePathRequestList, null,
                 startTime, remainingBufLimit,
-                getOzoneManager().getKeyManager(), expectedPreviousSnapshotId,
-                rnCnt);
+                getOzoneManager().getKeyManager(), expectedPreviousSnapshotId);
 
           } catch (IOException e) {
             LOG.error(

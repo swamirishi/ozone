@@ -662,8 +662,13 @@ public class OzoneManagerLock implements IOzoneManagerLock {
 
     Resource(byte pos, String name) {
       this.lockLevel = pos;
-      this.mask = (short) (Math.pow(2, lockLevel + 1) - 1);
-      this.setMask = (short) Math.pow(2, lockLevel);
+      if (lockLevel <= 7) {
+        this.mask = (short) (Math.pow(2, lockLevel + 1) - 1);
+        this.setMask = (short) Math.pow(2, lockLevel);
+      } else {
+        this.mask = 0;
+        this.setMask = 0;
+      }
       this.name = name;
     }
 
