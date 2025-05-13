@@ -1389,7 +1389,7 @@ message PurgeKeysRequest {
     repeated DeletedKeys deletedKeys = 1;
     // if set, will purge keys in a snapshot DB instead of active DB
     optional string snapshotTableKey = 2;
-    repeated SnapshotMoveKeyInfos keysToUpdate = 3;
+    repeated SnapshotMoveKeyInfos keysToUpdate = 3 [deprecated = true];
     // previous snapshotID can also be null & this field would be absent in older requests.
     optional NullableUUID expectedPreviousSnapshotID = 4;
     repeated string renamedKeys = 5;
