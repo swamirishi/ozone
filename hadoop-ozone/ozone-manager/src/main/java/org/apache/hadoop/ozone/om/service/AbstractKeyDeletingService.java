@@ -387,7 +387,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       List<PurgePathRequest> purgePathRequestList,
       String snapTableKey, long startTime,
       long remainingBufLimit, KeyManager keyManager,
-      UUID expectedPreviousSnapshotId) {
+      UUID expectedPreviousSnapshotId, long rnCnt) {
 
     // Optimization to handle delete sub-dir and keys to remove quickly
     // This case will be useful to handle when depth of directory is high
