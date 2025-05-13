@@ -48,7 +48,6 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
-import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
@@ -477,7 +476,7 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
             .build();
 
         try (BootstrapStateHandler.Lock lock = getBootstrapStateLock().lock()) {
-          submitRequest(omRequest);
+          submitOMRequest(omRequest);
         }
       }
     }
@@ -571,16 +570,15 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
           .setClientId(clientId.toString())
           .build();
       try (BootstrapStateHandler.Lock lock = getBootstrapStateLock().lock()) {
-        submitRequest(omRequest);
+        submitOMRequest(omRequest);
       }
     }
 
-    public void submitRequest(OMRequest omRequest) {
+    private void submitOMRequest(OMRequest omRequest) {
       try {
-        OzoneManagerRatisUtils.submitRequest(ozoneManager, omRequest, clientId, getRunCount().get());
+        submitRequest(omRequest);
       } catch (ServiceException e) {
-        LOG.error("Snapshot Deleting request failed. " +
-            "Will retry at next run.", e);
+        LOG.error("Request: {} fired by SnapshotDeletingService failed. Will retry in the next run", omRequest, e);
       }
     }
   }
