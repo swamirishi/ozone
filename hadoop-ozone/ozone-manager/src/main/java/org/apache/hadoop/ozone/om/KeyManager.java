@@ -127,6 +127,7 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
   PendingKeysDeletion getPendingDeletionKeys(
       CheckedFunction<Table.KeyValue<String, OmKeyInfo>, Boolean, IOException> filter, int count)
       throws IOException;
+
   /**
    * Returns a PendingKeysDeletion. It has a list of pending deletion key info
    * that ups to the given count.Each entry is a {@link BlockGroup}, which
@@ -187,7 +188,8 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
    */
   List<Table.KeyValue<String, List<OmKeyInfo>>> getDeletedKeyEntries(
       String volume, String bucket, String startKey,
-      CheckedFunction<Table.KeyValue<String, RepeatedOmKeyInfo>, Boolean, IOException> filter, int count) throws IOException;
+      CheckedFunction<Table.KeyValue<String, RepeatedOmKeyInfo>, Boolean, IOException> filter,
+      int count) throws IOException;
 
   /**
    * Returns the names of up to {@code count} open keys whose age is

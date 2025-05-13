@@ -212,8 +212,6 @@ public class KeyDeletingService extends AbstractKeyDeletingService {
         //  OM would have to keep track of which snapshot the key is coming
         //  from if the above would be done inside getPendingDeletionKeys().
         OmSnapshotManager omSnapshotManager = getOzoneManager().getOmSnapshotManager();
-        SnapshotChainManager snapshotChainManager = ((OmMetadataManagerImpl)getOzoneManager().getMetadataManager())
-            .getSnapshotChainManager();
         // This is to avoid race condition b/w purge request and snapshot chain update. For AOS taking the global
         // snapshotId since AOS could process multiple buckets in one iteration. While using path
         // previous snapshotId for a snapshot since it would process only one bucket.

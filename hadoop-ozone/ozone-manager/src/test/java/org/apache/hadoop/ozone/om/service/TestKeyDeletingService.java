@@ -48,7 +48,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
@@ -493,31 +492,6 @@ class TestKeyDeletingService extends OzoneTestBase {
             snapshot3.getMetadataManager().getDeletedTable();
 
         // 5 keys can be deep cleaned as it was stuck previously
-
-        GenericTestUtils.waitFor(() -> {
-              try {
-                System.out.println("Swaminthan Test\t" + snapshot3.getSnapshotTableKey() + "\t" +
-                        metadataManager.getSnapshotInfoTable().get(snapshot3.getSnapshotTableKey()).getDeepClean() +
-                        "\t" +
-                    metadataManager.getSnapshotInfoTable().get(snapshot3.getSnapshotTableKey()).getDeepCleanedDeletedDir());
-                System.out.println("Swaminathan Test\t"+ snapshot3.getKeyManager().getDeletedKeyEntries(null, null, null,
-                        (kv) -> true,
-                        Integer.MAX_VALUE).stream()
-                    .map(kv -> {
-                      try {
-                        return kv.getKey();
-                      } catch (IOException e) {
-                        throw new RuntimeException(e);
-                      }
-                    }).collect(
-                        Collectors.toList()));
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-              return assertTableRowCount(initialDeletedCount + 10, snap3deletedTable,
-                  metadataManager);
-            }, 1000,
-            120000);
         assertTableRowCount(snap3deletedTable, initialDeletedCount + 10, metadataManager);
 
         writeClient.deleteSnapshot(volumeName, bucketName, snap2);

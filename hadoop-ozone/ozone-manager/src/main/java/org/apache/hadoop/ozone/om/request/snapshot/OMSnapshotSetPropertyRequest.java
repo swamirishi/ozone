@@ -81,8 +81,6 @@ public class OMSnapshotSetPropertyRequest extends OMClientRequest {
       snapInfo.setExclusiveDirSize(snapshotSize.getExclusiveSize());
       snapInfo.setExclusiveDirReplicatedSize(snapshotSize.getExclusiveReplicatedSize());
     }
-    System.out.println("Swaminathan10 \t" + snapInfo.getName() + "\t" + snapInfo.getExclusiveSize() + "\t" +
-        snapInfo.getExclusiveDirSize() + "\t" + setSnapshotPropertyRequest);
   }
 
   @Override

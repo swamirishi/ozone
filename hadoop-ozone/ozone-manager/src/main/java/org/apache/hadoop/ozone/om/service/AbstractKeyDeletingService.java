@@ -680,7 +680,6 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
     if (setSnapshotPropertyRequests.isEmpty()) {
       return;
     }
-    System.out.println("Swaminathan55" + setSnapshotPropertyRequests);
     OzoneManagerProtocolProtos.OMRequest omRequest = OzoneManagerProtocolProtos.OMRequest.newBuilder()
         .setCmdType(OzoneManagerProtocolProtos.Type.SetSnapshotProperty)
         .addAllSetSnapshotPropertyRequests(setSnapshotPropertyRequests)
@@ -697,22 +696,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
           }
         });
     try {
-      System.out.println("Swaminathan56" + setSnapshotPropertyRequests);
-      OzoneManagerProtocolProtos.OMResponse
-          response = OzoneManagerRatisUtils.submitRequest(getOzoneManager(), omRequest, clientId,
-          callId.incrementAndGet());
-
-      setSnapshotPropertyRequests
-          .forEach(i -> {
-            try {
-              if (i.hasDeepCleanedDeletedKey()) {
-                System.out.println("Swaminathan3\t" + i +"\n"+ val.get(i.getSnapshotKey()) + "\n" +
-                    ozoneManager.getMetadataManager().getSnapshotInfoTable().get(i.getSnapshotKey()));
-              }
-            } catch (IOException e) {
-              throw new RuntimeException(e);
-            }
-          });
+      submitRequest(omRequest);
     } catch (ServiceException e) {
       LOG.error("Failed to submit set snapshot property request", e);
     }

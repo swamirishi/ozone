@@ -28,6 +28,7 @@ import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
+
 /**
  * Response for OMSnapshotSetPropertyRequest.
  */
@@ -53,9 +54,6 @@ public class OMSnapshotSetPropertyResponse extends OMClientResponse {
                               BatchOperation batchOperation)
       throws IOException {
     for (SnapshotInfo updatedSnapInfo : updatedSnapInfos) {
-      if (updatedSnapInfo.getName().contains("snap2")) {
-        System.out.println("Swaminathan4\t" + updatedSnapInfo);
-      }
       omMetadataManager.getSnapshotInfoTable().putWithBatch(batchOperation,
           updatedSnapInfo.getTableKey(), updatedSnapInfo);
     }
