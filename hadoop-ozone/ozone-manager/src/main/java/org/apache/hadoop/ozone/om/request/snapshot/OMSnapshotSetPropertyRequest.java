@@ -75,11 +75,11 @@ public class OMSnapshotSetPropertyRequest extends OMClientRequest {
       snapInfo.setExclusiveSize(snapshotSize.getExclusiveSize());
       snapInfo.setExclusiveReplicatedSize(snapshotSize.getExclusiveReplicatedSize());
     }
-    if (setSnapshotPropertyRequest.hasSnapshotDirSize()) {
-      SnapshotSize snapshotSize = setSnapshotPropertyRequest.getSnapshotDirSize();
+    if (setSnapshotPropertyRequest.hasSnapshotSizeDeltaFromDirDeepCleaning()) {
+      SnapshotSize snapshotSize = setSnapshotPropertyRequest.getSnapshotSizeDeltaFromDirDeepCleaning();
       // Set Exclusive size.
-      snapInfo.setExclusiveDirSize(snapshotSize.getExclusiveSize());
-      snapInfo.setExclusiveDirReplicatedSize(snapshotSize.getExclusiveReplicatedSize());
+      snapInfo.setExclusiveSizeDeltaFromDirDeepCleaning(snapshotSize.getExclusiveSize());
+      snapInfo.setExclusiveReplicatedSizeDeltaFromDirDeepCleaning(snapshotSize.getExclusiveReplicatedSize());
     }
   }
 
@@ -133,9 +133,6 @@ public class OMSnapshotSetPropertyRequest extends OMClientRequest {
         metadataManager.getSnapshotInfoTable().addCacheEntry(
             new CacheKey<>(snapshot.getKey()),
             CacheValue.get(context.getIndex(), snapshot.getValue()));
-        if (snapshot.getValue().getName().contains("snap2")) {
-          System.out.println("Swaminathan2\t" + snapshot);
-        }
         omMetrics.incNumSnapshotSetProperties();
       }
 

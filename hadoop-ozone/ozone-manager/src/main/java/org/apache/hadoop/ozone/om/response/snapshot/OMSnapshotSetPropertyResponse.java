@@ -57,6 +57,5 @@ public class OMSnapshotSetPropertyResponse extends OMClientResponse {
       omMetadataManager.getSnapshotInfoTable().putWithBatch(batchOperation,
           updatedSnapInfo.getTableKey(), updatedSnapInfo);
     }
-
   }
 }
