@@ -20,6 +20,8 @@ import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.isBlockLocationI
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ServiceException;
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
@@ -52,7 +54,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Snapsho
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.util.Time;
 import org.apache.ratis.protocol.ClientId;
-import org.apache.ratis.util.Preconditions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,8 +104,7 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
   }
 
   protected int processKeyDeletes(List<BlockGroup> keyBlocksList,
-      KeyManager manager,
-      HashMap<String, RepeatedOmKeyInfo> keysToModify,
+      Map<String, RepeatedOmKeyInfo> keysToModify,
       String snapTableKey, UUID expectedPreviousSnapshotId) throws IOException {
 
     long startTime = Time.monotonicNow();
@@ -115,15 +115,8 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
         keyBlocksList.size(), Time.monotonicNow() - startTime);
     if (blockDeletionResults != null) {
       startTime = Time.monotonicNow();
-      if (isRatisEnabled()) {
-        delCount = submitPurgeKeysRequest(blockDeletionResults,
-            keysToModify, snapTableKey, expectedPreviousSnapshotId);
-      } else {
-        // TODO: Once HA and non-HA paths are merged, we should have
-        //  only one code path here. Purge keys should go through an
-        //  OMRequest model.
-        delCount = deleteAllKeys(blockDeletionResults, manager);
-      }
+      delCount = submitPurgeKeysRequest(blockDeletionResults,
+          keysToModify, snapTableKey, expectedPreviousSnapshotId);
       int limit = ozoneManager.getConfiguration().getInt(OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK,
           OMConfigKeys.OZONE_KEY_DELETING_LIMIT_PER_TASK_DEFAULT);
       LOG.info("Blocks for {} (out of {}) keys are deleted from DB in {} ms. Limit per task is {}.",
@@ -172,30 +165,33 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
    * @param keysToModify Updated list of RepeatedOmKeyInfo
    */
   private int submitPurgeKeysRequest(List<DeleteBlockGroupResult> results,
-      HashMap<String, RepeatedOmKeyInfo> keysToModify, String snapTableKey, UUID expectedPreviousSnapshotId) {
-    Map<Pair<String, String>, List<String>> purgeKeysMapPerBucket =
-        new HashMap<>();
+      Map<String, RepeatedOmKeyInfo> keysToModify, String snapTableKey, UUID expectedPreviousSnapshotId) {
+    List<String> purgeKeys = new ArrayList<>();
 
     // Put all keys to be purged in a list
     int deletedCount = 0;
+    Set<String> failedDeletedKeys = new HashSet<>();
     for (DeleteBlockGroupResult result : results) {
+      String deletedKey = result.getObjectKey();
       if (result.isSuccess()) {
         // Add key to PurgeKeys list.
-        String deletedKey = result.getObjectKey();
         if (keysToModify != null && !keysToModify.containsKey(deletedKey)) {
           // Parse Volume and BucketName
-          addToMap(purgeKeysMapPerBucket, deletedKey);
+          purgeKeys.add(deletedKey);
           if (LOG.isDebugEnabled()) {
             LOG.debug("Key {} set to be updated in OM DB, Other versions " +
                 "of the key that are reclaimable are reclaimed.", deletedKey);
           }
         } else if (keysToModify == null) {
-          addToMap(purgeKeysMapPerBucket, deletedKey);
+          purgeKeys.add(deletedKey);
           if (LOG.isDebugEnabled()) {
             LOG.debug("Key {} set to be purged from OM DB", deletedKey);
           }
         }
         deletedCount++;
+      } else {
+        // If the block deletion failed, then the deleted keys should also not be modified.
+        failedDeletedKeys.add(deletedKey);
       }
     }
 
@@ -209,24 +205,20 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       expectedPreviousSnapshotNullableUUID.setUuid(HddsUtils.toProtobuf(expectedPreviousSnapshotId));
     }
     purgeKeysRequest.setExpectedPreviousSnapshotID(expectedPreviousSnapshotNullableUUID.build());
-
-    // Add keys to PurgeKeysRequest bucket wise.
-    for (Map.Entry<Pair<String, String>, List<String>> entry :
-        purgeKeysMapPerBucket.entrySet()) {
-      Pair<String, String> volumeBucketPair = entry.getKey();
-      DeletedKeys deletedKeysInBucket = DeletedKeys.newBuilder()
-          .setVolumeName(volumeBucketPair.getLeft())
-          .setBucketName(volumeBucketPair.getRight())
-          .addAllKeys(entry.getValue())
-          .build();
-      purgeKeysRequest.addDeletedKeys(deletedKeysInBucket);
-    }
+    DeletedKeys deletedKeys = DeletedKeys.newBuilder()
+        .setVolumeName("")
+        .setBucketName("")
+        .addAllKeys(purgeKeys)
+        .build();
+    purgeKeysRequest.addDeletedKeys(deletedKeys);
 
     List<SnapshotMoveKeyInfos> keysToUpdateList = new ArrayList<>();
     if (keysToModify != null) {
       for (Map.Entry<String, RepeatedOmKeyInfo> keyToModify :
           keysToModify.entrySet()) {
-
+        if (failedDeletedKeys.contains(keyToModify.getKey())) {
+          continue;
+        }
         SnapshotMoveKeyInfos.Builder keyToUpdate =
             SnapshotMoveKeyInfos.newBuilder();
         keyToUpdate.setKey(keyToModify.getKey());
@@ -262,25 +254,6 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
 
   protected OzoneManagerProtocolProtos.OMResponse submitRequest(OMRequest omRequest) throws ServiceException {
     return OzoneManagerRatisUtils.submitRequest(ozoneManager, omRequest, clientId, callId.incrementAndGet());
-  }
-
-  /**
-   * Parse Volume and Bucket Name from ObjectKey and add it to given map of
-   * keys to be purged per bucket.
-   */
-  private void addToMap(Map<Pair<String, String>, List<String>> map, String objectKey) {
-    // Parse volume and bucket name
-    String[] split = objectKey.split(OM_KEY_PREFIX);
-    Preconditions.assertTrue(split.length >= 3, "Volume and/or Bucket Name " +
-        "missing from Key Name " + objectKey);
-    if (split.length == 3) {
-      LOG.warn("{} missing Key Name", objectKey);
-    }
-    Pair<String, String> volumeBucketPair = Pair.of(split[1], split[2]);
-    if (!map.containsKey(volumeBucketPair)) {
-      map.put(volumeBucketPair, new ArrayList<>());
-    }
-    map.get(volumeBucketPair).add(objectKey);
   }
 
   protected void submitPurgePaths(List<PurgePathRequest> requests,
