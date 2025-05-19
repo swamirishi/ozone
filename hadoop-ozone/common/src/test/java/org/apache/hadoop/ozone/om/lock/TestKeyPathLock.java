@@ -40,8 +40,8 @@ public class TestKeyPathLock extends TestOzoneManagerLock {
   private static final Logger LOG =
       LoggerFactory.getLogger(TestKeyPathLock.class);
 
-  private OzoneManagerLock.Resource resource =
-      OzoneManagerLock.Resource.KEY_PATH_LOCK;
+  private OzoneManagerLock.LeveledResource resource =
+      OzoneManagerLock.LeveledResource.KEY_PATH_LOCK;
 
   @Test
   public void testKeyPathLockMultiThreading() throws Exception {
@@ -229,8 +229,8 @@ public class TestKeyPathLock extends TestOzoneManagerLock {
 
   @Test
   public void testAcquireWriteBucketLockWhileAcquiredWriteKeyPathLock() {
-    OzoneManagerLock.Resource higherResource =
-        OzoneManagerLock.Resource.BUCKET_LOCK;
+    OzoneManagerLock.LeveledResource higherResource =
+        OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
@@ -254,8 +254,8 @@ public class TestKeyPathLock extends TestOzoneManagerLock {
 
   @Test
   public void testAcquireWriteBucketLockWhileAcquiredReadKeyPathLock() {
-    OzoneManagerLock.Resource higherResource =
-        OzoneManagerLock.Resource.BUCKET_LOCK;
+    OzoneManagerLock.LeveledResource higherResource =
+        OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
@@ -279,8 +279,8 @@ public class TestKeyPathLock extends TestOzoneManagerLock {
 
   @Test
   public void testAcquireReadBucketLockWhileAcquiredReadKeyPathLock() {
-    OzoneManagerLock.Resource higherResource =
-        OzoneManagerLock.Resource.BUCKET_LOCK;
+    OzoneManagerLock.LeveledResource higherResource =
+        OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();
@@ -304,8 +304,8 @@ public class TestKeyPathLock extends TestOzoneManagerLock {
 
   @Test
   public void testAcquireReadBucketLockWhileAcquiredWriteKeyPathLock() {
-    OzoneManagerLock.Resource higherResource =
-        OzoneManagerLock.Resource.BUCKET_LOCK;
+    OzoneManagerLock.LeveledResource higherResource =
+        OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
     String volumeName = UUID.randomUUID().toString();
     String bucketName = UUID.randomUUID().toString();

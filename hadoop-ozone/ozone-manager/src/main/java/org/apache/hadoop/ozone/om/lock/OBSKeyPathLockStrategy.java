@@ -23,8 +23,8 @@ import org.apache.hadoop.ozone.om.request.file.OMFileRequest;
 
 import java.io.IOException;
 
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.KEY_PATH_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.BUCKET_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.KEY_PATH_LOCK;
 
 /**
  * Implementation of OzoneLockStrategy interface. Concrete strategy for OBS

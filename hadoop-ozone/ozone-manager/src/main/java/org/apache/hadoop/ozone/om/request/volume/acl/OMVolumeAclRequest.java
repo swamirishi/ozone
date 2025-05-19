@@ -42,7 +42,7 @@ import java.nio.file.InvalidPathException;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.VOLUME_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.VOLUME_LOCK;
 
 /**
  * Base class for OMVolumeAcl Request.

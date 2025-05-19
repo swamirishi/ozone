@@ -21,7 +21,7 @@ import org.apache.hadoop.ozone.om.lock.IOzoneManagerLock;
 
 import java.io.IOException;
 
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.S3_SECRET_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.S3_SECRET_LOCK;
 
 /**
  * Wrapper with lock logic of {@link S3SecretManager}.

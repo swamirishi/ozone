@@ -65,7 +65,7 @@ import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status.PARTIAL_RENAME;
 import static org.apache.hadoop.ozone.OzoneConsts.RENAMED_KEYS_MAP;
 import static org.apache.hadoop.ozone.OzoneConsts.UNRENAMED_KEYS_MAP;
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
 /**
  * Handles rename keys request.

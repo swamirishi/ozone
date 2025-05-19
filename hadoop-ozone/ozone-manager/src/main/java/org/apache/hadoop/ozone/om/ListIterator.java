@@ -38,7 +38,7 @@ import java.util.NoSuchElementException;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 
-import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.Resource.BUCKET_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.BUCKET_LOCK;
 
 /**
  * Common class to do listing of resources after merging
