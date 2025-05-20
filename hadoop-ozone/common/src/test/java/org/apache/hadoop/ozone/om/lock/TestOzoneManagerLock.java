@@ -24,14 +24,18 @@ import java.util.List;
 import java.util.Stack;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-
+import java.util.stream.Collectors;
 import org.apache.hadoop.metrics2.impl.MetricsCollectorImpl;
+import org.apache.hadoop.ozone.om.lock.IOzoneManagerLock.Resource;
+import org.apache.hadoop.ozone.om.lock.OzoneManagerLock.FlatResource;
 import org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.rules.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,6 +140,26 @@ public class TestOzoneManagerLock {
     assertTrue(true);
   }
 
+  @ParameterizedTest
+  @EnumSource
+  public void testFlatLockWithParallelResource(FlatResource flatResource) {
+    OzoneManagerLock lock = new OzoneManagerLock(new OzoneConfiguration());
+    List<Resource> resources = new ArrayList<>();
+    resources.addAll(Arrays.stream(LeveledResource.values()).collect(Collectors.toList()));
+    resources.addAll(Arrays.stream(FlatResource.values()).collect(Collectors.toList()));
+    for (Resource otherResource : resources) {
+      String[] otherResourceName = generateResourceName(otherResource);
+      String[] flatResourceName = generateResourceName(flatResource);
+      lock.acquireWriteLock(otherResource, otherResourceName);
+      try {
+        lock.acquireWriteLock(flatResource, flatResourceName);
+      } finally {
+        lock.releaseWriteLock(otherResource, otherResourceName);
+        lock.releaseWriteLock(flatResource, flatResourceName);
+      }
+    }
+  }
+
   @Test
   public void testLockViolationsWithOneHigherLevelLock() {
     OzoneManagerLock lock = new OzoneManagerLock(new OzoneConfiguration());
@@ -206,7 +230,7 @@ public class TestOzoneManagerLock {
         () -> lock.releaseWriteLock(LeveledResource.USER_LOCK, "user3"));
   }
 
-  private String[] generateResourceName(LeveledResource resource) {
+  private String[] generateResourceName(Resource resource) {
     if (resource == LeveledResource.BUCKET_LOCK) {
       return new String[]{UUID.randomUUID().toString(),
           UUID.randomUUID().toString()};
