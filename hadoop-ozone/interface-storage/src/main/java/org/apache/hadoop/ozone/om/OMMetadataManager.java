@@ -1,30 +1,36 @@
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with this
- * work for additional information regarding copyright ownership.  The ASF
- * licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package org.apache.hadoop.ozone.om;
 
+import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
+
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.DBStoreHAManager;
+import org.apache.hadoop.hdds.utils.TransactionInfo;
+import org.apache.hadoop.hdds.utils.db.DBStore;
+import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
@@ -54,8 +60,6 @@ import org.apache.hadoop.hdds.utils.db.Table;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
-
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 
 /**
  * OM metadata manager interface.
@@ -121,6 +125,7 @@ public interface OMMetadataManager extends DBStoreHAManager {
    *
    * @param volume - Volume name
    * @param bucket - Bucket name
+   * @return /volume/bucket/
    */
   String getBucketKeyPrefix(String volume, String bucket);
 
@@ -129,6 +134,8 @@ public interface OMMetadataManager extends DBStoreHAManager {
    *
    * @param volume - Volume name
    * @param bucket - Bucket name
+   * @return /volumeId/bucketId/
+   *    e.g. /-9223372036854772480/-9223372036854771968/
    */
   String getBucketKeyPrefixFSO(String volume, String bucket) throws IOException;
 
@@ -161,7 +168,6 @@ public interface OMMetadataManager extends DBStoreHAManager {
    * @return DB directory key as String.
    */
   String getOzoneDirKey(String volume, String bucket, String key);
-
 
   /**
    * Returns the DB key name of a open key in OM metadata store. Should be
@@ -450,6 +456,7 @@ public interface OMMetadataManager extends DBStoreHAManager {
    */
   Table<String, OmMultipartKeyInfo> getMultipartInfoTable();
 
+  @Override
   Table<String, TransactionInfo> getTransactionInfoTable();
 
   Table<String, OmDBAccessIdInfo> getTenantAccessIdTable();
@@ -463,6 +470,7 @@ public interface OMMetadataManager extends DBStoreHAManager {
   Table<String, String> getSnapshotRenamedTable();
 
   Table<String, CompactionLogEntry> getCompactionLogTable();
+
   /**
    * Gets the OM Meta table.
    * @return meta table reference.
@@ -493,9 +501,13 @@ public interface OMMetadataManager extends DBStoreHAManager {
   /**
    * Return the existing upload keys which includes volumeName, bucketName,
    * keyName.
+   * @param noPagination if true, returns all keys; if false, applies pagination
+   * @return When paginated, returns up to maxUploads + 1 entries, where the
+   *         extra entry is used to determine the next page markers
    */
-  Set<String> getMultipartUploadKeys(String volumeName,
-      String bucketName, String prefix) throws IOException;
+  List<OmMultipartUpload> getMultipartUploadKeys(String volumeName,
+          String bucketName, String prefix, String keyMarker, String uploadIdMarker, int maxUploads,
+          boolean noPagination) throws IOException;
 
   /**
    * Gets the DirectoryTable.
@@ -606,7 +618,7 @@ public interface OMMetadataManager extends DBStoreHAManager {
   String getRenameKey(String volume, String bucket, long objectID);
 
   /**
-   * Given renameKey, return the volume, bucket & objectID from the key.
+   * Given renameKey, return the volume, bucket and objectID from the key.
    */
   String[] splitRenameKey(String renameKey);
 

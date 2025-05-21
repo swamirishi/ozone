@@ -360,15 +360,18 @@ public final class SnapshotUtils {
     }
   }
 
+  /**
+   * Compares the block location info of 2 key info.
+   * @return true if block locations are same else false.
+   */
   public static boolean isBlockLocationInfoSame(OmKeyInfo prevKeyInfo,
                                                 OmKeyInfo deletedKeyInfo) {
-
     if (prevKeyInfo == null && deletedKeyInfo == null) {
-      BackgroundService.LOG.debug("Both prevKeyInfo and deletedKeyInfo are null.");
+      LOG.debug("Both prevKeyInfo and deletedKeyInfo are null.");
       return true;
     }
     if (prevKeyInfo == null || deletedKeyInfo == null) {
-      BackgroundService.LOG.debug("prevKeyInfo: '{}' or deletedKeyInfo: '{}' is null.",
+      LOG.debug("prevKeyInfo: '{}' or deletedKeyInfo: '{}' is null.",
           prevKeyInfo, deletedKeyInfo);
       return false;
     }
