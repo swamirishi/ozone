@@ -96,7 +96,7 @@ public class SCMDeletedBlockTransactionStatusManager {
     this.transactionToDNsCommitMap = new ConcurrentHashMap<>();
     this.transactionToRetryCountMap = new ConcurrentHashMap<>();
     this.scmDeleteBlocksCommandStatusManager =
-        new SCMDeleteBlocksCommandStatusManager();
+        new SCMDeleteBlocksCommandStatusManager(metrics);
   }
 
   /**
@@ -112,8 +112,11 @@ public class SCMDeletedBlockTransactionStatusManager {
     private static final Set<CmdStatus> STATUSES_REQUIRING_TIMEOUT =
         new HashSet<>(Arrays.asList(SENT));
 
-    public SCMDeleteBlocksCommandStatusManager() {
+    private ScmBlockDeletingServiceMetrics metrics;
+
+    public SCMDeleteBlocksCommandStatusManager(ScmBlockDeletingServiceMetrics metrics) {
       this.scmCmdStatusRecord = new ConcurrentHashMap<>();
+      this.metrics = metrics;
     }
 
     /**
@@ -320,6 +323,7 @@ public class SCMDeletedBlockTransactionStatusManager {
         if (updateTime != null &&
             Duration.between(updateTime, now).toMillis() > timeoutMs) {
           CmdStatusData state = removeScmCommand(dnId, scmCmdId);
+          metrics.incrDNCommandsTimeout(dnId, 1);
           LOG.warn("Remove Timeout SCM BlockDeletionCommand {} for DN {} " +
               "after without update {}ms}", state, dnId, timeoutMs);
         } else {

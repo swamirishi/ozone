@@ -20,7 +20,10 @@
 package org.apache.hadoop.hdds.scm.block;
 
 import org.apache.hadoop.metrics2.MetricsInfo;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.hadoop.metrics2.MetricsCollector;
+import org.apache.hadoop.metrics2.MetricsInfo;
 import org.apache.hadoop.metrics2.MetricsRecordBuilder;
 import org.apache.hadoop.metrics2.MetricsSource;
 import org.apache.hadoop.metrics2.MetricsSystem;
@@ -28,6 +31,8 @@ import org.apache.hadoop.metrics2.MetricsTag;
 import org.apache.hadoop.metrics2.annotation.Metric;
 import org.apache.hadoop.metrics2.annotation.Metrics;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.Interns;
+import org.apache.hadoop.metrics2.lib.MetricsRegistry;
 import org.apache.hadoop.metrics2.lib.MutableCounterLong;
 import org.apache.hadoop.metrics2.lib.MutableGaugeLong;
 
@@ -187,6 +192,11 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
         .incrCommandsFailure(delta);
   }
 
+  public void incrDNCommandsTimeout(UUID id, long delta) {
+    numCommandsDatanode.computeIfAbsent(id, k -> new DatanodeCommandDetails())
+        .incrCommandsTimeout(delta);
+  }
+
   public void incrNumBlockDeletionSentDN(UUID id, long delta) {
     this.numCommandsDatanode.computeIfAbsent(id, k -> new DatanodeCommandDetails())
         .incrBlocksSent(delta);
@@ -267,6 +277,8 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
               e.getValue().getCommandsSuccess())
           .addGauge(DatanodeCommandDetails.COMMANDS_FAILED_EXECUTION_BY_DN,
               e.getValue().getCommandsFailure())
+          .addGauge(DatanodeCommandDetails.COMMANDS_TIMEOUT_BY_DN,
+              e.getValue().getCommandsTimeout())
           .addGauge(DatanodeCommandDetails.BLOCKS_SENT_TO_DN_COMMAND,
           e.getValue().getBlockSent());
     }
@@ -280,6 +292,7 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
     private long commandsSent;
     private long commandsSuccess;
     private long commandsFailure;
+    private long commandsTimeout;
     private long blocksSent;
 
     private static final MetricsInfo COMMANDS_SENT_TO_DN = Interns.info(
@@ -296,10 +309,16 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
         "BlocksSent",
         "Number of blocks sent to DN in a command for deletion.");
 
+    private static final MetricsInfo COMMANDS_TIMEOUT_BY_DN = Interns.info(
+        "CommandsTimeout",
+        "Number of commands timeout from SCM to DN"
+    );
+
     public DatanodeCommandDetails() {
       this.commandsSent = 0;
       this.commandsSuccess = 0;
       this.commandsFailure = 0;
+      this.commandsTimeout = 0;
       this.blocksSent = 0;
     }
 
@@ -319,6 +338,10 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
       this.blocksSent += delta;
     }
 
+    public void incrCommandsTimeout(long delta) {
+      this.commandsTimeout += delta;
+    }
+
     public long getCommandsSent() {
       return commandsSent;
     }
@@ -335,9 +358,14 @@ public final class ScmBlockDeletingServiceMetrics implements MetricsSource {
       return blocksSent;
     }
 
+    public long getCommandsTimeout() {
+      return commandsTimeout;
+    }
+
     @Override
     public String toString() {
-      return "Sent=" + commandsSent + ", Success=" + commandsSuccess + ", Failed=" + commandsFailure + ", BlocksSent = " + blocksSent;
+      return "Sent=" + commandsSent + ", Success=" + commandsSuccess + ", Failed=" + commandsFailure +
+          ", Timeout=" + commandsTimeout + ", BlocksSent = " + blocksSent;
     }
   }
 
