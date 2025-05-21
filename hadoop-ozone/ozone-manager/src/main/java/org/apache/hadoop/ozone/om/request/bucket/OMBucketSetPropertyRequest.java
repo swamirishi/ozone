@@ -36,12 +36,12 @@ import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
 import org.apache.hadoop.ozone.om.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
-import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotCache;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Time;
+import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -241,7 +241,7 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
       OzoneManager ozoneManager, String volumeName, String bucketName)
       throws IOException {
     final boolean nativeAuthorizerEnabled;
-    try (ReferenceCounted<IOmMetadataReader> rcMetadataReader =
+    try (UncheckedAutoCloseableSupplier<IOmMetadataReader> rcMetadataReader =
         ozoneManager.getOmMetadataReader()) {
       OmMetadataReader mdReader = (OmMetadataReader) rcMetadataReader.get();
       nativeAuthorizerEnabled = mdReader.isNativeAuthorizerEnabled();

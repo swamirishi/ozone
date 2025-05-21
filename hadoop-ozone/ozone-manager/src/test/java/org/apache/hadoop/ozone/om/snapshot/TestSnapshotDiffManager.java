@@ -144,6 +144,7 @@ import org.apache.ozone.rocksdiff.DifferSnapshotInfo;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer;
 import org.apache.ozone.rocksdiff.RocksDiffUtils;
 import org.apache.ratis.util.ExitUtils;
+import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -430,9 +431,9 @@ public class TestSnapshotDiffManager {
         eq(diffDir))
     ).thenReturn(Optional.of(Lists.newArrayList(randomStrings)));
 
-    ReferenceCounted<OmSnapshot> rcFromSnapshot =
+    UncheckedAutoCloseableSupplier<OmSnapshot> rcFromSnapshot =
         omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap1.toString());
-    ReferenceCounted<OmSnapshot> rcToSnapshot =
+    UncheckedAutoCloseableSupplier<OmSnapshot> rcToSnapshot =
         omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap2.toString());
     OmSnapshot fromSnapshot = rcFromSnapshot.get();
     OmSnapshot toSnapshot = rcToSnapshot.get();
@@ -510,9 +511,9 @@ public class TestSnapshotDiffManager {
             .thenReturn(Optional.ofNullable(Collections.emptyList()));
       }
 
-      ReferenceCounted<OmSnapshot> rcFromSnapshot =
+      UncheckedAutoCloseableSupplier<OmSnapshot> rcFromSnapshot =
           omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap1.toString());
-      ReferenceCounted<OmSnapshot> rcToSnapshot =
+      UncheckedAutoCloseableSupplier<OmSnapshot> rcToSnapshot =
           omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap2.toString());
       OmSnapshot fromSnapshot = rcFromSnapshot.get();
       OmSnapshot toSnapshot = rcToSnapshot.get();
@@ -582,9 +583,9 @@ public class TestSnapshotDiffManager {
               any(DifferSnapshotInfo.class),
               anyString());
 
-      ReferenceCounted<OmSnapshot> rcFromSnapshot =
+      UncheckedAutoCloseableSupplier<OmSnapshot> rcFromSnapshot =
           omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap1.toString());
-      ReferenceCounted<OmSnapshot> rcToSnapshot =
+      UncheckedAutoCloseableSupplier<OmSnapshot> rcToSnapshot =
           omSnapshotManager.getActiveSnapshot(VOLUME_NAME, BUCKET_NAME, snap2.toString());
       OmSnapshot fromSnapshot = rcFromSnapshot.get();
       OmSnapshot toSnapshot = rcToSnapshot.get();

@@ -31,7 +31,6 @@ import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.response.key.OMKeyPurgeResponse;
-import org.apache.hadoop.ozone.om.snapshot.ReferenceCounted;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeletedKeys;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -39,6 +38,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PurgeKe
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PurgeKeysResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
+import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -178,7 +178,7 @@ public class TestOMKeyPurgeRequestAndResponse extends TestOMKeyRequest {
           deletedKey));
     }
 
-    ReferenceCounted<OmSnapshot> rcOmSnapshot =
+    UncheckedAutoCloseableSupplier<OmSnapshot> rcOmSnapshot =
         ozoneManager.getOmSnapshotManager().getSnapshot(
             snapInfo.getVolumeName(),
             snapInfo.getBucketName(),
