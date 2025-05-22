@@ -57,7 +57,6 @@ import org.apache.hadoop.ozone.recon.tasks.ReconTaskControllerImpl;
 import org.apache.hadoop.ozone.recon.tasks.OmTableInsightTask;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.ratis.protocol.ClientId;
-import org.hadoop.ozone.recon.codegen.ReconSqlDbConfig;
 import org.hadoop.ozone.recon.schema.tables.daos.ClusterGrowthDailyDao;
 import org.hadoop.ozone.recon.schema.tables.daos.ContainerCountBySizeDao;
 import org.hadoop.ozone.recon.schema.tables.daos.FileCountBySizeDao;

@@ -17,7 +17,8 @@
  */
 package org.apache.ozone.fs.http.server;
 
-import static org.apache.hadoop.util.StringUtils.startupShutdownMessage;
+import static org.apache.hadoop.hdds.StringUtils.startupShutdownMessage;
+import static org.apache.hadoop.ozone.util.OzoneVersionInfo.OZONE_VERSION_INFO;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.http.HttpServer2;
 import org.apache.hadoop.security.AuthenticationFilterInitializer;
 import org.apache.hadoop.security.authentication.server.ProxyUserAuthenticationFilterInitializer;
@@ -176,8 +178,8 @@ public class HttpFSServerWebServer {
   }
 
   public static void main(String[] args) throws Exception {
-    startupShutdownMessage(HttpFSServerWebServer.class, args, LOG);
-    Configuration conf = new Configuration(true);
+    OzoneConfiguration conf = new OzoneConfiguration();
+    startupShutdownMessage(OZONE_VERSION_INFO, HttpFSServerWebServer.class, args, LOG, conf);
     Configuration sslConf = SSLFactory.readSSLConfiguration(conf,
         SSLFactory.Mode.SERVER);
     HttpFSServerWebServer webServer =

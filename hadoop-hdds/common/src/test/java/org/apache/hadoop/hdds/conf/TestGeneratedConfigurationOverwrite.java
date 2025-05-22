@@ -34,9 +34,9 @@ import java.nio.file.Paths;
 public class TestGeneratedConfigurationOverwrite {
 
   private final Path generatedConfigurationPath =
-      Paths.get("target/test-classes/ozone-default-generated.xml");
+      Paths.get("target/test-classes/hdds-common-default.xml");
   private final Path generatedConfigurationPathBak =
-      Paths.get("target/test-classes/ozone-default-generated.xml.bak");
+      Paths.get("target/test-classes/hdds-common-default.xml.bak");
 
   private OzoneConfiguration conf;
 

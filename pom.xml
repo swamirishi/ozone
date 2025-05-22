@@ -101,6 +101,7 @@
     <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
     <jetty.version>9.4.54.v20240208</jetty.version>
     <java.dev.jna.version>5.2.0</java.dev.jna.version>
+    <copy-rename-maven-plugin.version>1.0.1</copy-rename-maven-plugin.version>
     <curator.version>5.4.0.7.1.9.1003-SNAPSHOT</curator.version>
     <test.exclude>_</test.exclude>
     <test.exclude.pattern>_</test.exclude.pattern>
@@ -1905,6 +1906,53 @@
           <groupId>com.googlecode.maven-download-plugin</groupId>
           <artifactId>download-maven-plugin</artifactId>
           <version>${download-maven-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.coderplus.maven.plugins</groupId>
+          <artifactId>copy-rename-maven-plugin</artifactId>
+          <version>${copy-rename-maven-plugin.version}</version>
+          <executions>
+            <!--
+              If a new module is introduced with generated config:
+              - override ban-annotations execution of maven-enforcer-plugin
+              - configure maven-compiler-plugin with the ConfigFileGenerator annotationProcessor
+              - bind one or both of these rename executions
+              - add the module's name in OzoneConfiguration#activate
+              See hadoop-hdds/common/pom.xml for example.
+            -->
+            <execution>
+              <id>rename-generated-config</id>
+              <goals>
+                <goal>rename</goal>
+              </goals>
+              <!-- bind to process-classes in modules where needed -->
+              <phase>none</phase>
+              <configuration>
+                <fileSets>
+                  <fileSet>
+                    <sourceFile>${project.build.outputDirectory}/ozone-default-generated.xml</sourceFile>
+                    <destinationFile>${project.build.outputDirectory}/${project.artifactId}-default.xml</destinationFile>
+                  </fileSet>
+                </fileSets>
+              </configuration>
+            </execution>
+            <execution>
+              <id>rename-generated-test-config</id>
+              <goals>
+                <goal>rename</goal>
+              </goals>
+              <!-- bind to process-test-classes in modules where needed -->
+              <phase>none</phase>
+              <configuration>
+                <fileSets>
+                  <fileSet>
+                    <sourceFile>${project.build.testOutputDirectory}/ozone-default-generated.xml</sourceFile>
+                    <destinationFile>${project.build.testOutputDirectory}/${project.artifactId}-default.xml</destinationFile>
+                  </fileSet>
+                </fileSets>
+              </configuration>
+            </execution>
+          </executions>
         </plugin>
       </plugins>
     </pluginManagement>
