@@ -64,6 +64,7 @@ import org.junit.jupiter.api.Timeout;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static org.mockito.ArgumentMatchers.any;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -510,12 +511,12 @@ public class TestSnapshotDeletingServiceIntegrationTest {
     KeyManager keyManager = Mockito.spy(om.getKeyManager());
     when(ozoneManager.getKeyManager()).thenReturn(keyManager);
     KeyDeletingService keyDeletingService = Mockito.spy(new KeyDeletingService(ozoneManager,
-        ozoneManager.getScmClient().getBlockClient(), keyManager, 10000,
-        100000, cluster.getConf(), true));
+        ozoneManager.getScmClient().getBlockClient(), 10000,
+        100000, cluster.getConf(), 10, false));
     keyDeletingService.shutdown();
     GenericTestUtils.waitFor(() -> keyDeletingService.getThreadCount() == 0, 1000,
         100000);
-    when(keyManager.getPendingDeletionKeys(anyInt())).thenAnswer(i -> {
+    when(keyManager.getPendingDeletionKeys(any(), anyInt())).thenAnswer(i -> {
       // wait for SDS to reach the KDS wait block before processing any key.
       GenericTestUtils.waitFor(keyDeletionWaitStarted::get, 1000, 100000);
       keyDeletionStarted.set(true);

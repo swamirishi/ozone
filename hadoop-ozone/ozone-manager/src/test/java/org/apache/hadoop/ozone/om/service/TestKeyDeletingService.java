@@ -23,6 +23,7 @@ import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_CONTAINER_REPORT_INTERV
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SNAPSHOT_DELETING_SERVICE_INTERVAL;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,6 +60,7 @@ import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.ozone.om.KeyManager;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
+import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.OmTestManagers;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -77,6 +79,7 @@ import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
+import org.apache.hadoop.ozone.om.snapshot.filter.ReclaimableKeyFilter;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ratis.util.ExitUtils;
@@ -169,8 +172,10 @@ public class TestKeyDeletingService {
         () -> keyDeletingService.getDeletedKeyCount().get() >= keyCount,
         1000, 10000);
     Assert.assertTrue(keyDeletingService.getRunCount().get() > 1);
-    Assert.assertEquals(0, keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
-        .getKeyBlocksList().size());
+    assertThat(keyManager.getPendingDeletionKeys(new ReclaimableKeyFilter(om, om.getOmSnapshotManager(),
+        ((OmMetadataManagerImpl)om.getMetadataManager()).getSnapshotChainManager(), null,
+        keyManager, om.getMetadataManager().getLock()), Integer.MAX_VALUE).getKeyBlocksList())
+        .isEmpty();
   }
 
   @Test(timeout = 40000)
@@ -195,7 +200,7 @@ public class TestKeyDeletingService {
         () -> {
           try {
             int numPendingDeletionKeys =
-                keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
+                keyManager.getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE)
                     .getKeyBlocksList().size();
             if (numPendingDeletionKeys != keyCount) {
               LOG.info("Expected {} keys to be pending deletion, but got {}",
@@ -215,7 +220,7 @@ public class TestKeyDeletingService {
     // Since SCM calls are failing, deletedKeyCount should be zero.
     Assert.assertEquals(0, keyDeletingService.getDeletedKeyCount().get());
     Assert.assertEquals(keyCount, keyManager
-        .getPendingDeletionKeys(Integer.MAX_VALUE).getKeyBlocksList().size());
+        .getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE).getKeyBlocksList().size());
   }
 
   @Test(timeout = 30000)
@@ -242,7 +247,7 @@ public class TestKeyDeletingService {
         () -> {
           try {
             int numPendingDeletionKeys =
-                keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
+                keyManager.getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE)
                     .getKeyBlocksList().size();
             if (numPendingDeletionKeys != keyCount) {
               LOG.info("Expected {} keys to be pending deletion, but got {}",
@@ -296,7 +301,7 @@ public class TestKeyDeletingService {
     GenericTestUtils.waitFor(
         () -> {
           try {
-            return keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
+            return keyManager.getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE)
                 .getKeyBlocksList()
                 .stream()
                 .map(BlockGroup::getBlockIDList)
@@ -319,7 +324,7 @@ public class TestKeyDeletingService {
     GenericTestUtils.waitFor(
         () -> {
           try {
-            return keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
+            return keyManager.getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE)
                 .getKeyBlocksList()
                 .stream()
                 .map(BlockGroup::getBlockIDList)
@@ -371,7 +376,7 @@ public class TestKeyDeletingService {
         () -> keyDeletingService.getDeletedKeyCount().get() >= 1,
         1000, 10000);
     Assert.assertTrue(keyDeletingService.getRunCount().get() > 1);
-    Assert.assertEquals(0, keyManager.getPendingDeletionKeys(Integer.MAX_VALUE)
+    Assert.assertEquals(0, keyManager.getPendingDeletionKeys(kv -> true, Integer.MAX_VALUE)
             .getKeyBlocksList().size());
 
     // The 1st version of the key has 1 block and the 2nd version has 2
@@ -449,8 +454,10 @@ public class TestKeyDeletingService {
         () -> keyDeletingService.getDeletedKeyCount().get() >= 1,
         1000, 10000);
     Assert.assertTrue(keyDeletingService.getRunCount().get() > 1);
-    Assert.assertEquals(0, keyManager
-        .getPendingDeletionKeys(Integer.MAX_VALUE).getKeyBlocksList().size());
+    assertTrue(keyManager.getPendingDeletionKeys(new ReclaimableKeyFilter(om, om.getOmSnapshotManager(),
+            ((OmMetadataManagerImpl)om.getMetadataManager()).getSnapshotChainManager(), null,
+            keyManager, om.getMetadataManager().getLock()),
+        Integer.MAX_VALUE).getKeyBlocksList().isEmpty());
 
     // deletedTable should have deleted key of the snapshot bucket
     Assert.assertFalse(metadataManager.getDeletedTable().isEmpty());
@@ -684,7 +691,7 @@ t
 
   @Test
   @DisplayName("Should not update keys when purge request times out during key deletion")
-  public void testFailingModifiedKeyPurge() throws IOException, AuthenticationException {
+  public void testFailingModifiedKeyPurge() throws IOException, AuthenticationException, InterruptedException {
     OzoneConfiguration conf = createConfAndInitValues();
     OmTestManagers omTestManagers
         = new OmTestManagers(conf);
@@ -735,8 +742,7 @@ t
   private void assertTableRowCount(Table<String, ?> table,
         int count, OMMetadataManager metadataManager)
       throws TimeoutException, InterruptedException {
-    GenericTestUtils.waitFor(() -> assertTableRowCount(count, table,
-            metadataManager), 1000, 120000); // 2 minutes
+    GenericTestUtils.waitFor(() -> assertTableRowCount(count, table, metadataManager), 1000, 120000); // 2 minutes
   }
 
   private boolean assertTableRowCount(int expectedCount,
