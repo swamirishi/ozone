@@ -165,13 +165,16 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
   /**
    * Returns a list rename entries from the snapshotRenamedTable.
    *
-   * @param size max number of keys to return.
+   * @param count max number of keys to return.
+   * @param filter filter to apply on the entries.
    * @return a Pair of list of {@link org.apache.hadoop.hdds.utils.db.Table.KeyValue} representing the keys in the
    * underlying metadataManager.
    * @throws IOException
    */
   List<Table.KeyValue<String, String>> getRenamesKeyEntries(
-      String volume, String bucket, String startKey, int size) throws IOException;
+      String volume, String bucket, String startKey,
+      CheckedFunction<Table.KeyValue<String, String>, Boolean, IOException> filter, int count)
+      throws IOException;
 
 
   /**
@@ -195,13 +198,16 @@ public interface KeyManager extends OzoneManagerFS, IOzoneAcl {
   /**
    * Returns a list deleted entries from the deletedTable.
    *
-   * @param size max number of keys to return.
+   * @param count max number of keys to return.
+   * @param filter filter to apply on the entries.
    * @return a Pair of list of {@link org.apache.hadoop.hdds.utils.db.Table.KeyValue} representing the keys in the
    * underlying metadataManager.
    * @throws IOException
    */
   List<Table.KeyValue<String, List<OmKeyInfo>>> getDeletedKeyEntries(
-      String volume, String bucket, String startKey, int size) throws IOException;
+      String volume, String bucket, String startKey,
+      CheckedFunction<Table.KeyValue<String, RepeatedOmKeyInfo>, Boolean, IOException> filter,
+      int count) throws IOException;
 
   /**
    * Returns the names of up to {@code count} open keys whose age is

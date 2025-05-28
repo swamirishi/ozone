@@ -66,6 +66,8 @@ public final class DeletingServiceMetrics {
   private MutableGaugeLong numSubDirsSentForPurge;
   @Metric("Total no. of sub-files sent for purge")
   private MutableGaugeLong numSubFilesSentForPurge;
+  @Metric("Total no. of rename entries purged")
+  private MutableGaugeLong numRenameEntriesPurged;
 
   public void incrNumDirsSentForPurge(long dirDel) {
     numDirsSentForPurge.incr(dirDel);
@@ -148,6 +150,10 @@ public final class DeletingServiceMetrics {
 
   public void incrNumKeysPurged(long keysPurged) {
     this.numKeysPurged.incr(keysPurged);
+  }
+
+  public void incrNumRenameEntriesPurged(long renameEntriesPurged) {
+    this.numRenameEntriesPurged.incr(renameEntriesPurged);
   }
 
   @VisibleForTesting

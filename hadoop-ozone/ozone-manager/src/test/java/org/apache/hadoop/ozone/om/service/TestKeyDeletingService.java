@@ -50,7 +50,6 @@ import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.server.ServerUtils;
@@ -710,6 +709,7 @@ t
           });
       List<BlockGroup> blockGroups = Collections.singletonList(BlockGroup.newBuilder().setKeyName("key1")
           .addAllBlockIDs(Collections.singletonList(new BlockID(1, 1))).build());
+      List<String> renameEntriesToBeDeleted = Collections.singletonList("key2");
       OmKeyInfo omKeyInfo = new OmKeyInfo.Builder()
           .setBucketName("buck")
           .setVolumeName("vol")
@@ -722,8 +722,9 @@ t
           .build();
       Map<String, RepeatedOmKeyInfo> keysToModify = Collections.singletonMap("key1",
           new RepeatedOmKeyInfo(Collections.singletonList(omKeyInfo)));
-      keyDeletingService.processKeyDeletes(blockGroups, keysToModify, null, null);
+      keyDeletingService.processKeyDeletes(blockGroups, keysToModify, renameEntriesToBeDeleted, null, null);
       assertTrue(purgeRequest.get().getPurgeKeysRequest().getKeysToUpdateList().isEmpty());
+      assertEquals(renameEntriesToBeDeleted, purgeRequest.get().getPurgeKeysRequest().getRenamedKeysList());
     }
   }
 
@@ -788,7 +789,7 @@ t
             .setKeyName(keyName)
             .setAcls(Collections.emptyList())
             .setReplicationConfig(StandaloneReplicationConfig.getInstance(
-                HddsProtos.ReplicationFactor.THREE))
+                THREE))
             .build();
     writeClient.deleteKey(keyArg);
   }
@@ -804,7 +805,7 @@ t
             .setKeyName(keyName)
             .setAcls(Collections.emptyList())
             .setReplicationConfig(StandaloneReplicationConfig.getInstance(
-                HddsProtos.ReplicationFactor.THREE))
+                THREE))
             .build();
     writeClient.renameKey(keyArg, toKeyName);
   }
