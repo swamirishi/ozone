@@ -86,7 +86,6 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
    */
   VALUE get(KEY key) throws IOException;
 
-
   /**
    * Skip checking cache and get the value mapped to the given key in byte
    * array or returns null if the key is not found.
@@ -98,7 +97,6 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
   default VALUE getSkipCache(KEY key) throws IOException {
     throw new NotImplementedException("getSkipCache is not implemented");
   }
-
 
   /**
    * Returns the value mapped to the given key in byte array or returns null
@@ -114,7 +112,6 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
   default VALUE getReadCopy(KEY key) throws IOException {
     throw new NotImplementedException("getReadCopy is not implemented");
   }
-
 
   /**
    * Returns the value mapped to the given key in byte array or returns null
@@ -195,9 +192,8 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
   /**
    * Returns the Name of this Table.
    * @return - Table Name.
-   * @throws IOException on failure.
    */
-  String getName() throws IOException;
+  String getName();
 
   /**
    * Returns the key count of this Table.  Note the result can be inaccurate.
@@ -437,7 +433,6 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
       }
     };
   }
-
 
   /** A {@link TableIterator} to iterate {@link KeyValue}s. */
   interface KeyValueIterator<KEY, VALUE>

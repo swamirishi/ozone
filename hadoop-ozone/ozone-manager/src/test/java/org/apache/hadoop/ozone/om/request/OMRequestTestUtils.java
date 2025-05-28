@@ -276,6 +276,16 @@ public final class OMRequestTestUtils {
   }
 
   /**
+   * Add key entry to SnapshotRenamedTable.
+   */
+  public static String addRenamedEntryToTable(long trxnLogIndex, String volumeName, String bucketName, String key,
+      OMMetadataManager omMetadataManager) throws Exception {
+    String renameKey = omMetadataManager.getRenameKey(volumeName, bucketName, trxnLogIndex);
+    omMetadataManager.getSnapshotRenamedTable().put(renameKey, key);
+    return renameKey;
+  }
+
+  /**
    * Add key entry to KeyTable. if openKeyTable flag is true, add's entries
    * to openKeyTable, else add's it to keyTable.
    * @throws Exception
@@ -741,7 +751,7 @@ public final class OMRequestTestUtils {
     return BucketInfo.newBuilder()
         .setBucketName(bucketName)
         .setVolumeName(volumeName)
-        .setStorageType(OzoneManagerProtocolProtos.StorageTypeProto.SSD)
+        .setStorageType(HddsProtos.StorageTypeProto.SSD)
         .setIsVersionEnabled(false)
         .addAllMetadata(getMetadataList());
   }
@@ -820,7 +830,6 @@ public final class OMRequestTestUtils {
         .setCmdType(OzoneManagerProtocolProtos.Type.SetVolumeProperty)
         .setSetVolumePropertyRequest(setVolumePropertyRequest).build();
   }
-
 
   /**
    * Create OMRequest for set volume property request with quota set.
@@ -1064,7 +1073,7 @@ public final class OMRequestTestUtils {
             .setValue(DatatypeConverter.printHexBinary(
                 new DigestInputStream(
                     new ByteArrayInputStream(
-                        RandomStringUtils.randomAlphanumeric((int) size)
+                        RandomStringUtils.secure().nextAlphanumeric((int) size)
                             .getBytes(StandardCharsets.UTF_8)),
                     eTagProvider)
                     .getMessageDigest().digest()))
