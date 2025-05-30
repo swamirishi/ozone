@@ -112,8 +112,7 @@ public class OMKeyPurgeResponse extends OmKeyResponse {
     }
   }
 
-  private void processKeys(BatchOperation batchOp,
-      OMMetadataManager metadataManager) throws IOException {
+  private void processKeys(BatchOperation batchOp, OMMetadataManager metadataManager) throws IOException {
     for (String key : purgeKeyList) {
       metadataManager.getDeletedTable().deleteWithBatch(batchOp,
           key);
