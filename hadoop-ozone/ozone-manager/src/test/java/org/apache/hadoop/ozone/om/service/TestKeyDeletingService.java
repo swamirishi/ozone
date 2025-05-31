@@ -28,9 +28,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,10 +47,13 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
@@ -53,6 +62,7 @@ import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.server.ServerUtils;
+import org.apache.hadoop.hdds.utils.BackgroundTaskQueue;
 import org.apache.hadoop.hdds.utils.db.DBConfigFromFile;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
@@ -61,9 +71,11 @@ import org.apache.hadoop.ozone.om.KeyManager;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
+import org.apache.hadoop.ozone.om.OmSnapshotManager;
 import org.apache.hadoop.ozone.om.OmTestManagers;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.ScmBlockLocationTestingClient;
+import org.apache.hadoop.ozone.om.SnapshotChainManager;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
@@ -85,6 +97,7 @@ import org.apache.ratis.util.ExitUtils;
 import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -92,6 +105,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.MockedStatic;
 
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,11 +119,14 @@ import org.slf4j.LoggerFactory;
  * and call into SCM. 4. Confirms that calls have been successful.
  */
 public class TestKeyDeletingService {
+  private OzoneConfiguration conf;
   @Rule
   public TemporaryFolder folder = new TemporaryFolder();
   private OzoneManagerProtocol writeClient;
   private OzoneManager om;
   private KeyDeletingService keyDeletingService;
+  private ScmBlockLocationTestingClient scmBlockTestingClient;
+
 
   private static final Logger LOG =
       LoggerFactory.getLogger(TestKeyDeletingService.class);
@@ -117,6 +134,11 @@ public class TestKeyDeletingService {
   @BeforeClass
   public static void setup() {
     ExitUtils.disableSystemExit();
+  }
+
+  @Before
+  public void setupTest() {
+    scmBlockTestingClient = new ScmBlockLocationTestingClient(null, null, 0);
   }
 
   private OzoneConfiguration createConfAndInitValues() throws IOException {
@@ -134,7 +156,7 @@ public class TestKeyDeletingService {
     conf.setTimeDuration(HDDS_CONTAINER_REPORT_INTERVAL, 200,
         TimeUnit.MILLISECONDS);
     conf.setQuietMode(false);
-
+    this.conf = conf;
     return conf;
   }
 
@@ -578,6 +600,44 @@ t
   }
 
   @Test
+  @DisplayName("KeyDeletingService should skip active snapshot retrieval for deep cleaned snapshots")
+  public void testKeyDeletingServiceWithDeepCleanedSnapshots() throws Exception {
+    OzoneManager ozoneManager = Mockito.spy(om);
+    OmMetadataManagerImpl omMetadataManager = Mockito.mock(OmMetadataManagerImpl.class);
+    SnapshotChainManager snapshotChainManager = Mockito.mock(SnapshotChainManager.class);
+    OmSnapshotManager omSnapshotManager = Mockito.mock(OmSnapshotManager.class);
+    when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
+    when(ozoneManager.getOmSnapshotManager()).thenReturn(omSnapshotManager);
+    when(omMetadataManager.getSnapshotChainManager()).thenReturn(snapshotChainManager);
+    when(snapshotChainManager.getTableKey(any(UUID.class)))
+        .thenAnswer(i -> i.getArgument(0).toString());
+    Table snapshotInfoTable = Mockito.mock(Table.class);
+    when(omMetadataManager.getSnapshotInfoTable()).thenReturn(snapshotInfoTable);
+    when(snapshotInfoTable.get(any(String.class))).thenAnswer(i -> {
+      SnapshotInfo snapshotInfo = Mockito.mock(SnapshotInfo.class);
+      when(snapshotInfo.getSnapshotId()).thenReturn(UUID.fromString(i.getArgument(0)));
+      when(snapshotInfo.isDeepCleaned()).thenReturn(true);
+      return snapshotInfo;
+    });
+    List<UUID> snapshotIds = IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID()).collect(Collectors.toList());
+    when(snapshotChainManager.iterator(anyBoolean())).thenAnswer(i -> snapshotIds.iterator());
+    KeyDeletingService kds = Mockito.spy(new KeyDeletingService(ozoneManager, scmBlockTestingClient, 10000,
+        100000, conf, 10, true));
+    when(kds.getTasks()).thenAnswer(i -> {
+      BackgroundTaskQueue queue = new BackgroundTaskQueue();
+      for (UUID id : snapshotIds) {
+        queue.add(kds.new KeyDeletingTask(kds, id));
+      }
+      return queue;
+    });
+    kds.runPeriodicalTaskNow();
+    clearInvocations(omSnapshotManager);
+    verify(omSnapshotManager, Mockito.never()).getActiveSnapshot(any(), any(), any());
+  }
+
+
+
+  @Test
   public void testSnapshotExclusiveSize() throws Exception {
     OzoneConfiguration conf = createConfAndInitValues();
     OmTestManagers omTestManagers
@@ -735,7 +795,7 @@ t
              iterator = snapshotInfoTable.iterator()) {
       while (iterator.hasNext()) {
         SnapshotInfo snapInfo = iterator.next().getValue();
-        assertEquals(snapInfo.getDeepClean(), deepClean);
+        assertEquals(snapInfo.isDeepCleaned(), deepClean);
       }
     }
   }
