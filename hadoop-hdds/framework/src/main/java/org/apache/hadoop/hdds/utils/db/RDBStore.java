@@ -348,6 +348,14 @@ public class RDBStore implements DBStore {
     return checkPointManager.createCheckpoint(checkpointsParentDir);
   }
 
+  @Override
+  public DBCheckpoint getCheckpoint(String parentPath, boolean flush) throws IOException {
+    if (flush) {
+      this.flushDB();
+    }
+    return checkPointManager.createCheckpoint(parentPath, null);
+  }
+
   public DBCheckpoint getSnapshot(String name) throws IOException {
     this.flushLog(true);
     return checkPointManager.createCheckpoint(snapshotsParentDir, name);

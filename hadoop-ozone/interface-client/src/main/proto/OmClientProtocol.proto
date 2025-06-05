@@ -142,7 +142,7 @@ enum Type {
   SetSafeMode = 124;
   PrintCompactionLogDag = 125;
   AbortExpiredMultiPartUploads = 127;
-
+  QuotaRepair = 133;
 }
 
 enum SafeMode {
@@ -276,6 +276,7 @@ message OMRequest {
   optional PrintCompactionLogDagRequest     PrintCompactionLogDagRequest   = 125;
 
   optional MultipartUploadsExpiredAbortRequest multipartUploadsExpiredAbortRequest = 126;
+  optional QuotaRepairRequest               QuotaRepairRequest             = 131;
 }
 
 message OMResponse {
@@ -393,6 +394,7 @@ message OMResponse {
   optional SetSafeModeResponse               SetSafeModeResponse           = 124;
   optional PrintCompactionLogDagResponse     PrintCompactionLogDagResponse = 125;
   optional MultipartUploadsExpiredAbortResponse multipartUploadsExpiredAbortResponse = 127;
+  optional QuotaRepairResponse            QuotaRepairResponse        = 134;
 }
 
 enum Status {
@@ -2033,6 +2035,21 @@ message SetSafeModeRequest {
 
 message SetSafeModeResponse {
   optional bool response = 1;
+}
+
+message QuotaRepairRequest {
+    repeated BucketQuotaCount bucketCount = 1;
+    required bool supportVolumeOldQuota = 2 [default=false];
+}
+message BucketQuotaCount {
+    required string volName = 1;
+    required string bucketName = 2;
+    required int64 diffUsedBytes = 3;
+    required int64 diffUsedNamespace = 4;
+    required bool supportOldQuota = 5 [default=false];
+}
+
+message QuotaRepairResponse {
 }
 
 /**
