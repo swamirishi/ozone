@@ -49,6 +49,8 @@ import org.rocksdb.Statistics;
 import org.rocksdb.StatsLevel;
 
 import static org.apache.hadoop.ozone.OzoneConsts.ROCKSDB_SST_SUFFIX;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * RDBStore Tests.
@@ -106,7 +108,7 @@ public class TestRDBStore {
       throws IOException {
     try (Table<byte[], byte[]> firstTable = dbStore.getTable(families.
         get(familyIndex))) {
-      Assertions.assertNotNull(firstTable, "Table cannot be null");
+      assertNotNull(firstTable, "Table cannot be null");
       for (int x = 0; x < 100; x++) {
         byte[] key =
           RandomStringUtils.random(10).getBytes(StandardCharsets.UTF_8);
@@ -121,7 +123,7 @@ public class TestRDBStore {
 
   @Test
   public void compactDB() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DB Store cannot be null");
+    assertNotNull(rdbStore, "DB Store cannot be null");
     for (int i = 0; i < 2; i++) {
       for (int j = 0; j <= 10; j++) {
         insertRandomData(rdbStore, i);
@@ -157,7 +159,7 @@ public class TestRDBStore {
 
   @Test
   public void close() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DBStore cannot be null");
+    assertNotNull(rdbStore, "DBStore cannot be null");
     // This test does not assert anything if there is any error this test
     // will throw and fail.
     rdbStore.close();
@@ -166,7 +168,7 @@ public class TestRDBStore {
 
   @Test
   public void closeUnderlyingDB() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DBStore cannot be null");
+    assertNotNull(rdbStore, "DBStore cannot be null");
     rdbStore.getDb().close();
     Assertions.assertTrue(rdbStore.isClosed());
   }
@@ -185,7 +187,7 @@ public class TestRDBStore {
         rdbStore.move(key, firstTable, secondTable);
         byte[] newvalue = secondTable.get(key);
         // Make sure we have value in the second table
-        Assertions.assertNotNull(newvalue);
+        assertNotNull(newvalue);
         //and it is same as what we wrote to the FirstTable
         Assertions.assertArrayEquals(value, newvalue);
       }
@@ -210,7 +212,7 @@ public class TestRDBStore {
         rdbStore.move(key, nextValue, firstTable, secondTable);
         byte[] newvalue = secondTable.get(key);
         // Make sure we have value in the second table
-        Assertions.assertNotNull(newvalue);
+        assertNotNull(newvalue);
         //and it is not same as what we wrote to the FirstTable, and equals
         // the new value.
         Assertions.assertArrayEquals(nextValue, newvalue);
@@ -221,7 +223,7 @@ public class TestRDBStore {
 
   @Test
   public void getEstimatedKeyCount() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DB Store cannot be null");
+    assertNotNull(rdbStore, "DB Store cannot be null");
 
     // Write 100 keys to the first table.
     insertRandomData(rdbStore, 1);
@@ -238,7 +240,7 @@ public class TestRDBStore {
   public void getTable() throws Exception {
     for (String tableName : families) {
       try (Table table = rdbStore.getTable(tableName)) {
-        Assertions.assertNotNull(table, tableName + "is null");
+        assertNotNull(table, tableName + "is null");
       }
     }
     Assertions.assertThrows(IOException.class,
@@ -248,7 +250,7 @@ public class TestRDBStore {
   @Test
   public void listTables() throws Exception {
     List<Table> tableList = rdbStore.listTables();
-    Assertions.assertNotNull(tableList, "Table list cannot be null");
+    assertNotNull(tableList, "Table list cannot be null");
     Map<String, Table> hashTable = new HashMap<>();
 
     for (Table t : tableList) {
@@ -266,12 +268,12 @@ public class TestRDBStore {
 
   @Test
   public void testRocksDBCheckpoint() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DB Store cannot be null");
+    assertNotNull(rdbStore, "DB Store cannot be null");
 
     insertRandomData(rdbStore, 1);
     DBCheckpoint checkpoint =
         rdbStore.getCheckpoint(true);
-    Assertions.assertNotNull(checkpoint);
+    assertNotNull(checkpoint);
 
     RDBStore restoredStoreFromCheckPoint =
         newRDBStore(checkpoint.getCheckpointLocation().toFile(),
@@ -286,12 +288,12 @@ public class TestRDBStore {
 
   @Test
   public void testRocksDBCheckpointCleanup() throws Exception {
-    Assertions.assertNotNull(rdbStore, "DB Store cannot be null");
+    assertNotNull(rdbStore, "DB Store cannot be null");
 
     insertRandomData(rdbStore, 1);
     DBCheckpoint checkpoint =
         rdbStore.getCheckpoint(true);
-    Assertions.assertNotNull(checkpoint);
+    assertNotNull(checkpoint);
 
     Assertions.assertTrue(Files.exists(
         checkpoint.getCheckpointLocation()));
@@ -382,9 +384,9 @@ public class TestRDBStore {
         MAX_DB_UPDATES_SIZE_THRESHOLD);
     for (String family : familiesMinusOne) {
       try (Table table = rdbStore.getTable(family)) {
-        Assertions.assertNotNull(table, family + "is null");
+        assertNotNull(table, family + "is null");
         Object val = table.get(family.getBytes(StandardCharsets.UTF_8));
-        Assertions.assertNotNull(val);
+        assertNotNull(val);
       }
     }
 
@@ -392,9 +394,9 @@ public class TestRDBStore {
     // we do not use it.
     String extraFamily = families.get(families.size() - 1);
     try (Table table = rdbStore.getTable(extraFamily)) {
-      Assertions.assertNotNull(table, extraFamily + "is null");
+      assertNotNull(table, extraFamily + "is null");
       Object val = table.get(extraFamily.getBytes(StandardCharsets.UTF_8));
-      Assertions.assertNotNull(val);
+      assertNotNull(val);
     }
   }
 

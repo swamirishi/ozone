@@ -17,15 +17,20 @@
  */
 package org.apache.hadoop.ozone.om.snapshot;
 
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.FlatResource.SNAPSHOT_DB_LOCK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +46,10 @@ import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OMMetrics;
 import org.apache.hadoop.ozone.om.OmSnapshot;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.lock.IOzoneManagerLock;
+import org.apache.hadoop.ozone.om.lock.OMLockDetails;
+import org.apache.hadoop.ozone.om.lock.OmReadOnlyLock;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +59,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.stubbing.Answer;
 import org.slf4j.event.Level;
 
@@ -61,6 +72,7 @@ class TestSnapshotCache {
 
   private static final int CACHE_SIZE_LIMIT = 3;
   private static CacheLoader<UUID, OmSnapshot> cacheLoader;
+  private static IOzoneManagerLock lock;
   private SnapshotCache snapshotCache;
 
   private OMMetrics omMetrics;
@@ -99,13 +111,14 @@ class TestSnapshotCache {
 
     // Set SnapshotCache log level. Set to DEBUG for verbose output
     GenericTestUtils.setLogLevel(SnapshotCache.LOG, Level.DEBUG);
+    lock = spy(new OmReadOnlyLock());
   }
 
   @BeforeEach
   void setUp() {
     // Reset cache for each test case
     omMetrics = OMMetrics.create();
-    snapshotCache = new SnapshotCache(cacheLoader, CACHE_SIZE_LIMIT, omMetrics, 50, true);
+    snapshotCache = new SnapshotCache(cacheLoader, CACHE_SIZE_LIMIT, omMetrics, 50, true, lock);
   }
 
   @AfterEach
@@ -125,6 +138,45 @@ class TestSnapshotCache {
     assertTrue(omSnapshot.get() instanceof OmSnapshot);
     assertEquals(1, snapshotCache.size());
     assertEquals(1, omMetrics.getNumSnapshotCacheSize());
+  }
+
+  @Test
+  @DisplayName("Tests get() fails on read lock failure")
+  public void testGetFailsOnReadLock() throws IOException {
+    final UUID dbKey1 = UUID.randomUUID();
+    final UUID dbKey2 = UUID.randomUUID();
+    when(lock.acquireReadLock(eq(SNAPSHOT_DB_LOCK), eq(dbKey1.toString())))
+        .thenReturn(OMLockDetails.EMPTY_DETAILS_LOCK_NOT_ACQUIRED);
+    assertThrows(OMException.class, () -> snapshotCache.get(dbKey1));
+    snapshotCache.get(dbKey2);
+    assertEquals(1, snapshotCache.size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 5, 10})
+  @DisplayName("Tests get() holds a read lock")
+  public void testGetHoldsReadLock(int numberOfLocks) throws IOException {
+    clearInvocations(lock);
+    final UUID dbKey1 = UUID.randomUUID();
+    final UUID dbKey2 = UUID.randomUUID();
+    for (int i = 0; i < numberOfLocks; i++) {
+      snapshotCache.get(dbKey1);
+      snapshotCache.get(dbKey2);
+    }
+    assertEquals(numberOfLocks > 0 ? 2 : 0, snapshotCache.size());
+    verify(lock, times(numberOfLocks)).acquireReadLock(eq(SNAPSHOT_DB_LOCK), eq(dbKey1.toString()));
+    verify(lock, times(numberOfLocks)).acquireReadLock(eq(SNAPSHOT_DB_LOCK), eq(dbKey2.toString()));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 5, 10})
+  @DisplayName("Tests lock() holds a write lock")
+  public void testGetHoldsWriteLock(int numberOfLocks) {
+    clearInvocations(lock);
+    for (int i = 0; i < numberOfLocks; i++) {
+      snapshotCache.lock();
+    }
+    verify(lock, times(numberOfLocks)).acquireResourceWriteLock(eq(SNAPSHOT_DB_LOCK));
   }
 
   @Test
@@ -370,7 +422,8 @@ class TestSnapshotCache {
   @DisplayName("Snapshot operations not blocked during compaction")
   void testSnapshotOperationsNotBlockedDuringCompaction() throws IOException, InterruptedException, TimeoutException {
     omMetrics = OMMetrics.create();
-    snapshotCache = new SnapshotCache(cacheLoader, 1, omMetrics, 50, true);
+    snapshotCache = new SnapshotCache(cacheLoader, 1, omMetrics, 50, true,
+        lock);
     final UUID dbKey1 = UUID.randomUUID();
     UncheckedAutoCloseableSupplier<OmSnapshot> snapshot1 = snapshotCache.get(dbKey1);
     assertEquals(1, snapshotCache.size());
