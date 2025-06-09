@@ -23,6 +23,9 @@ import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_CONTAINER_REPORT_INTERV
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SNAPSHOT_DELETING_SERVICE_INTERVAL;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_DIR_DELETING_SERVICE_INTERVAL;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_DEEP_CLEANING_ENABLED;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -125,6 +128,7 @@ public class TestKeyDeletingService {
   private OzoneManagerProtocol writeClient;
   private OzoneManager om;
   private KeyDeletingService keyDeletingService;
+  private DirectoryDeletingService directoryDeletingService;
   private ScmBlockLocationTestingClient scmBlockTestingClient;
 
 
@@ -139,6 +143,7 @@ public class TestKeyDeletingService {
   @Before
   public void setupTest() {
     scmBlockTestingClient = new ScmBlockLocationTestingClient(null, null, 0);
+    directoryDeletingService = om.getKeyManager().getDirDeletingService();
   }
 
   private OzoneConfiguration createConfAndInitValues() throws IOException {
@@ -155,6 +160,13 @@ public class TestKeyDeletingService {
         100, TimeUnit.MILLISECONDS);
     conf.setTimeDuration(HDDS_CONTAINER_REPORT_INTERVAL, 200,
         TimeUnit.MILLISECONDS);
+    conf.setTimeDuration(OZONE_DIR_DELETING_SERVICE_INTERVAL,
+        100, TimeUnit.MILLISECONDS);
+    conf.setTimeDuration(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL,
+        1, TimeUnit.SECONDS);
+    conf.setTimeDuration(HDDS_CONTAINER_REPORT_INTERVAL,
+        200, TimeUnit.MILLISECONDS);
+    conf.setBoolean(OZONE_SNAPSHOT_DEEP_CLEANING_ENABLED, true);
     conf.setQuietMode(false);
     this.conf = conf;
     return conf;
@@ -534,6 +546,7 @@ t
     KeyDeletingService keyDeletingService = keyManager.getDeletingService();
     // Suspend KeyDeletingService
     keyDeletingService.suspend();
+    directoryDeletingService.suspend();
 
     String volumeName = String.format("volume%s",
         RandomStringUtils.randomAlphanumeric(5));
@@ -578,7 +591,8 @@ t
     assertTableRowCount(snapshotInfoTable, 3, metadataManager);
     checkSnapDeepCleanStatus(snapshotInfoTable, false);
 
-    keyDeletingService.resume();
+      keyDeletingService.resume();
+      directoryDeletingService.resume();
 
       try (UncheckedAutoCloseableSupplier<OmSnapshot> rcOmSnapshot =
                om.getOmSnapshotManager().getSnapshot(volumeName, bucketName, "snap3")) {
@@ -658,6 +672,7 @@ t
     KeyDeletingService keyDeletingService = keyManager.getDeletingService();
     // Supspend KDS
     keyDeletingService.suspend();
+    directoryDeletingService.suspend();
 
     String volumeName = "volume1";
     String bucketName = "bucket1";

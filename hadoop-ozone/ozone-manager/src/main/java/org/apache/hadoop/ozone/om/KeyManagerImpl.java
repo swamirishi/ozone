@@ -208,8 +208,8 @@ public class KeyManagerImpl implements KeyManager {
 
   private BackgroundService openKeyCleanupService;
   private BackgroundService multipartUploadCleanupService;
-  private CompactionService compactionService;
   private DNSToSwitchMapping dnsToSwitchMapping;
+  private CompactionService compactionService;
 
   public KeyManagerImpl(OzoneManager om, ScmClient scmClient,
       OzoneConfiguration conf, OMPerformanceMetrics metrics) {
@@ -291,7 +291,7 @@ public class KeyManagerImpl implements KeyManager {
       dirDeletingService =
           new DirectoryDeletingService(dirDeleteInterval, TimeUnit.MILLISECONDS,
               serviceTimeout, ozoneManager, configuration,
-              dirDeletingServiceCorePoolSize);
+              dirDeletingServiceCorePoolSize, isSnapshotDeepCleaningEnabled);
       dirDeletingService.start();
     }
 
@@ -2161,14 +2161,19 @@ public class KeyManagerImpl implements KeyManager {
 
   @Override
   public DeleteKeysResult getPendingDeletionSubDirs(long volumeId, long bucketId,
-      OmKeyInfo parentInfo, long remainingBufLimit) throws IOException {
+      OmKeyInfo parentInfo, CheckedFunction<KeyValue<String, OmKeyInfo>, Boolean, IOException> filter,
+      long remainingBufLimit) throws IOException {
     return gatherSubPathsWithIterator(volumeId, bucketId, parentInfo, metadataManager.getDirectoryTable(),
-        omDirectoryInfo -> OMFileRequest.getKeyInfoWithFullPath(parentInfo, omDirectoryInfo), remainingBufLimit);
+        kv -> Table.newKeyValue(metadataManager.getOzoneDeletePathKey(kv.getValue().getObjectID(), kv.getKey()),
+            OMFileRequest.getKeyInfoWithFullPath(parentInfo, kv.getValue())),
+        filter, remainingBufLimit);
   }
 
   private <T extends WithParentObjectId> DeleteKeysResult gatherSubPathsWithIterator(
       long volumeId, long bucketId, OmKeyInfo parentInfo,
-      Table<String, T> table, Function<T, OmKeyInfo> deleteKeyTransformer,
+      Table<String, T> table,
+      CheckedFunction<KeyValue<String, T>, KeyValue<String, OmKeyInfo>, IOException> deleteKeyTransformer,
+      CheckedFunction<KeyValue<String, OmKeyInfo>, Boolean, IOException> deleteKeyFilter,
       long remainingBufLimit) throws IOException {
     List<OmKeyInfo> keyInfos = new ArrayList<>();
     String seekFileInDB = metadataManager.getOzonePathKey(volumeId, bucketId,
@@ -2191,10 +2196,12 @@ public class KeyManagerImpl implements KeyManager {
         if (remainingBufLimit - objectSerializedSize < 0) {
           break;
         }
-        OmKeyInfo keyInfo = deleteKeyTransformer.apply(withParentObjectId);
-        keyInfos.add(keyInfo);
-        remainingBufLimit -= objectSerializedSize;
-        consumedSize += objectSerializedSize;
+        KeyValue<String, OmKeyInfo> keyInfo = deleteKeyTransformer.apply(entry);
+        if (deleteKeyFilter.apply(keyInfo)) {
+          keyInfos.add(keyInfo.getValue());
+          remainingBufLimit -= objectSerializedSize;
+          consumedSize += objectSerializedSize;
+        }
       }
       processedSubPaths = processedSubPaths || (!iterator.hasNext());
       return new DeleteKeysResult(keyInfos, consumedSize, processedSubPaths);
@@ -2203,11 +2210,17 @@ public class KeyManagerImpl implements KeyManager {
 
   @Override
   public DeleteKeysResult getPendingDeletionSubFiles(long volumeId,
-      long bucketId, OmKeyInfo parentInfo, long remainingBufLimit)
+      long bucketId, OmKeyInfo parentInfo,
+      CheckedFunction<Table.KeyValue<String, OmKeyInfo>, Boolean, IOException> filter, long remainingBufLimit)
           throws IOException {
-    return gatherSubPathsWithIterator(volumeId, bucketId, parentInfo, metadataManager.getFileTable(),
-        keyInfo -> OMFileRequest.getKeyInfoWithFullPath(parentInfo, keyInfo),
-        remainingBufLimit);
+    CheckedFunction<KeyValue<String, OmKeyInfo>, KeyValue<String, OmKeyInfo>, IOException> tranformer = kv -> {
+      OmKeyInfo keyInfo = OMFileRequest.getKeyInfoWithFullPath(parentInfo, kv.getValue());
+      String deleteKey = metadataManager.getOzoneDeletePathKey(keyInfo.getObjectID(),
+          metadataManager.getOzoneKey(keyInfo.getVolumeName(), keyInfo.getBucketName(), keyInfo.getKeyName()));
+      return Table.newKeyValue(deleteKey, keyInfo);
+    };
+    return gatherSubPathsWithIterator(volumeId, bucketId, parentInfo, metadataManager.getFileTable(), tranformer,
+        filter, remainingBufLimit);
   }
 
   public boolean isBucketFSOptimized(String volName, String buckName)
