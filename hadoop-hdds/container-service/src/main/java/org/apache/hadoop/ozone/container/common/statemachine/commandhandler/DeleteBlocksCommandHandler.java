@@ -20,23 +20,18 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerType;
-import org.apache.hadoop.hdds.protocol.proto
-    .StorageContainerDatanodeProtocolProtos.SCMCommandProto;
-import org.apache.hadoop.hdds.scm.container.common.helpers
-    .StorageContainerException;
-import org.apache.hadoop.hdds.protocol.proto
-    .StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto;
-import org.apache.hadoop.hdds.protocol.proto
-    .StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto
-    .DeleteBlockTransactionResult;
-import org.apache.hadoop.hdds.protocol.proto
-    .StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.SCMCommandProto;
+import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerBlocksDeletionACKProto.DeleteBlockTransactionResult;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.DeletedBlocksTransaction;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.BlockDeletingServiceMetrics;
 import org.apache.hadoop.ozone.container.common.helpers.ChunkInfoList;
-import org.apache.hadoop.ozone.container.common.helpers
-    .DeletedContainerBlocksSummary;
+import org.apache.hadoop.metrics2.lib.MutableRate;
+import org.apache.hadoop.metrics2.lib.MetricsRegistry;
+import org.apache.hadoop.ozone.container.common.helpers.DeletedContainerBlocksSummary;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.DBHandle;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
@@ -99,6 +94,7 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
   private final BlockDeletingServiceMetrics blockDeleteMetrics;
   private final long tryLockTimeoutMs;
   private final Map<String, SchemaHandler> schemaHandlers;
+  private final MutableRate opsLatencyMs;
 
   public DeleteBlocksCommandHandler(OzoneContainer container,
       ConfigurationSource conf, DatanodeConfiguration dnConf) {
@@ -117,6 +113,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             .setNameFormat("DeleteBlocksCommandHandlerThread-%d").build());
     this.deleteCommandQueues =
         new LinkedBlockingQueue<>(dnConf.getBlockDeleteQueueLimit());
+    MetricsRegistry registry = new MetricsRegistry(
+        DeleteBlocksCommandHandler.class.getSimpleName());
+    this.opsLatencyMs = registry.newRate(SCMCommandProto.Type.deleteBlocksCommand + "Ms");
     handlerThread = new Daemon(new DeleteCmdWorker());
     handlerThread.start();
   }
@@ -317,6 +316,7 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
     ContainerBlocksDeletionACKProto blockDeletionACK = null;
     long startTime = Time.monotonicNow();
     boolean cmdExecuted = false;
+    int successCount = 0, failedCount = 0;
     try {
       // move blocks to deleting state.
       // this is a metadata update, the actual deletion happens in another
@@ -354,7 +354,6 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       // Send ACK back to SCM as long as meta updated
       // TODO Or we should wait until the blocks are actually deleted?
       if (!containerBlocks.isEmpty()) {
-        int successCount = 0, failedCount = 0;
 
         for (DeleteBlockTransactionResult result : blockDeletionACK.getResultsList()) {
           boolean success = result.getSuccess();
@@ -372,8 +371,6 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
             blockDeleteMetrics.incrProcessedTransactionFailCount(1);
           }
         }
-        LOG.info("Sending deletion ACK to SCM, successTransactionCount = {}," +
-            "failedTransactionCount= {}", successCount, failedCount);
       }
       cmdExecuted = true;
     } finally {
@@ -386,7 +383,9 @@ public class DeleteBlocksCommandHandler implements CommandHandler {
       };
       updateCommandStatus(cmd.getContext(), cmd.getCmd(), statusUpdater, LOG);
       long endTime = Time.monotonicNow();
-      totalTime += endTime - startTime;
+      this.opsLatencyMs.add(endTime - startTime);
+      LOG.info("Sending deletion ACK to SCM, successTransactionCount = {}," +
+          "failedTransactionCount = {}, time elapsed = {}", successCount, failedCount, opsLatencyMs);
       invocationCount++;
     }
   }

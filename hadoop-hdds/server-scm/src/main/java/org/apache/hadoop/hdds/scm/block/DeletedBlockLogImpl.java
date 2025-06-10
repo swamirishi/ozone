@@ -243,11 +243,11 @@ public class DeletedBlockLogImpl
       for (DeleteBlockTransactionResult transactionResult :
           transactionResults) {
         if (isTransactionFailed(transactionResult)) {
-          metrics.incrBlockDeletionTransactionFailure();
+          metrics.incrBlockDeletionTransactionFailureOnDatanodes();
           continue;
         }
         try {
-          metrics.incrBlockDeletionTransactionSuccess();
+          metrics.incrBlockDeletionTransactionSuccessOnDatanodes();
           long txID = transactionResult.getTxID();
           // set of dns which have successfully committed transaction txId.
           dnsWithCommittedTxn = transactionToDNsCommitMap.get(txID);
@@ -412,6 +412,7 @@ public class DeletedBlockLogImpl
       Set<ContainerReplica> replicas = containerManager
           .getContainerReplicas(
               ContainerID.valueOf(updatedTxn.getContainerID()));
+      boolean flag = false;
       for (ContainerReplica replica : replicas) {
         UUID dnID = replica.getDatanodeDetails().getUuid();
         if (!dnList.contains(replica.getDatanodeDetails())) {
@@ -424,7 +425,11 @@ public class DeletedBlockLogImpl
           // Transaction need not be sent to dns which have
           // already committed it
           transactions.addTransactionToDN(dnID, updatedTxn);
+          flag = true;
         }
+      }
+      if (flag) {
+        metrics.incrProcessedTransaction();
       }
     } catch (IOException e) {
       LOG.warn("Got container info error.", e);

@@ -158,7 +158,7 @@ public class SCMBlockDeletingService extends BackgroundService
       List<DatanodeDetails> datanodes =
           nodeManager.getNodes(NodeStatus.inServiceHealthy());
       if (datanodes != null) {
-        // When DN node is healthy and in-service, and previous commands 
+        // When DN node is healthy and in-service, and previous commands
         // are handled for deleteBlocks Type, then it will be considered
         // in this iteration
         final Set<DatanodeDetails> included = datanodes.stream().filter(
@@ -177,17 +177,23 @@ public class SCMBlockDeletingService extends BackgroundService
           for (Map.Entry<UUID, List<DeletedBlocksTransaction>> entry :
               transactions.getDatanodeTransactionMap().entrySet()) {
             UUID dnId = entry.getKey();
+            long blocksToDn = 0;
             List<DeletedBlocksTransaction> dnTXs = entry.getValue();
             if (!dnTXs.isEmpty()) {
               processedTxIDs.addAll(dnTXs.stream()
                   .map(DeletedBlocksTransaction::getTxID)
                   .collect(Collectors.toSet()));
+              for (DeletedBlocksTransaction deletedBlocksTransaction : dnTXs) {
+                blocksToDn +=
+                    deletedBlocksTransaction.getLocalIDList().size();
+              }
               SCMCommand<?> command = new DeleteBlocksCommand(dnTXs);
               command.setTerm(scmContext.getTermOfLeader());
               eventPublisher.fireEvent(SCMEvents.DATANODE_COMMAND,
                   new CommandForDatanode<>(dnId, command));
+              metrics.incrNumBlockDeletionSentDN(dnId, blocksToDn);
               metrics.incrBlockDeletionCommandSent();
-              metrics.incrBlockDeletionTransactionSent(dnTXs.size());
+              metrics.incrBlockDeletionTransactionsOnDatanodes(dnTXs.size());
               metrics.incrDNCommandsSent(dnId, 1);
               if (LOG.isDebugEnabled()) {
                 LOG.debug(
@@ -199,6 +205,7 @@ public class SCMBlockDeletingService extends BackgroundService
               }
             }
           }
+          metrics.incrTotalBlockSentToDNForDeletion(transactions.getBlocksDeleted());
           LOG.info("Totally added {} blocks to be deleted for"
               + " {} datanodes / {} totalnodes, limit per iteration : {}blocks, task elapsed time: {}ms",
               transactions.getBlocksDeleted(),
