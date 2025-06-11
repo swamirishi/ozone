@@ -311,6 +311,9 @@ abstract class TestContainerStateMachine {
 
     ThrowableCatcher catcher = new ThrowableCatcher();
 
+    Field writeChunkWaitMaxNs = stateMachine.getClass().getDeclaredField("writeChunkWaitMaxNs");
+    writeChunkWaitMaxNs.setAccessible(true);
+    writeChunkWaitMaxNs.set(stateMachine, 1000_000_000);
     CompletableFuture<Message> firstWrite = stateMachine.write(entry);
     Thread.sleep(2000);
     CompletableFuture<Message> secondWrite = stateMachine.write(entryNext);
