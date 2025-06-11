@@ -226,4 +226,8 @@ public final class VolumeInfo {
   public long getReservedInBytes() {
     return usage.getReservedBytes();
   }
+
+  public boolean isReservedUsagesInRange() {
+    return usage.isReservedUsagesInRange();
+  }
 }

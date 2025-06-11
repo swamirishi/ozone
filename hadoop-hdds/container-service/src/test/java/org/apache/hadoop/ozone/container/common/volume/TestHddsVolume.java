@@ -74,7 +74,7 @@ public class TestHddsVolume {
   @Before
   public void setup() throws Exception {
     File rootDir = new File(folder.getRoot(), HddsVolume.HDDS_VOLUME_DIR);
-    CONF.set(ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED, folder.getRoot() +
+    CONF.set(ScmConfigKeys.HDDS_DATANODE_DIR_DU_RESERVED, folder.getRoot().getCanonicalPath() +
         ":" + RESERVED_SPACE);
     volumeBuilder = new HddsVolume.Builder(folder.getRoot().getPath())
         .datanodeUuid(DATANODE_UUID)
@@ -529,6 +529,36 @@ public class TestHddsVolume {
 
     result = volume.check(false);
     assertEquals(VolumeCheckResult.FAILED, result);
+
+    volume.shutdown();
+  }
+
+  @Test
+  public void testVolumeUsagesMetrics() throws Exception {
+    // Build a volume with mocked usage, with reserved: 100B, Min free: 10B
+    CONF.set("hdds.datanode.volume.min.free.space", "10B");
+    volumeBuilder.usageCheckFactory(MockSpaceUsageCheckFactory.of(new SpaceUsageSource.Fixed(1000, 100, 700),
+        Duration.ZERO, inMemory(new AtomicLong(0))));
+    HddsVolume volume = volumeBuilder.build();
+    volume.incCommittedBytes(100);
+
+    // available space (>= 0) available - committed - min.free.space = 100 - 100 - 10 = -10,
+    // insufficient space unavailable
+    volume.checkVolumeUsages();
+    assertEquals(1, volume.getVolumeInfoStats().getAvailableSpaceInsufficient());
+    // reserved used = capacity - available - used = 1000 - 100 - 700 = 200 more than 100B for reserved,
+    // reserve usages crosses limit true
+    assertEquals(1, volume.getVolumeInfoStats().getReservedCrossesLimit());
+
+    // remove committed, sufficient space is available, reset the flag of metrics
+    volume.incCommittedBytes(-100);
+    volume.checkVolumeUsages();
+    assertEquals(0, volume.getVolumeInfoStats().getAvailableSpaceInsufficient());
+
+    // reduce available less then min.free.space
+    volume.incrementUsedSpace(100);
+    volume.checkVolumeUsages();
+    assertEquals(1, volume.getVolumeInfoStats().getAvailableSpaceInsufficient());
 
     volume.shutdown();
   }

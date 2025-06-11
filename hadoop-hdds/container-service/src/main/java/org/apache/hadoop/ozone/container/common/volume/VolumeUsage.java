@@ -220,4 +220,13 @@ public class VolumeUsage implements SpaceUsageSource {
     return 0;
   }
 
+  public boolean isReservedUsagesInRange() {
+    SpaceUsageSource spaceUsageSource = realUsage();
+    long reservedUsed = getOtherUsed(spaceUsageSource);
+    if (reservedInBytes > 0 && reservedUsed > reservedInBytes) {
+      LOG.warn("Reserved usages {} is higher than actual allocated reserved space {}.", reservedUsed, reservedInBytes);
+      return false;
+    }
+    return true;
+  }
 }

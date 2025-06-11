@@ -22,6 +22,7 @@ import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.annotation.Metric;
 import org.apache.hadoop.metrics2.annotation.Metrics;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
+import org.apache.hadoop.metrics2.lib.MutableGaugeInt;
 import org.apache.hadoop.ozone.OzoneConsts;
 
 /**
@@ -34,6 +35,10 @@ public class VolumeInfoMetrics {
   private String metricsSourceName = VolumeInfoMetrics.class.getSimpleName();
   private String volumeRootStr;
   private HddsVolume volume;
+  @Metric("Volume reserved space crosses reserved usages limit")
+  private MutableGaugeInt reservedCrossesLimit;
+  @Metric("Volume available space is insufficient")
+  private MutableGaugeInt availableSpaceInsufficient;
 
   /**
    * @param identifier Typically, path to volume root. e.g. /data/hdds
@@ -145,6 +150,30 @@ public class VolumeInfoMetrics {
   @Metric("Returns the Committed bytes of the Volume")
   public long getCommitted() {
     return volume.getCommittedBytes();
+  }
+
+  public int getAvailableSpaceInsufficient() {
+    return availableSpaceInsufficient.value();
+  }
+
+  public void setAvailableSpaceInsufficient(boolean isInSufficient) {
+    if (isInSufficient) {
+      availableSpaceInsufficient.set(1);
+    } else {
+      availableSpaceInsufficient.set(0);
+    }
+  }
+
+  public int getReservedCrossesLimit() {
+    return reservedCrossesLimit.value();
+  }
+
+  public void setReservedCrossesLimit(boolean isLimitCrossed) {
+    if (isLimitCrossed) {
+      reservedCrossesLimit.set(1);
+    } else {
+      reservedCrossesLimit.set(0);
+    }
   }
 
 }
