@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Expired
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ExpiredMultipartUploadsBucket;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartUploadsExpiredAbortRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Time;
 import org.junit.Assert;
 import org.junit.Test;
@@ -441,6 +442,7 @@ public class TestS3ExpiredMultipartUploadsAbortRequest
       S3InitiateMultipartUploadRequest s3InitiateMultipartUploadRequest =
           new S3InitiateMultipartUploadRequestWithFSO(initiateMPURequest,
               BucketLayout.FILE_SYSTEM_OPTIMIZED);
+      s3InitiateMultipartUploadRequest.setUGI(UserGroupInformation.getLoginUser());
 
       OMClientResponse omClientResponse = s3InitiateMultipartUploadRequest
           .validateAndUpdateCache(ozoneManager, trxnLogIndex);
