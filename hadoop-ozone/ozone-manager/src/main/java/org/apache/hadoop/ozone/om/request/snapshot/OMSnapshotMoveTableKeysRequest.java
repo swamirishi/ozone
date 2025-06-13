@@ -24,6 +24,7 @@ import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
+import org.apache.hadoop.ozone.om.OmSnapshotInternalMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.SnapshotChainManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -144,6 +145,7 @@ public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
   @Override
   @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
+    OmSnapshotInternalMetrics omSnapshotIntMetrics = ozoneManager.getOmSnapshotIntMetrics();
     OmMetadataManagerImpl omMetadataManager = (OmMetadataManagerImpl) ozoneManager.getMetadataManager();
     SnapshotChainManager snapshotChainManager = omMetadataManager.getSnapshotChainManager();
 
@@ -175,8 +177,10 @@ public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
       omClientResponse = new OMSnapshotMoveTableKeysResponse(omResponse.build(), fromSnapshot, nextSnapshot,
           moveTableKeysRequest.getDeletedKeysList(), moveTableKeysRequest.getDeletedDirsList(),
           moveTableKeysRequest.getRenamedKeysList());
+      omSnapshotIntMetrics.incNumSnapshotMoveTableKeys();
     } catch (IOException ex) {
       omClientResponse = new OMSnapshotMoveTableKeysResponse(createErrorOMResponse(omResponse, ex));
+      omSnapshotIntMetrics.incNumSnapshotMoveTableKeysFails();
     }
     return omClientResponse;
   }
