@@ -387,13 +387,14 @@ public class ContainerEndpoint {
   @GET
   @Path("/unhealthy/{state}")
   public Response getUnhealthyContainers(
-      @PathParam("state") String state,
+      @PathParam("state")
+      String state,
       @DefaultValue(DEFAULT_FETCH_COUNT) @QueryParam(RECON_QUERY_LIMIT)
       int limit,
-      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
-      @QueryParam(RECON_QUERY_PREV_START_KEY) long prevStartKey,
-      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE)
-      @QueryParam(RECON_QUERY_PREV_LAST_KEY) long prevLastKey) {
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE) @QueryParam(RECON_QUERY_PREV_START_KEY)
+      long prevStartKey,
+      @DefaultValue(PREV_CONTAINER_ID_DEFAULT_VALUE) @QueryParam(RECON_QUERY_PREV_LAST_KEY)
+      long prevLastKey) {
     Optional<Long> maxContainerId = prevStartKey > 0 ? Optional.of(prevStartKey) : Optional.empty();
     List<UnhealthyContainerMetadata> unhealthyMeta = new ArrayList<>();
     List<UnhealthyContainersSummary> summary;

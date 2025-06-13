@@ -137,6 +137,7 @@ public class NSSummaryTaskDbEventHandler {
               // as this is a new ID
               curNSSummary = new NSSummary();
             }
+            curNSSummary.setParentId(parentObjectId);
             curNSSummary.setDirName(dirName);
             return curNSSummary;
           });

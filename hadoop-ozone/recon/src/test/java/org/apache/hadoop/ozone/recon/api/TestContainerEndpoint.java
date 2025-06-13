@@ -102,6 +102,7 @@ import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.getTestRe
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.initializeNewOmMetadataManager;
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.writeDataToOm;
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.writeKeyToOm;
+import static org.hadoop.ozone.recon.schema.Tables.UNHEALTHY_CONTAINERS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -968,12 +969,20 @@ public class TestContainerEndpoint {
   @Test
   public void testUnhealthyContainersPaging()
       throws IOException, TimeoutException {
-    putContainerInfos(6);
+
+    // Clear any existing unhealthy container records from previous tests
+    containerHealthSchemaManager.clearAllUnhealthyContainerRecords();
+    // Create containers for all IDs that will be used in unhealthy records
+    // createUnhealthyRecords(5, 4, 3, 2) will create records for containers 1-14
+    // So we need to create 14 containers instead of just 6
+    putContainerInfos(14);  // Changed from 6 to 14
     uuid1 = newDatanode("host1", "127.0.0.1");
     uuid2 = newDatanode("host2", "127.0.0.2");
     uuid3 = newDatanode("host3", "127.0.0.3");
     uuid4 = newDatanode("host4", "127.0.0.4");
     createUnhealthyRecords(5, 4, 3, 2);
+
+    // Get first batch with no pagination (prevStartKey=0, prevLastKey=0)
     UnhealthyContainersResponse firstBatch =
         (UnhealthyContainersResponse) containerEndpoint.getUnhealthyContainers(
             3, 0, 0).getEntity();
@@ -981,13 +990,15 @@ public class TestContainerEndpoint {
         .flatMap(containerMetadata -> containerMetadata.getReplicas().stream()
             .map(ContainerHistory::getState))
         .allMatch(s -> s.equals("UNHEALTHY")));
-    long minContainerId = firstBatch.getContainers().stream()
-      .map(i -> i.getContainerID()).min(Long::compareTo).get();
-    long maxContainerId = firstBatch.getContainers().stream().map(i -> i.getContainerID())
-      .max(Long::compareTo).get();
+
+    // For pagination, use the last container ID from the first batch as prevLastKey
+    long lastContainerIdFromFirstBatch = firstBatch.getContainers().stream()
+        .map(i -> i.getContainerID()).max(Long::compareTo).get();
+
+    // Get second batch using correct pagination parameters
     UnhealthyContainersResponse secondBatch =
         (UnhealthyContainersResponse) containerEndpoint.getUnhealthyContainers(
-            3, minContainerId, maxContainerId).getEntity();
+            3, 0, lastContainerIdFromFirstBatch).getEntity();
 
     ArrayList<UnhealthyContainerMetadata> records
         = new ArrayList<>(firstBatch.getContainers());
@@ -1837,5 +1848,30 @@ public class TestContainerEndpoint {
     }
   }
 
+
+  /**
+   * Clear all existing unhealthy container records to prevent test pollution.
+   */
+  private void clearExistingUnhealthyRecords() {
+    try {
+      // Use reflection to access the private containerSchemaDefinition field
+      java.lang.reflect.Field field = containerHealthSchemaManager.getClass()
+          .getDeclaredField("containerSchemaDefinition");
+      field.setAccessible(true);
+      Object schemaDefinition = field.get(containerHealthSchemaManager);
+
+      // Get DSL context and clear the table
+      java.lang.reflect.Method getDSLMethod = schemaDefinition.getClass().getMethod("getDSLContext");
+      Object dslContext = getDSLMethod.invoke(schemaDefinition);
+
+      // Clear all records using JOOQ DSL
+      java.lang.reflect.Method deleteFromMethod = dslContext.getClass().getMethod("deleteFrom", org.jooq.Table.class);
+      Object deleteStep = deleteFromMethod.invoke(dslContext, UNHEALTHY_CONTAINERS);
+      java.lang.reflect.Method executeMethod = deleteStep.getClass().getMethod("execute");
+      executeMethod.invoke(deleteStep);
+    } catch (Exception e) {
+      LOG.warn("Failed to clear unhealthy container records: {}", e.getMessage());
+    }
+  }
 
 }

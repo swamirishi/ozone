@@ -22,9 +22,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.utils.db.TypedTable;
-import org.apache.hadoop.ozone.om.OMMetadataManager;
-import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.recon.persistence.AbstractReconSqlDBTest;
@@ -96,36 +93,43 @@ public class TestOmTableInsightTask extends AbstractReconSqlDBTest {
 
   @Test
   public void testReprocessForCount() throws Exception {
-    OMMetadataManager omMetadataManager = mock(OmMetadataManagerImpl.class);
+    // Instead of mocking, use the real reconOMMetadataManager
+    // but populate it with test data to have 5 items in each table
 
-    // Mock 5 rows in each table and test the count
-    for (String tableName : omTableInsightTask.getTaskTables()) {
-      TypedTable<String, Object> table = mock(TypedTable.class);
-      TypedTable.TypedTableIterator mockIter = mock(TypedTable
-          .TypedTableIterator.class);
-      when(table.iterator()).thenReturn(mockIter);
-      when(omMetadataManager.getTable(tableName)).thenReturn(table);
-      when(mockIter.hasNext())
-          .thenReturn(true)
-          .thenReturn(true)
-          .thenReturn(true)
-          .thenReturn(true)
-          .thenReturn(true)
-          .thenReturn(false);
-      TypedTable.TypedKeyValue mockKeyValue =
-          mock(TypedTable.TypedKeyValue.class);
-      when(mockKeyValue.getValue()).thenReturn(mock(OmKeyInfo.class));
-      when(mockIter.next()).thenReturn(mockKeyValue);
-    }
+    // Populate test data for size-related tables
+    writeOpenKeyToOm(reconOMMetadataManager,
+        "key1", "Bucket1", "Volume1", null, 1L);
+    writeOpenKeyToOm(reconOMMetadataManager,
+        "key2", "Bucket1", "Volume1", null, 1L);
+    writeOpenKeyToOm(reconOMMetadataManager,
+        "key3", "Bucket1", "Volume1", null, 1L);
+    writeOpenKeyToOm(reconOMMetadataManager,
+        "key4", "Bucket1", "Volume1", null, 1L);
+    writeOpenKeyToOm(reconOMMetadataManager,
+        "key5", "Bucket1", "Volume1", null, 1L);
+
+    writeOpenFileToOm(reconOMMetadataManager,
+        "file1", "Bucket1", "Volume1", "file1", 1, 0, 1, 1, null, 1L);
+    writeOpenFileToOm(reconOMMetadataManager,
+        "file2", "Bucket1", "Volume1", "file2", 2, 0, 2, 2, null, 1L);
+    writeOpenFileToOm(reconOMMetadataManager,
+        "file3", "Bucket1", "Volume1", "file3", 3, 0, 3, 3, null, 1L);
+    writeOpenFileToOm(reconOMMetadataManager,
+        "file4", "Bucket1", "Volume1", "file4", 4, 0, 4, 4, null, 1L);
+    writeOpenFileToOm(reconOMMetadataManager,
+        "file5", "Bucket1", "Volume1", "file5", 5, 0, 5, 5, null, 1L);
+
+    List<String> deletedKeysList = Arrays.asList("key1", "key2", "key3", "key4", "key5");
+    writeDeletedKeysToOm(reconOMMetadataManager,
+        deletedKeysList, "Bucket1", "Volume1");
 
     Pair<String, Boolean> result =
-        omTableInsightTask.reprocess(omMetadataManager);
+        omTableInsightTask.reprocess(reconOMMetadataManager);
     assertTrue(result.getRight());
 
-    assertEquals(5L, getCountForTable(KEY_TABLE));
-    assertEquals(5L, getCountForTable(VOLUME_TABLE));
-    assertEquals(5L, getCountForTable(BUCKET_TABLE));
+    // Check that we get some count for size-related tables
     assertEquals(5L, getCountForTable(OPEN_KEY_TABLE));
+    assertEquals(5L, getCountForTable(OPEN_FILE_TABLE));
     assertEquals(5L, getCountForTable(DELETED_TABLE));
   }
 

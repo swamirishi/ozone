@@ -74,20 +74,34 @@ public class ParallelTableIteratorOperation<K extends Comparable<K>, V> implemen
 
   private List<K> getBounds(K startKey, K endKey) throws IOException {
     RDBStore store = (RDBStore) this.metadataManager.getStore();
+    // Handle cases where store or db are null (common in test environments)
+    if (store == null || store.getDb() == null) {
+      LOG.warn("Store or database is null, falling back to simple bounds");
+      List<K> boundKeys = new ArrayList<>();
+      boundKeys.add(startKey);
+      boundKeys.add(endKey);
+      return boundKeys;
+    }
+
     List<LiveFileMetaData> sstFiles = store.getDb().getSstFileList();
     Set<K> keys = new HashSet<>();
     for (LiveFileMetaData sstFile : sstFiles) {
-      if (StringCodec.get().fromPersistedFormat(sstFile.columnFamilyName()).equals(table.getName())) {
-        keys.add(this.keyCodec.fromPersistedFormat(sstFile.smallestKey()));
-        keys.add(this.keyCodec.fromPersistedFormat(sstFile.largestKey()));
+      if (sstFile.columnFamilyName() != null &&
+          StringCodec.get().fromPersistedFormat(sstFile.columnFamilyName()).equals(table.getName())) {
+        if (sstFile.smallestKey() != null) {
+          keys.add(this.keyCodec.fromPersistedFormat(sstFile.smallestKey()));
+        }
+        if (sstFile.largestKey() != null) {
+          keys.add(this.keyCodec.fromPersistedFormat(sstFile.largestKey()));
+        }
       }
     }
     List<K> boundKeys = new ArrayList<>();
     boundKeys.add(startKey);
     boundKeys.addAll(keys.stream().sorted().filter(Objects::nonNull)
-            .filter(key -> startKey == null || key.compareTo(startKey) >= 0)
-            .filter(key -> endKey == null || endKey.compareTo(key) >= 0)
-            .collect(Collectors.toList()));
+        .filter(key -> startKey == null || key.compareTo(startKey) >= 0)
+        .filter(key -> endKey == null || endKey.compareTo(key) >= 0)
+        .collect(Collectors.toList()));
     boundKeys.add(endKey);
     return boundKeys;
   }

@@ -72,12 +72,16 @@ public class ContainerHealthSchemaManager {
    * limit records. If a null value is passed for state, then unhealthy
    * containers in all states will be returned. Otherwise, only containers
    * matching the given state will be returned.
-   * @param state Return only containers in this state, or all containers if
-   *              null
-   * @param offset The starting record to return in the result set. The first
-   *               record is at zero.
+   *
+   * This method supports pagination through minContainerId and maxContainerId parameters:
+   * - When maxContainerId is present and > 0: Returns containers with ID < maxContainerId (reverse pagination)
+   * - Otherwise: Returns containers with ID > minContainerId (forward pagination)
+   *
+   * @param state Return only containers in this state, or all containers if null
+   * @param minContainerId The minimum container ID for pagination (exclusive)
+   * @param maxContainerId The maximum container ID for pagination (exclusive), wrapped in Optional
    * @param limit The total records to return
-   * @return List of unhealthy containers.
+   * @return List of unhealthy containers matching the criteria
    */
   public List<UnhealthyContainers> getUnhealthyContainers(
     UnHealthyContainerStates state, Long minContainerId,
@@ -104,6 +108,10 @@ public class ContainerHealthSchemaManager {
       } else {
         query.addConditions(containerCondition.and(UNHEALTHY_CONTAINERS.CONTAINER_STATE.eq(state.toString())));
       }
+    } else {
+      // CRITICAL FIX: Apply pagination condition even when state is null
+      // This ensures proper pagination for the "get all unhealthy containers" use case
+      query.addConditions(containerCondition);
     }
 
     query.addOrderBy(orderField);
@@ -169,5 +177,20 @@ public class ContainerHealthSchemaManager {
       throw new RuntimeException("Recon failed to insert " + recs.size() + " unhealthy container records.", e);
     }
   }
+
+  /**
+   * Clear all unhealthy container records. This is primarily used for testing
+   * to ensure clean state between tests.
+   */
+  public void clearAllUnhealthyContainerRecords() {
+    DSLContext dslContext = containerSchemaDefinition.getDSLContext();
+    try {
+      dslContext.deleteFrom(UNHEALTHY_CONTAINERS).execute();
+      LOG.info("Cleared all unhealthy container records");
+    } catch (Exception e) {
+      LOG.info("Failed to clear unhealthy container records", e);
+    }
+  }
+
 
 }
