@@ -39,6 +39,7 @@ import java.util.UUID;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
@@ -721,4 +722,20 @@ public class ReconContainerMetadataManagerImpl
           + " to KEY_CONTAINER table", (double) duration / 1000, count);
     }
   }
+
+  @VisibleForTesting
+  public void deleteContainerKeyRecord(ContainerKeyPrefix containerKeyPrefix) throws IOException {
+    containerKeyTable.delete(containerKeyPrefix);
+  }
+
+  @VisibleForTesting
+  public void deleteKeyContainerRecord(KeyPrefixContainer keyPrefixContainer) throws IOException {
+    keyContainerTable.delete(keyPrefixContainer);
+  }
+
+  @VisibleForTesting
+  public void deleteContainerKeyCountRecord(Long containerID) throws IOException {
+    containerKeyCountTable.delete(containerID);
+  }
+
 }

@@ -1416,6 +1416,9 @@ public class TestContainerEndpoint {
   public void testGetContainerInsightsNonOMContainers()
       throws IOException, TimeoutException {
     putContainerInfos(2);
+
+    // Delete container Id 2 from SCM so that it is missing in SCM
+    // Delete the presence of container Id 2 from th containerKeyTable & keyContainerTable
     List<ContainerKeyPrefix> deletedContainerKeyList =
         reconContainerMetadataManager.getKeyPrefixesForContainer(2).entrySet()
             .stream().map(entry -> entry.getKey()).collect(
@@ -1429,6 +1432,8 @@ public class TestContainerEndpoint {
         LOG.error("Unable to write Container Key Prefix data in Recon DB.", e);
       }
     });
+    // Delete the presence of container Id 2 from the containerKeyCountTable
+    reconContainerMetadataManager.deleteContainerKeyCountRecord(2L);
     Response containerInsights =
         containerEndpoint.getContainerMisMatchInsights(10, 0, "OM");
     Map<String, Object> response =

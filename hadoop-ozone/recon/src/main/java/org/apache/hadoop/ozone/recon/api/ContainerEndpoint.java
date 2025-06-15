@@ -410,13 +410,14 @@ public class ContainerEndpoint {
       summary = containerHealthSchemaManager.getUnhealthyContainersSummary();
       List<UnhealthyContainers> containers = containerHealthSchemaManager
           .getUnhealthyContainers(internalState, prevLastKey, maxContainerId, limit);
-      List<UnhealthyContainers> emptyMissingFiltered = containers.stream()
-          .filter(
-              container -> !container.getContainerState()
-                  .equals(UnHealthyContainerStates.EMPTY_MISSING.toString()))
-          .collect(
-              Collectors.toList());
-      for (UnhealthyContainers c : emptyMissingFiltered) {
+      List<UnhealthyContainers> filteredContainers = containers.stream()
+          .filter(container -> !container.getContainerState()
+              .equals(UnHealthyContainerStates.EMPTY_MISSING.toString())
+              && !container.getContainerState()
+              .equals(UnHealthyContainerStates.NEGATIVE_SIZE.toString()))
+          .collect(Collectors.toList());
+
+      for (UnhealthyContainers c : filteredContainers) {
         long containerID = c.getContainerId();
         ContainerInfo containerInfo =
             containerManager.getContainer(ContainerID.valueOf(containerID));
