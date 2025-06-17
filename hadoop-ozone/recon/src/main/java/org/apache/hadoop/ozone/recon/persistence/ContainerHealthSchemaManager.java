@@ -23,6 +23,7 @@ import static org.hadoop.ozone.recon.schema.ContainerSchemaDefinition.UnHealthyC
 import static org.hadoop.ozone.recon.schema.tables.UnhealthyContainersTable.UNHEALTHY_CONTAINERS;
 import static org.jooq.impl.DSL.count;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.sql.Connection;
@@ -182,6 +183,7 @@ public class ContainerHealthSchemaManager {
    * Clear all unhealthy container records. This is primarily used for testing
    * to ensure clean state between tests.
    */
+  @VisibleForTesting
   public void clearAllUnhealthyContainerRecords() {
     DSLContext dslContext = containerSchemaDefinition.getDSLContext();
     try {
