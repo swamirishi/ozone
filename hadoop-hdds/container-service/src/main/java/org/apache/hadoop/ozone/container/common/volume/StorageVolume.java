@@ -20,9 +20,11 @@ package org.apache.hadoop.ozone.container.common.volume;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.util.function.Function;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.fs.SpaceUsageCheckFactory;
+import org.apache.hadoop.hdds.fs.SpaceUsageCheckParams;
 import org.apache.hadoop.hdfs.server.datanode.StorageLocation;
 import org.apache.hadoop.hdfs.server.datanode.checker.Checkable;
 import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
@@ -145,10 +147,11 @@ public abstract class StorageVolume
     if (!b.failedVolume) {
       StorageLocation location = StorageLocation.parse(b.volumeRootStr);
       storageDir = new File(location.getUri().getPath(), b.storageDirStr);
-      this.volumeInfo = Optional.of(
-              new VolumeInfo.Builder(b.volumeRootStr, b.conf)
+      this.volumeInfo = Optional.of(new VolumeInfo.Builder(b.volumeRootStr, b.conf)
           .storageType(b.storageType)
           .usageCheckFactory(b.usageCheckFactory)
+          .exclusionProvider(this::getContainerDirsPath)
+          .containerUsedSpace(this::containerUsedSpace)
           .build());
       this.volumeSet = b.volumeSet;
       this.state = VolumeState.NOT_INITIALIZED;
@@ -175,11 +178,29 @@ public abstract class StorageVolume
     }
   }
 
+  protected long containerUsedSpace() {
+    // container used space applicable only for HddsVolume
+    return 0;
+  }
+
+  public File getContainerDirsPath() {
+    // container dir path applicable only for HddsVolume
+    return null;
+  }
+
+  public void setGatherContainerUsages(Function<HddsVolume, Long> gatherContainerUsages) {
+    // Operation only for HddsVolume which have container data
+  }
+
   public void format(String cid) throws IOException {
     Preconditions.checkNotNull(cid, "clusterID cannot be null while " +
         "formatting Volume");
     this.clusterID = cid;
     initialize();
+  }
+
+  public void start() throws IOException {
+    volumeInfo.ifPresent(VolumeInfo::start);
   }
 
   /**

@@ -27,6 +27,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.io.FileUtils;
@@ -38,6 +39,7 @@ import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
 import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
+import org.apache.hadoop.ozone.common.Storage;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.utils.DatanodeStoreCache;
 import org.apache.hadoop.ozone.container.common.utils.HddsVolumeUtil;
@@ -87,6 +89,7 @@ public class HddsVolume extends StorageVolume {
   private final VolumeInfoMetrics volumeInfoMetrics;
 
   private final AtomicLong committedBytes; // till Open containers become full
+  private Function<HddsVolume, Long> gatherContainerUsages = (K) -> 0L;
 
   // Mentions the type of volume
   private final VolumeType type = VolumeType.DATA_VOLUME;
@@ -402,6 +405,38 @@ public class HddsVolume extends StorageVolume {
 
   public long getFreeSpaceToSpare(long volumeCapacity) {
     return getDatanodeConfig().getMinFreeSpace(volumeCapacity);
+  }
+
+  @Override
+  public void setGatherContainerUsages(Function<HddsVolume, Long> gatherContainerUsages) {
+    this.gatherContainerUsages = gatherContainerUsages;
+  }
+
+  @Override
+  protected long containerUsedSpace() {
+    return gatherContainerUsages.apply(this);
+  }
+
+  @Override
+  public File getContainerDirsPath() {
+    if (getStorageState() != VolumeState.NORMAL) {
+      return null;
+    }
+    File hddsVolumeRootDir = getHddsRootDir();
+    //filtering storage directory
+    File[] storageDirs = hddsVolumeRootDir.listFiles(File::isDirectory);
+    if (storageDirs == null) {
+      LOG.error("IO error for the volume {}, directory not found", hddsVolumeRootDir);
+      return null;
+    }
+    File clusterIDDir = new File(hddsVolumeRootDir, getClusterID());
+    if (storageDirs.length == 1 && !clusterIDDir.exists()) {
+      // If this volume was formatted pre SCM HA, this will be the SCM ID.
+      // A cluster ID symlink will exist in this case only if this cluster is finalized for SCM HA.
+      // If the volume was formatted post SCM HA, this will be the cluster ID.
+      clusterIDDir = storageDirs[0];
+    }
+    return new File(clusterIDDir, Storage.STORAGE_DIR_CURRENT);
   }
 
   public void setDbVolume(DbVolume dbVolume) {

@@ -45,6 +45,7 @@ import org.apache.hadoop.ozone.container.common.states.DatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
 import org.apache.hadoop.ozone.container.common.volume.CapacityVolumeChoosingPolicy;
+import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.hadoop.util.concurrent.HadoopExecutors;
 
@@ -223,7 +224,7 @@ public class TestDatanodeStateMachine {
     try (DatanodeStateMachine stateMachine =
              new DatanodeStateMachine(datanodeDetails, conf)) {
       VolumeChoosingPolicy volumeChoosingPolicy = stateMachine.getVolumeChoosingPolicy();
-      Assertions.assertEquals(CapacityVolumeChoosingPolicy.class, volumeChoosingPolicy.getClass());
+      Assertions.assertEquals(RoundRobinVolumeChoosingPolicy.class, volumeChoosingPolicy.getClass());
       DatanodeStateMachine.DatanodeStates currentState =
           stateMachine.getContext().getState();
       Assertions.assertEquals(DatanodeStateMachine.DatanodeStates.INIT,

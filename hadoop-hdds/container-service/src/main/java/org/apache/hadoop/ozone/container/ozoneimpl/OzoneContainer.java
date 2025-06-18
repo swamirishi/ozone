@@ -80,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_TIMEOUT;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_TIMEOUT_DEFAULT;
@@ -170,6 +171,7 @@ public class OzoneContainer {
         OZONE_RECOVERING_CONTAINER_TIMEOUT_DEFAULT, TimeUnit.MILLISECONDS);
     this.witnessedContainerMetadataStore = WitnessedContainerMetadataStoreImpl.get(conf);
     containerSet = new ContainerSet(witnessedContainerMetadataStore.getContainerIdsTable(), recoveringContainerTimeout);
+    volumeSet.setGatherContainerUsages(this::gatherContainerUsages);
     metadataScanner = null;
 
     metrics = ContainerMetrics.create(conf);
@@ -440,10 +442,13 @@ public class OzoneContainer {
     // Do an immediate check of all volumes to ensure datanode health before
     // proceeding.
     volumeSet.checkAllVolumes();
+    volumeSet.startAllVolume();
     metaVolumeSet.checkAllVolumes();
+    metaVolumeSet.startAllVolume();
     // DB volume set may be null if dedicated DB volumes are not used.
     if (dbVolumeSet != null) {
       dbVolumeSet.checkAllVolumes();
+      dbVolumeSet.startAllVolume();
     }
 
     LOG.info("Attempting to start container services.");
@@ -506,6 +511,15 @@ public class OzoneContainer {
     return containerSet;
   }
 
+  public Long gatherContainerUsages(HddsVolume storageVolume) {
+    AtomicLong usages = new AtomicLong();
+    containerSet.getContainerMapIterator().forEachRemaining(e -> {
+      if (e.getValue().getContainerData().getVolume().getStorageID().equals(storageVolume.getStorageID())) {
+        usages.addAndGet(e.getValue().getContainerData().getBytesUsed());
+      }
+    });
+    return usages.get();
+  }
   /**
    * Returns container report.
    *

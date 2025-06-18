@@ -21,6 +21,7 @@ package org.apache.hadoop.ozone.container.common.volume;
 import java.io.File;
 import java.io.IOException;
 
+import java.util.function.Supplier;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.fs.SpaceUsageCheckFactory;
@@ -110,6 +111,8 @@ public final class VolumeInfo {
     private SpaceUsageCheckFactory usageCheckFactory;
     private StorageType storageType;
     private long configuredCapacity;
+    private Supplier<File> exclusionProvider;
+    private Supplier<Long> containerUsedSpace;
 
     public Builder(String root, ConfigurationSource config) {
       this.rootDir = root;
@@ -128,6 +131,16 @@ public final class VolumeInfo {
 
     public Builder usageCheckFactory(SpaceUsageCheckFactory factory) {
       this.usageCheckFactory = factory;
+      return this;
+    }
+
+    public Builder exclusionProvider(Supplier<File> exclusionProvider) {
+      this.exclusionProvider = exclusionProvider;
+      return this;
+    }
+
+    public Builder containerUsedSpace(Supplier<Long> containerUsedSpace) {
+      this.containerUsedSpace = containerUsedSpace;
       return this;
     }
 
@@ -159,7 +172,8 @@ public final class VolumeInfo {
       usageCheckFactory = SpaceUsageCheckFactory.create(b.conf);
     }
     SpaceUsageCheckParams checkParams =
-        usageCheckFactory.paramsFor(root);
+        usageCheckFactory.paramsFor(root, b.exclusionProvider);
+    checkParams.setContainerUsedSpace(b.containerUsedSpace);
 
     usage = new VolumeUsage(checkParams, b.conf);
   }
@@ -229,5 +243,9 @@ public final class VolumeInfo {
 
   public boolean isReservedUsagesInRange() {
     return usage.isReservedUsagesInRange();
+  }
+
+  public synchronized void start() {
+    usage.start();
   }
 }

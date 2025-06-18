@@ -22,6 +22,7 @@ import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.StorageUnit;
+import org.apache.hadoop.hdds.fs.DUOptimized;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.client.ObjectStore;
@@ -94,6 +95,7 @@ public class TestRefreshVolumeUsageHandler {
         .getScmNodeManager().getUsageInfo(datanodeDetails)
         .getScmNodeStat().getScmUsed().get();
 
+    GenericTestUtils.LogCapturer logCapture = GenericTestUtils.LogCapturer.captureLogs(DUOptimized.LOG);
     //creating a key to take some storage space
     try (OzoneClient client = OzoneClientFactory.getRpcClient(conf)) {
       ObjectStore objectStore = client.getObjectStore();
@@ -134,6 +136,11 @@ public class TestRefreshVolumeUsageHandler {
       //waiting for the new usage info is refreshed
       GenericTestUtils.waitFor(() -> isUsageInfoRefreshed(cluster,
           datanodeDetails, currentScmUsed), 500, 5 * 1000);
+
+      // force refresh and verify used space in optimized flow
+      cluster.getHddsDatanodes().get(0).getDatanodeStateMachine().getContainer().getVolumeSet().getVolumesList().get(0)
+          .getVolumeInfo().get().refreshNow();
+      GenericTestUtils.waitFor(() -> logCapture.getOutput().contains("container data usages 4"), 500, 10 * 1000);
     }
   }
 
