@@ -20,6 +20,8 @@ package org.apache.hadoop.ozone.container.common.helpers;
 
 import static org.apache.commons.io.FilenameUtils.removeExtension;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.CONTAINER_CHECKSUM_ERROR;
+import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.DISK_OUT_OF_SPACE;
+import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.IO_EXCEPTION;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.NO_SUCH_ALGORITHM;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.CLOSED_CONTAINER_IO;
 import static org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result.CONTAINER_NOT_OPEN;
@@ -44,6 +46,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
+import org.apache.hadoop.hdds.fs.SpaceUsageSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandRequestProto;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerCommandResponseProto;
@@ -54,6 +57,7 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.impl.ContainerDataYaml;
 import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
+import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -327,4 +331,23 @@ public final class ContainerUtils {
           tarName);
     }
   }
+
+  public static void assertSpaceAvailability(long containerId, HddsVolume volume, int sizeRequested)
+      throws StorageContainerException {
+    final SpaceUsageSource currentUsage;
+    if (volume.getVolumeInfo().isPresent()) {
+      currentUsage = volume.getVolumeInfo().get().getCurrentUsage();
+    } else {
+      throw new StorageContainerException("Failed to write " + sizeRequested + " bytes to container "
+          + containerId + " due to volume " + volume.getStorageID() + " not having volumeInfo.", IO_EXCEPTION);
+    }
+    final long spared = volume.getFreeSpaceToSpare(currentUsage.getCapacity());
+
+    if (currentUsage.getAvailable() - spared < sizeRequested) {
+      throw new StorageContainerException("Failed to write " + sizeRequested + " bytes to container "
+          + containerId + " due to volume " + volume.getStorageID() + " out of space "
+          + currentUsage + ", minimum free space spared="  + spared, DISK_OUT_OF_SPACE);
+    }
+  }
+
 }

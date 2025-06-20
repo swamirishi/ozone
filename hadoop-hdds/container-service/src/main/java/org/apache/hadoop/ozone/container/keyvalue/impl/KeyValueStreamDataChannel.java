@@ -164,6 +164,7 @@ public class KeyValueStreamDataChannel extends StreamDataChannelBase {
   public int write(ReferenceCountedObject<ByteBuffer> referenceCounted)
       throws IOException {
     assertOpen();
+    assertSpaceAvailability(referenceCounted.get().remaining());
     return writeBuffers(referenceCounted, buffers, super::writeFileChannel);
   }
 
