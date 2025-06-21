@@ -99,7 +99,7 @@
 
     <failIfNoTests>false</failIfNoTests>
     <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
-    <jetty.version>9.4.54.v20240208</jetty.version>
+    <jetty.version>9.4.57.v20241219</jetty.version>
     <java.dev.jna.version>5.2.0</java.dev.jna.version>
     <copy-rename-maven-plugin.version>1.0.1</copy-rename-maven-plugin.version>
     <curator.version>5.4.0.7.1.9.1003-SNAPSHOT</curator.version>
