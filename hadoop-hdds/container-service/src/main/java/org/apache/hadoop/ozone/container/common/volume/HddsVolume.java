@@ -198,17 +198,6 @@ public class HddsVolume extends StorageVolume {
     return volumeInfoMetrics;
   }
 
-  public boolean isVolumeFull() {
-    SpaceUsageSource currentUsage;
-    if (getVolumeInfo().isPresent()) {
-      currentUsage = getVolumeInfo().get().getCurrentUsage();
-    } else {
-      return false;
-    }
-    // if the volume is failed, this method will implicitly return true because available space will be 0
-    return currentUsage.getAvailable() - getFreeSpaceToSpare(currentUsage.getCapacity()) <= 0;
-  }
-
   @Override
   public void failVolume() {
     super.failVolume();

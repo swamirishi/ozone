@@ -278,8 +278,7 @@ public class TestHddsDispatcher {
       usedSpace.addAndGet(60);
       ContainerCommandResponseProto response = hddsDispatcher
           .dispatch(getWriteChunkRequest(dd.getUuidString(), 1L, 1L), null);
-      Assert.assertEquals(ContainerProtos.Result.SUCCESS,
-          response.getResult());
+      assertEquals(ContainerProtos.Result.DISK_OUT_OF_SPACE, response.getResult());
       verify(context, times(1))
           .addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
       // verify that immediate heartbeat is triggered

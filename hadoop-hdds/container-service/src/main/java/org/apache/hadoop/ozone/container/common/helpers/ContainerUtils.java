@@ -339,13 +339,13 @@ public final class ContainerUtils {
       currentUsage = volume.getVolumeInfo().get().getCurrentUsage();
     } else {
       throw new StorageContainerException("Failed to write " + sizeRequested + " bytes to container "
-          + containerId + " due to volume " + volume.getStorageID() + " not having volumeInfo.", IO_EXCEPTION);
+          + containerId + " due to volume " + volume + " not having volumeInfo.", IO_EXCEPTION);
     }
     final long spared = volume.getFreeSpaceToSpare(currentUsage.getCapacity());
 
     if (currentUsage.getAvailable() - spared < sizeRequested) {
       throw new StorageContainerException("Failed to write " + sizeRequested + " bytes to container "
-          + containerId + " due to volume " + volume.getStorageID() + " out of space "
+          + containerId + " due to volume " + volume + " out of space "
           + currentUsage + ", minimum free space spared="  + spared, DISK_OUT_OF_SPACE);
     }
   }
