@@ -384,6 +384,9 @@ public interface NodeManager extends StorageContainerNodeProtocol,
     return uuid != null ? getNodeByUuid(uuid.toString()) : null;
   };
 
+  @Nullable
+  DatanodeInfo getDatanodeInfo(DatanodeDetails datanodeDetails);
+
   /**
    * Given datanode address(Ipaddress or hostname), returns a list of
    * DatanodeDetails for the datanodes running at that address.

@@ -24,6 +24,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.PipelineReportsProto;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
+import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
 import org.apache.hadoop.hdds.scm.node.DatanodeUsageInfo;
 import org.apache.hadoop.hdds.scm.node.NodeStatus;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.LinkedList;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Node Manager to test replication.
@@ -502,6 +504,12 @@ public class ReplicationNodeManagerMock implements NodeManager {
 
   @Override
   public DatanodeDetails getNodeByUuid(String address) {
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public DatanodeInfo getDatanodeInfo(DatanodeDetails datanodeDetails) {
     return null;
   }
 

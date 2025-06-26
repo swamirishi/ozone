@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.scm.node;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import javax.annotation.Nullable;
 import org.apache.hadoop.hdds.DFSConfigKeysLegacy;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -1389,6 +1390,20 @@ public class SCMNodeManager implements NodeManager {
       return nodeStateManager.getNode(uuid);
     } catch (NodeNotFoundException e) {
       LOG.warn("Cannot find node for uuid {}", uuid);
+      return null;
+    }
+  }
+
+  @Override
+  @Nullable
+  public DatanodeInfo getDatanodeInfo(DatanodeDetails datanodeDetails) {
+    if (datanodeDetails == null) {
+      return null;
+    }
+    try {
+      return nodeStateManager.getNode(datanodeDetails);
+    } catch (NodeNotFoundException e) {
+      LOG.warn("Cannot find node {}.", datanodeDetails.toDebugString());
       return null;
     }
   }

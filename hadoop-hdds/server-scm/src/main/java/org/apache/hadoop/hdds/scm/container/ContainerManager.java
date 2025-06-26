@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleState;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.LifeCycleEvent;
@@ -229,8 +230,10 @@ public interface ContainerManager extends Closeable {
    * @param owner - the user which requires space in its owned container
    * @param pipeline - pipeline to which the container should belong.
    * @param excludedContainerIDS - containerIds to be excluded.
-   * @return ContainerInfo for the matching container.
+   * @return ContainerInfo for the matching container, or null if a container could not be found and could not be
+   * allocated
    */
+  @Nullable
   ContainerInfo getMatchingContainer(long size, String owner,
                                      Pipeline pipeline,
                                      Set<ContainerID> excludedContainerIDS);

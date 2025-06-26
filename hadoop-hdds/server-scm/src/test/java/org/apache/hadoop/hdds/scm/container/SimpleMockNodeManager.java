@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdds.scm.container;
 
+import javax.annotation.Nullable;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalState;
@@ -348,6 +349,12 @@ public class SimpleMockNodeManager implements NodeManager {
 
   @Override
   public DatanodeDetails getNodeByUuid(String uuid) {
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public DatanodeInfo getDatanodeInfo(DatanodeDetails datanodeDetails) {
     return null;
   }
 

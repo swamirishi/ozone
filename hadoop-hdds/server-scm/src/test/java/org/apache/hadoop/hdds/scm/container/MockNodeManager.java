@@ -16,6 +16,7 @@
  */
 package org.apache.hadoop.hdds.scm.container;
 
+import javax.annotation.Nullable;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.MockDatanodeDetails;
@@ -873,6 +874,21 @@ public class MockNodeManager implements NodeManager {
   public DatanodeDetails getNodeByUuid(String uuid) {
     Node node = clusterMap.getNode(NetConstants.DEFAULT_RACK + "/" + uuid);
     return node == null ? null : (DatanodeDetails)node;
+  }
+
+  @Nullable
+  @Override
+  public DatanodeInfo getDatanodeInfo(DatanodeDetails datanodeDetails) {
+    DatanodeDetails node = getNodeByUuid(datanodeDetails.getUuid());
+    if (node == null) {
+      return null;
+    }
+
+    DatanodeInfo datanodeInfo = new DatanodeInfo(datanodeDetails, NodeStatus.inServiceHealthy(), null);
+    long capacity = 50L * 1024 * 1024 * 1024;
+    datanodeInfo.updateStorageReports(HddsTestUtils.createStorageReports(datanodeInfo.getUuid(), capacity, capacity,
+        0L));
+    return datanodeInfo;
   }
 
   @Override

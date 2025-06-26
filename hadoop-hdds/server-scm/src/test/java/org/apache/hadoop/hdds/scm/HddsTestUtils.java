@@ -19,6 +19,7 @@ package org.apache.hadoop.hdds.scm;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+import java.util.Collections;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
@@ -270,6 +271,19 @@ public final class HddsTestUtils {
         0,
         capacity,
         StorageTypeProto.DISK);
+  }
+
+  public static List<StorageReportProto> createStorageReports(UUID nodeID, long capacity, long remaining,
+      long committed) {
+    return Collections.singletonList(
+        StorageReportProto.newBuilder()
+            .setStorageUuid(nodeID.toString())
+            .setStorageLocation("test")
+            .setCapacity(capacity)
+            .setRemaining(remaining)
+            .setCommitted(committed)
+            .setScmUsed(200L - remaining)
+            .build());
   }
 
   public static StorageReportProto createStorageReport(UUID nodeId, String path,
