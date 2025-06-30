@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.om;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ipc.ProtobufRpcEngine;
@@ -84,6 +85,8 @@ public class OmMetadataReader implements IOmMetadataReader, Auditor {
   private final Logger log;
   private final AuditLogger audit;
   private final OMPerformanceMetrics perfMetrics;
+  private static final Map<Class<? extends IAccessAuthorizer>, IAccessAuthorizer> AUTHORIZERS =
+      new ConcurrentHashMap<>();
 
   public OmMetadataReader(KeyManager keyManager,
                           PrefixManager prefixManager,
@@ -573,7 +576,7 @@ public class OmMetadataReader implements IOmMetadataReader, Auditor {
    */
   private IAccessAuthorizer getACLAuthorizerInstance(
       OzoneConfiguration conf, Class<? extends IAccessAuthorizer> clazz) {
-    return ReflectionUtils.newInstance(clazz, conf);
+    return AUTHORIZERS.computeIfAbsent(clazz, (k) -> ReflectionUtils.newInstance(clazz, conf));
   }
 
   static String getClientAddress() {
