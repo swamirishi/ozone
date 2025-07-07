@@ -303,7 +303,7 @@ public class DatanodeConfiguration {
   private long minFreeSpace = getDefaultFreeSpace();
 
   @Config(key = "volume.min.free.space.percent",
-      defaultValue = "-1",
+      defaultValue = "0.001", // match HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT_DEFAULT
       type = ConfigType.FLOAT,
       tags = { OZONE, CONTAINER, STORAGE, MANAGEMENT },
       description = "This determines the free space percent to be used for closing containers" +
