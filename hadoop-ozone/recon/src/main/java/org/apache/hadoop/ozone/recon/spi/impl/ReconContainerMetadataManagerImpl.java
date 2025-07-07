@@ -24,6 +24,7 @@ import static org.apache.hadoop.ozone.recon.spi.impl.ReconDBDefinition.KEY_CONTA
 import static org.apache.hadoop.ozone.recon.spi.impl.ReconDBDefinition.REPLICA_HISTORY_V2;
 import static org.apache.hadoop.ozone.recon.spi.impl.ReconDBProvider.truncateTable;
 
+import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -733,5 +734,21 @@ public class ReconContainerMetadataManagerImpl
       LOG.info("It took {} seconds to initialized {} records"
           + " to KEY_CONTAINER table", (double) duration / 1000, count);
     }
+  }
+
+
+  @VisibleForTesting
+  public void deleteContainerKeyRecord(ContainerKeyPrefix containerKeyPrefix) throws IOException {
+    containerKeyTable.delete(containerKeyPrefix);
+  }
+
+  @VisibleForTesting
+  public void deleteKeyContainerRecord(KeyPrefixContainer keyPrefixContainer) throws IOException {
+    keyContainerTable.delete(keyPrefixContainer);
+  }
+
+  @VisibleForTesting
+  public void deleteContainerKeyCountRecord(Long containerID) throws IOException {
+    containerKeyCountTable.delete(containerID);
   }
 }
