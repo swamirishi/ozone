@@ -155,6 +155,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
   private TypedTable<OzoneTokenIdentifier, Long> dTokenTable;
   private TypedTable<String, OmPrefixInfo> prefixTable;
   private TypedTable<String, TransactionInfo> transactionInfoTable;
+  private TypedTable<Long, Long> flushedTransactionsTable;
   private TypedTable<String, String> metaTable;
 
   // Tables required for multi-tenancy
@@ -461,6 +462,7 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
     prefixTable = initializer.get(OMDBDefinition.PREFIX_TABLE_DEF);
 
     transactionInfoTable = initializer.get(OMDBDefinition.TRANSACTION_INFO_TABLE_DEF);
+    flushedTransactionsTable = initializer.get(OMDBDefinition.FLUSHED_TRANSACTIONS_DEF);
 
     metaTable = initializer.get(OMDBDefinition.META_TABLE_DEF);
 
@@ -1602,6 +1604,10 @@ public class OmMetadataManagerImpl implements OMMetadataManager,
   @Override
   public Table<String, TransactionInfo> getTransactionInfoTable() {
     return transactionInfoTable;
+  }
+
+  public TypedTable<Long, Long> getFlushedTransactionsTable() {
+    return flushedTransactionsTable;
   }
 
   @Override

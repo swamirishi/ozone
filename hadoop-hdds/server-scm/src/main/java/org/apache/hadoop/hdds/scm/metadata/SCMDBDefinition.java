@@ -75,6 +75,13 @@ public class SCMDBDefinition extends DBDefinition.WithMap {
           ContainerID.getCodec(),
           ContainerInfo.getCodec());
 
+  public static final DBColumnFamilyDefinition<Long, Long>
+      FLUSHEDTRANSACTIONS =
+      new DBColumnFamilyDefinition<>(
+          "scmFlushedTransactions",
+          LongCodec.get(),
+          LongCodec.get());
+
   public static final DBColumnFamilyDefinition<String, TransactionInfo>
       TRANSACTIONINFO =
       new DBColumnFamilyDefinition<>(
@@ -123,6 +130,7 @@ public class SCMDBDefinition extends DBDefinition.WithMap {
           PIPELINES,
           SEQUENCE_ID,
           STATEFUL_SERVICE_CONFIG,
+          FLUSHEDTRANSACTIONS,
           TRANSACTIONINFO,
           VALID_CERTS,
           VALID_SCM_CERTS);

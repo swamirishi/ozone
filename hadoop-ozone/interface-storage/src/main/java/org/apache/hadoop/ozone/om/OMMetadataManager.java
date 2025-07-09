@@ -455,6 +455,9 @@ public interface OMMetadataManager extends DBStoreHAManager {
   @Override
   Table<String, TransactionInfo> getTransactionInfoTable();
 
+  @Override
+  Table<Long, Long> getFlushedTransactionsTable();
+
   Table<String, OmDBAccessIdInfo> getTenantAccessIdTable();
 
   Table<String, OmDBUserPrincipalInfo> getPrincipalToAccessIdsTable();

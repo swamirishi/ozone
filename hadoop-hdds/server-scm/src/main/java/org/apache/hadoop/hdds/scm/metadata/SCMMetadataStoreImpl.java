@@ -19,6 +19,7 @@ package org.apache.hadoop.hdds.scm.metadata;
 
 import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.CONTAINERS;
 import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.DELETED_BLOCKS;
+import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.FLUSHEDTRANSACTIONS;
 import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.META;
 import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.MOVE;
 import static org.apache.hadoop.hdds.scm.metadata.SCMDBDefinition.PIPELINES;
@@ -68,6 +69,8 @@ public class SCMMetadataStoreImpl implements SCMMetadataStore {
   private Table<ContainerID, ContainerInfo> containerTable;
 
   private Table<PipelineID, Pipeline> pipelineTable;
+
+  private Table<Long, Long> flushedTransactionsTable;
 
   private Table<String, TransactionInfo> transactionInfoTable;
 
@@ -142,6 +145,9 @@ public class SCMMetadataStoreImpl implements SCMMetadataStore {
 
       checkAndPopulateTable(containerTable, CONTAINERS.getName());
 
+      flushedTransactionsTable = FLUSHEDTRANSACTIONS.getTable(store);
+      checkAndPopulateTable(flushedTransactionsTable, FLUSHEDTRANSACTIONS.getName());
+
       transactionInfoTable = TRANSACTIONINFO.getTable(store);
 
       checkAndPopulateTable(transactionInfoTable, TRANSACTIONINFO.getName());
@@ -201,6 +207,11 @@ public class SCMMetadataStoreImpl implements SCMMetadataStore {
   @Override
   public Table<String, TransactionInfo> getTransactionInfoTable() {
     return transactionInfoTable;
+  }
+
+  @Override
+  public Table<Long, Long> getFlushedTransactionsTable() {
+    return flushedTransactionsTable;
   }
 
   @Override
