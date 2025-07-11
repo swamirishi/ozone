@@ -1073,7 +1073,7 @@ public class SnapshotDiffManager implements AutoCloseable {
     }
     String tablePrefix = getTablePrefix(tablePrefixes, fsTable.getName());
     boolean isDirectoryTable =
-        fsTable.getName().equals(DIRECTORY_TABLE);
+        fsTable.getName().equals(DIRECTORY_TABLE.getName());
     ManagedSstFileReader sstFileReader = new ManagedSstFileReader(deltaFiles);
     validateEstimatedKeyChangesAreInLimits(sstFileReader);
     long totalEstimatedKeysToProcess = sstFileReader.getEstimatedTotalKeys();

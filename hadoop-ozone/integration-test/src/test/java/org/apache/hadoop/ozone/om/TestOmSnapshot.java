@@ -1174,6 +1174,36 @@ public class TestOmSnapshot {
   }
 
   @Test
+  public void testSnapdiffWithDirectoryMetaModification() throws Exception {
+    String testVolumeName = "vol" + counter.incrementAndGet();
+    String testBucketName = "bucket1";
+    store.createVolume(testVolumeName);
+    OzoneVolume volume = store.getVolume(testVolumeName);
+    createBucket(volume, testBucketName);
+    OzoneBucket bucket = volume.getBucket(testBucketName);
+    bucket.createDirectory("dir1/dir2");
+    String snap1 = "snap1";
+    String key1 = "dir1/dir2/k1";
+    key1 = createFileKeyWithPrefix(bucket, key1);
+    createSnapshot(testVolumeName, testBucketName, snap1);
+    OzoneObj keyObj = buildKeyObj(bucket, key1);
+    OzoneAcl userAcl = new OzoneAcl(USER, "user",
+        WRITE, DEFAULT);
+    store.addAcl(keyObj, userAcl);
+
+    String snap2 = "snap2";
+    createSnapshot(testVolumeName, testBucketName, snap2);
+    SnapshotDiffReport diff = getSnapDiffReport(testVolumeName, testBucketName,
+        snap1, snap2);
+    List<DiffReportEntry> diffEntries = Lists.newArrayList(
+        SnapshotDiffReportOzone.getDiffReportEntry(
+            SnapshotDiffReport.DiffType.MODIFY,
+            key1));
+    Assert.assertEquals(diffEntries, diff.getDiffList());
+  }
+
+
+  @Test
   public void testSnapdiffWithFilesystemCreate()
       throws IOException, URISyntaxException, InterruptedException,
       TimeoutException {
