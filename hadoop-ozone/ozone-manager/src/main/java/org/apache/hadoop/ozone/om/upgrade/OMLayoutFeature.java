@@ -44,7 +44,9 @@ public enum OMLayoutFeature implements LayoutFeature {
 
   FILESYSTEM_SNAPSHOT(5, "Ozone version supporting snapshot"),
 
-  QUOTA(6, "Ozone quota re-calculate");
+  QUOTA(6, "Ozone quota re-calculate"),
+
+  DELEGATION_TOKEN_SYMMETRIC_SIGN(7, "Delegation token signed by symmetric key");
 
   ///////////////////////////////  /////////////////////////////
   //    Example OM Layout Feature with Actions
