@@ -181,6 +181,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
       = new BootstrapStateHandler.Lock();
   private static final int SST_READ_AHEAD_SIZE = 2 * 1024 * 1024;
   private int pruneSSTFileBatchSize;
+  private SSTFilePruningMetrics sstFilePruningMetrics;
   private ColumnFamilyHandle snapshotInfoTableCFHandle;
   private static final String DAG_PRUNING_SERVICE_NAME = "CompactionDagPruningService";
   private AtomicBoolean suspended;
@@ -244,10 +245,11 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     this.pruneSSTFileBatchSize = configuration.getInt(
         OZONE_OM_SNAPSHOT_PRUNE_COMPACTION_BACKUP_BATCH_SIZE,
         OZONE_OM_SNAPSHOT_PRUNE_COMPACTION_BACKUP_BATCH_SIZE_DEFAULT);
+    this.sstFilePruningMetrics = SSTFilePruningMetrics.create(activeDBLocationName);
     try {
       if (configuration.getBoolean(OZONE_OM_SNAPSHOT_LOAD_NATIVE_LIB, OZONE_OM_SNAPSHOT_LOAD_NATIVE_LIB_DEFAULT)
           && ManagedRawSSTFileReader.loadLibrary()) {
-        pruneQueue = new ConcurrentLinkedQueue<>();
+        this.pruneQueue = new ConcurrentLinkedQueue<>();
       }
     } catch (NativeLibraryNotLoadedException e) {
       LOG.warn("Native Library for raw sst file reading loading failed." +
@@ -341,6 +343,9 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
           if (scheduler != null) {
             LOG.info("Shutting down {}.", DAG_PRUNING_SERVICE_NAME);
             scheduler.close();
+          }
+          if (sstFilePruningMetrics != null) {
+            sstFilePruningMetrics.unRegister();
           }
         }
       }
@@ -572,6 +577,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
         // so that the backup input sst files can be pruned.
         if (pruneQueue != null) {
           pruneQueue.offer(key);
+          sstFilePruningMetrics.updateQueueSize(pruneQueue.size());
         }
       }
     };
@@ -824,6 +830,10 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
         }
       } catch (InvalidProtocolBufferException e) {
         throw new RuntimeException(e);
+      } finally {
+        if (pruneQueue != null) {
+          sstFilePruningMetrics.updateQueueSize(pruneQueue.size());
+        }
       }
     }
   }
@@ -1439,13 +1449,16 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     if (!shouldRun()) {
       return;
     }
+    long batchStartTime = System.nanoTime();
+    int filesPrunedInBatch = 0;
+    int filesSkippedInBatch = 0;
+    int batchCounter = 0;
 
     Path sstBackupDirPath = Paths.get(sstBackupDir);
     Path prunedSSTFilePath = sstBackupDirPath.resolve(PRUNED_SST_FILE_TEMP);
     try (ManagedOptions managedOptions = new ManagedOptions();
          ManagedEnvOptions envOptions = new ManagedEnvOptions()) {
       byte[] compactionLogEntryKey;
-      int batchCounter = 0;
       while ((compactionLogEntryKey = pruneQueue.peek()) != null && ++batchCounter <= pruneSSTFileBatchSize) {
         CompactionLogEntry compactionLogEntry;
         // Get the compaction log entry.
@@ -1470,6 +1483,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
             if (Files.notExists(sstFilePath)) {
               LOG.debug("Skipping pruning SST file {} as it does not exist in backup directory.", sstFilePath);
               updatedFileInfoList.add(fileInfo);
+              filesSkippedInBatch++;
               continue;
             }
 
@@ -1487,6 +1501,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
             fileInfo.setPruned();
             updatedFileInfoList.add(fileInfo);
             LOG.debug("Completed pruning OMKeyInfo from {}", sstFilePath);
+            filesPrunedInBatch++;
           }
 
           // Update compaction log entry in table.
@@ -1506,6 +1521,12 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
       }
     } catch (IOException | InterruptedException e) {
       LOG.error("Could not prune source OMKeyInfo from backup SST files.", e);
+      sstFilePruningMetrics.incrPruningFailures();
+    } finally {
+      LOG.info("Completed pruning OMKeyInfo from backup SST files in {}ms.",
+          (System.nanoTime() - batchStartTime) / 1_000_000);
+      sstFilePruningMetrics.updateBatchLevelMetrics(filesPrunedInBatch, filesSkippedInBatch,
+          batchCounter, pruneQueue.size());
     }
   }
 
@@ -1631,5 +1652,10 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
 
   ConcurrentMap<String, CompactionFileInfo> getInflightCompactions() {
     return inflightCompactions;
+  }
+
+  @VisibleForTesting
+  public SSTFilePruningMetrics getPruningMetrics() {
+    return sstFilePruningMetrics;
   }
 }
