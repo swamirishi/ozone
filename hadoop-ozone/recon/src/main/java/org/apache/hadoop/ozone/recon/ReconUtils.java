@@ -69,6 +69,7 @@ import org.apache.hadoop.ozone.recon.recovery.ReconOMMetadataManager;
 import org.apache.hadoop.ozone.recon.scm.ReconContainerReportQueue;
 import org.apache.hadoop.ozone.recon.spi.ReconNamespaceSummaryManager;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
+import org.apache.hadoop.util.Time;
 import org.hadoop.ozone.recon.schema.tables.daos.GlobalStatsDao;
 import org.hadoop.ozone.recon.schema.tables.pojos.GlobalStats;
 import org.jetbrains.annotations.NotNull;
@@ -92,6 +93,14 @@ public class ReconUtils {
       ReconUtils.class);
 
   private static AtomicBoolean rebuildTriggered = new AtomicBoolean(false);
+
+  private static final ExecutorService NSSUMMARY_REBUILD_EXECUTOR =
+      Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r);
+        t.setName("RebuildNSSummaryThread");
+        t.setDaemon(true); // Optional: allows JVM to exit without waiting
+        return t;
+      });
 
   public static File getReconScmDbDir(ConfigurationSource conf) {
     return new ReconUtils().getReconDbDir(conf, OZONE_RECON_SCM_DB_DIR);
@@ -312,23 +321,17 @@ public class ReconUtils {
 
   private static void triggerRebuild(ReconNamespaceSummaryManager reconNamespaceSummaryManager,
                                      ReconOMMetadataManager omMetadataManager) {
-    ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-      Thread t = new Thread(r);
-      t.setName("RebuildNSSummaryThread");
-      return t;
-    });
-
-    executor.submit(() -> {
-      long startTime = System.currentTimeMillis();
+    NSSUMMARY_REBUILD_EXECUTOR.submit(() -> {
+      long startTime = Time.monotonicNow();
       log.info("Rebuilding NSSummary tree...");
       try {
         reconNamespaceSummaryManager.rebuildNSSummaryTree(omMetadataManager);
-      } finally {
-        long endTime = System.currentTimeMillis();
+        long endTime = Time.monotonicNow();
         log.info("NSSummary tree rebuild completed in {} ms.", endTime - startTime);
+      } catch (Throwable t) {
+        log.error("NSSummary tree rebuild failed.", t);
       }
     });
-    executor.shutdown();
   }
 
   /**
