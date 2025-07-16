@@ -53,13 +53,16 @@ import org.apache.hadoop.hdds.protocol.proto
     .DeleteBlockTransactionResult;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import static org.apache.hadoop.hdds.protocol.MockDatanodeDetails.randomDatanodeDetails;
@@ -285,7 +288,28 @@ public class TestDeleteBlocksCommandHandler {
         blockDeleteMetrics.getTotalLockTimeoutTransactionCount());
   }
 
+  @Test
+  public void testDeleteBlocksCommandHandlerExceptionShouldNotInterrupt() throws Exception {
+    setup();
+    // future task will throw first execution exception, and next one will succeed
+    doAnswer((Answer<List<Future<DeleteBlockTransactionExecutionResult>>>) invocationOnMock -> {
+      List<Future<DeleteBlockTransactionExecutionResult>> result = new ArrayList<>();
+      CompletableFuture<DeleteBlockTransactionExecutionResult> future =
+          new CompletableFuture<>();
+      future.completeExceptionally(new ExecutionException("Simulated Exception", new IOException()));
+      result.add(future);
+      future = new CompletableFuture<>();
+      future.complete(new DeleteBlockTransactionExecutionResult(null, false));
+      result.add(future);
+      return result;
+    }).when(handler).submitTasks(any());
 
+    // last task as success should be returned as result, ignoring the first failed task
+    List<DeleteBlockTransactionResult> deleteBlockTransactionResults =
+        handler.executeCmdWithRetry(Collections.emptyList());
+    assertEquals(1, deleteBlockTransactionResults.size());
+  }
+  
   @ContainerTestVersionInfo.ContainerTest
   public void testDuplicateDeleteBlocksCommand(
       ContainerTestVersionInfo versionInfo) throws Exception {
