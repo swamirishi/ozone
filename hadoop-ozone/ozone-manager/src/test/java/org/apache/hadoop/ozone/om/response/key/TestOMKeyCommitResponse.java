@@ -18,21 +18,19 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.OmUtils;
+import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
+import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-
-import java.io.IOException;
 
 /**
  * Tests OMKeyCommitResponse.
@@ -80,7 +78,7 @@ public class TestOMKeyCommitResponse extends TestOMKeyResponse {
   public void testAddToDBBatchNoOp() throws Exception {
 
     OmKeyInfo omKeyInfo = OMRequestTestUtils.createOmKeyInfo(volumeName,
-        bucketName, keyName, replicationType, replicationFactor);
+        bucketName, keyName, replicationConfig).build();
 
     OzoneManagerProtocolProtos.OMResponse omResponse =
         OzoneManagerProtocolProtos.OMResponse.newBuilder().setCommitKeyResponse(
@@ -138,7 +136,7 @@ public class TestOMKeyCommitResponse extends TestOMKeyResponse {
   @NotNull
   protected void addKeyToOpenKeyTable() throws Exception {
     OMRequestTestUtils.addKeyToTable(true, volumeName, bucketName, keyName,
-            clientID, replicationType, replicationFactor, omMetadataManager);
+        clientID, replicationConfig, omMetadataManager);
   }
 
   @NotNull

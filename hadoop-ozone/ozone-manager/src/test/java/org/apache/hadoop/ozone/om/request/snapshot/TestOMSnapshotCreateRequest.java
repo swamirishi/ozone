@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.om.request.snapshot;
 
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
 import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.getFromProtobuf;
 import static org.apache.hadoop.ozone.om.helpers.SnapshotInfo.getTableKey;
 import static org.apache.hadoop.ozone.om.request.OMRequestTestUtils.createSnapshotRequest;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.UUID;
 import org.apache.commons.lang3.tuple.Pair;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -288,8 +289,9 @@ public class TestOMSnapshotCreateRequest extends TestSnapshotRequestAndResponse 
       throws Exception {
     String fromKeyParentName = UUID.randomUUID().toString();
     OmKeyInfo fromKeyParent = OMRequestTestUtils.createOmKeyInfo(getVolumeName(),
-        getBucketName(), fromKeyParentName, HddsProtos.ReplicationType.RATIS,
-        HddsProtos.ReplicationFactor.THREE, 100L);
+            getBucketName(), fromKeyParentName, RatisReplicationConfig.getInstance(THREE))
+        .setObjectID(100L)
+        .build();
 
     OmKeyInfo toKeyInfo = addKey(toKey, offset + 4L);
     OmKeyInfo fromKeyInfo = addKey(fromKey, offset + 5L);
@@ -348,8 +350,8 @@ public class TestOMSnapshotCreateRequest extends TestSnapshotRequestAndResponse 
 
   private OmKeyInfo addKey(String keyName, long objectId) {
     return OMRequestTestUtils.createOmKeyInfo(getVolumeName(), getBucketName(), keyName,
-        HddsProtos.ReplicationType.RATIS, HddsProtos.ReplicationFactor.THREE,
-        objectId);
+            RatisReplicationConfig.getInstance(THREE)).setObjectID(objectId)
+        .build();
   }
 
   protected String addKeyToTable(OmKeyInfo keyInfo) throws Exception {

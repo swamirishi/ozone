@@ -18,20 +18,18 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
+
 import java.io.IOException;
 import java.util.UUID;
-
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
+import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-
-import static  org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 
 /**
  * Tests OMKeyRenameResponse.
@@ -151,12 +149,10 @@ public class TestOMKeyRenameResponse extends TestOMKeyResponse {
   }
 
   protected OmKeyInfo getOmKeyInfo(String keyName) {
-    return OMRequestTestUtils.createOmKeyInfo(volumeName, bucketName, keyName,
-        replicationType, replicationFactor, 0L);
+    return OMRequestTestUtils.createOmKeyInfo(volumeName, bucketName, keyName, replicationConfig).build();
   }
 
-  protected OmKeyInfo getOmKeyInfo(OmKeyInfo toKeyInfo,
-                                   String keyName) {
+  protected OmKeyInfo getOmKeyInfo(OmKeyInfo toKeyInfo, String keyName) {
     return getOmKeyInfo(keyName);
   }
 

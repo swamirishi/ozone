@@ -18,24 +18,21 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.hadoop.hdds.client.BlockID;
-import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
+import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Tests OMKeyDeleteResponse.
@@ -90,8 +87,7 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
     Pipeline pipeline = Pipeline.newBuilder()
         .setState(Pipeline.PipelineState.OPEN)
         .setId(PipelineID.randomId())
-        .setReplicationConfig(RatisReplicationConfig
-            .getInstance(replicationFactor))
+        .setReplicationConfig(replicationConfig)
         .setNodes(new ArrayList<>())
         .build();
 
@@ -172,7 +168,7 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
             keyName);
 
     OMRequestTestUtils.addKeyToTable(false, volumeName, bucketName, keyName,
-            clientID, replicationType, replicationFactor, omMetadataManager);
+        clientID, replicationConfig, omMetadataManager);
     return ozoneKey;
   }
 

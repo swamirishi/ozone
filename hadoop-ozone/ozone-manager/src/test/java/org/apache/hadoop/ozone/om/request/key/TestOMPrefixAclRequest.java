@@ -17,7 +17,11 @@
  */
 package org.apache.hadoop.ozone.om.request.key;
 
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
+import static org.mockito.Mockito.when;
+
 import java.util.UUID;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.PrefixManager;
 import org.apache.hadoop.ozone.om.PrefixManagerImpl;
@@ -32,8 +36,6 @@ import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static org.mockito.Mockito.when;
 
 /**
  * Tests Prefix ACL requests.
@@ -50,7 +52,7 @@ public class TestOMPrefixAclRequest extends TestOMKeyRequest {
     OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucketName,
         omMetadataManager);
     OMRequestTestUtils.addKeyToTable(false, false, volumeName, bucketName,
-        keyName, clientID, replicationType, replicationFactor, 1L,
+        keyName, clientID, RatisReplicationConfig.getInstance(ONE), 1L,
         omMetadataManager);
 
     OzoneAcl acl = OzoneAcl.parseAcl("user:bilbo:rwdlncxy[ACCESS]");
@@ -78,7 +80,7 @@ public class TestOMPrefixAclRequest extends TestOMKeyRequest {
     OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucketName,
         omMetadataManager);
     OMRequestTestUtils.addKeyToTable(false, false, volumeName, bucketName,
-        keyName, clientID, replicationType, replicationFactor, 1L,
+        keyName, clientID, RatisReplicationConfig.getInstance(ONE), 1L,
         omMetadataManager);
 
     OzoneAcl acl = OzoneAcl.parseAcl("user:mohanad.elsafty:rwdlncxy[ACCESS]");

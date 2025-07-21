@@ -18,6 +18,14 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status.KEY_NOT_FOUND;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status.OK;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.DeleteKeys;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
@@ -27,15 +35,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteK
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status.KEY_NOT_FOUND;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status.OK;
-import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.DeleteKeys;
 
 /**
  * Class to test OMKeysDeleteResponse.
@@ -62,7 +61,7 @@ public class TestOMKeysDeleteResponse extends TestOMKeyResponse {
     for (int i = 0; i < 10; i++) {
       keyName = parent.concat(key + i);
       OMRequestTestUtils.addKeyToTable(false, volumeName,
-          bucketName, keyName, 0L, RATIS, THREE, omMetadataManager);
+          bucketName, keyName, 0L, RatisReplicationConfig.getInstance(THREE), omMetadataManager);
       ozoneKey = omMetadataManager.getOzoneKey(volumeName, bucketName, keyName);
       omKeyInfoList
           .add(omMetadataManager.getKeyTable(getBucketLayout()).get(ozoneKey));

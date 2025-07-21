@@ -18,18 +18,16 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import java.io.IOException;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
-import org.jetbrains.annotations.NotNull;
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AllocateBlockResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-
-import java.io.IOException;
+import org.jetbrains.annotations.NotNull;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests OMAllocateBlockResponse.
@@ -95,7 +93,7 @@ public class TestOMAllocateBlockResponse extends TestOMKeyResponse {
 
   protected OmKeyInfo createOmKeyInfo() throws Exception {
     return OMRequestTestUtils.createOmKeyInfo(volumeName,
-            bucketName, keyName, replicationType, replicationFactor);
+        bucketName, keyName, replicationConfig).build();
   }
 
   protected String getOpenKey() throws Exception {

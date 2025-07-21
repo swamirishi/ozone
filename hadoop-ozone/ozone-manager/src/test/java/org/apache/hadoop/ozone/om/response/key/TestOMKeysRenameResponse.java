@@ -18,22 +18,20 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
-import org.apache.hadoop.ozone.om.helpers.OmRenameKeys;
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
+
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
+import org.apache.hadoop.ozone.om.helpers.OmRenameKeys;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenameKeysResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.THREE;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
 
 /**
  * Tests OMKeyRenameResponse.
@@ -120,7 +118,8 @@ public class TestOMKeysRenameResponse extends TestOMKeyResponse {
       String key = parentDir.concat("/key" + i);
       String toKey = parentDir.concat("/newKey" + i);
       OMRequestTestUtils.addKeyToTable(false, volumeName,
-          bucketName, parentDir.concat("/key" + i), 0L, RATIS, THREE,
+          bucketName, parentDir.concat("/key" + i), 0L,
+          RatisReplicationConfig.getInstance(THREE),
           omMetadataManager);
 
       OmKeyInfo omKeyInfo = omMetadataManager.getKeyTable(getBucketLayout())

@@ -22,24 +22,20 @@ package org.apache.hadoop.ozone.om.request.key;
 
 import java.util.List;
 import java.util.UUID;
-
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
+import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
+import org.apache.hadoop.ozone.om.response.OMClientResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.AllocateBlockRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Test;
-
-import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
-import org.apache.hadoop.ozone.om.response.OMClientResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .AllocateBlockRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .KeyArgs;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .OMRequest;
 
 /**
  * Tests OMAllocateBlockRequest class.
@@ -234,7 +230,8 @@ public class TestOMAllocateBlockRequest extends TestOMKeyRequest {
     KeyArgs keyArgs = KeyArgs.newBuilder()
         .setVolumeName(volumeName).setBucketName(bucketName)
         .setKeyName(keyName)
-        .setFactor(replicationFactor).setType(replicationType)
+        .setFactor(((RatisReplicationConfig) replicationConfig).getReplicationFactor())
+        .setType(replicationConfig.getReplicationType())
         .build();
 
     AllocateBlockRequest allocateBlockRequest =
@@ -251,8 +248,8 @@ public class TestOMAllocateBlockRequest extends TestOMKeyRequest {
   protected String addKeyToOpenKeyTable(String volumeName, String bucketName)
           throws Exception {
     OMRequestTestUtils.addKeyToTable(true, volumeName, bucketName,
-            keyName, clientID, replicationType, replicationFactor,
-            omMetadataManager);
+        keyName, clientID, replicationConfig,
+        omMetadataManager);
     return "";
   }
 }

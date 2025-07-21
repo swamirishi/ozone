@@ -19,13 +19,24 @@
 
 package org.apache.hadoop.ozone.om.response.s3.multipart;
 
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
+import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.apache.hadoop.hdds.utils.UniqueId;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
+import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartAbortInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OzoneFSUtils;
@@ -41,14 +52,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Tests S3ExpiredMultipartUploadsAbortResponse.
@@ -276,10 +279,10 @@ public class TestS3ExpiredMultipartUploadsAbortResponse
       OmBucketInfo omBucketInfo = OMRequestTestUtils.addBucketToDB(volume,
           bucket, omMetadataManager, getBucketLayout());
 
-      final OmKeyInfo omKeyInfo = OMRequestTestUtils.createOmKeyInfo(volume,
-          bucket, keyName,
-          HddsProtos.ReplicationType.RATIS, HddsProtos.ReplicationFactor.ONE,
-          0L, Time.now(), true);
+      ReplicationConfig replicationConfig = RatisReplicationConfig.getInstance(ONE);
+      final OmKeyInfo omKeyInfo = OMRequestTestUtils.createOmKeyInfo(volume, bucket, keyName, replicationConfig,
+              new OmKeyLocationInfoGroup(0L, new ArrayList<>(), true))
+          .build();
 
       if (getBucketLayout().equals(BucketLayout.FILE_SYSTEM_OPTIMIZED)) {
         omKeyInfo.setParentObjectID(omBucketInfo.getObjectID());

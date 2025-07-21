@@ -19,24 +19,26 @@
 
 package org.apache.hadoop.ozone.om.request.bucket;
 
-import java.util.UUID;
+import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
 
+import java.util.ArrayList;
+import java.util.UUID;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
+import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.request.util.OMMultipartUploadUtils;
+import org.apache.hadoop.ozone.om.response.OMClientResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteBucketRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.util.Time;
 import org.junit.Assert;
 import org.junit.Test;
-import org.apache.hadoop.ozone.om.response.OMClientResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .DeleteBucketRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .OMRequest;
 
 /**
  * Tests OMBucketDeleteRequest class which handles DeleteBucket request.
@@ -117,12 +119,10 @@ public class TestOMBucketDeleteRequest extends TestBucketRequest {
         new OMBucketDeleteRequest(omRequest);
 
     // Create a MPU key in the MPU table to simulate incomplete MPU
-    long creationTime = Time.now();
     String uploadId = OMMultipartUploadUtils.getMultipartUploadId();
-    final OmKeyInfo keyInfo = OMRequestTestUtils.createOmKeyInfo(volumeName,
-        bucketName, UUID.randomUUID().toString(),
-        HddsProtos.ReplicationType.RATIS, HddsProtos.ReplicationFactor.ONE,
-        0L, creationTime, true);
+    final OmKeyInfo keyInfo = OMRequestTestUtils.createOmKeyInfo(volumeName, bucketName, UUID.randomUUID().toString(),
+            RatisReplicationConfig.getInstance(ONE), new OmKeyLocationInfoGroup(0L, new ArrayList<>(), true))
+        .build();
     final OmMultipartKeyInfo multipartKeyInfo = OMRequestTestUtils.
         createOmMultipartKeyInfo(uploadId, Time.now(),
             HddsProtos.ReplicationType.RATIS,

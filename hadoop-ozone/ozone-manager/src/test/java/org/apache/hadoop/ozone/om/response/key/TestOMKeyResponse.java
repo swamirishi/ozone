@@ -21,10 +21,16 @@ package org.apache.hadoop.ozone.om.response.key;
 import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
-
+import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.StorageType;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
+import org.apache.hadoop.ozone.om.OMMetadataManager;
+import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -37,13 +43,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
-
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.om.OMMetadataManager;
-import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
-import org.apache.hadoop.hdds.utils.db.BatchOperation;
 
 /**
  * Base test class for key response.
@@ -59,8 +58,7 @@ public class TestOMKeyResponse {
   protected String volumeName;
   protected String bucketName;
   protected String keyName;
-  protected HddsProtos.ReplicationFactor replicationFactor;
-  protected HddsProtos.ReplicationType replicationType;
+  protected ReplicationConfig replicationConfig;
   protected OmBucketInfo omBucketInfo;
   protected long clientID;
   protected Random random;
@@ -78,18 +76,18 @@ public class TestOMKeyResponse {
     volumeName = UUID.randomUUID().toString();
     bucketName = UUID.randomUUID().toString();
     keyName = UUID.randomUUID().toString();
-    replicationFactor = HddsProtos.ReplicationFactor.ONE;
-    replicationType = HddsProtos.ReplicationType.RATIS;
+    replicationConfig = ReplicationConfig.fromProtoTypeAndFactor(
+        HddsProtos.ReplicationType.RATIS, HddsProtos.ReplicationFactor.ONE);
     clientID = 1000L;
     random = new Random();
     keysToDelete = null;
 
     final OmVolumeArgs volumeArgs = OmVolumeArgs.newBuilder()
-            .setVolume(volumeName)
-            .setAdminName("admin")
-            .setOwnerName("owner")
-            .setObjectID(System.currentTimeMillis())
-            .build();
+        .setVolume(volumeName)
+        .setAdminName("admin")
+        .setOwnerName("owner")
+        .setObjectID(System.currentTimeMillis())
+        .build();
 
     omMetadataManager.getVolumeTable().addCacheEntry(
             new CacheKey<>(omMetadataManager.getVolumeKey(volumeName)),
@@ -117,8 +115,7 @@ public class TestOMKeyResponse {
 
   @NotNull
   protected OmKeyInfo getOmKeyInfo() {
-    return OMRequestTestUtils.createOmKeyInfo(volumeName, bucketName, keyName,
-            replicationType, replicationFactor);
+    return OMRequestTestUtils.createOmKeyInfo(volumeName, bucketName, keyName, replicationConfig).build();
   }
 
   @NotNull

@@ -18,6 +18,10 @@
 
 package org.apache.hadoop.ozone.om.response.file;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -25,12 +29,8 @@ import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.response.key.OMKeyCreateResponse;
 import org.apache.hadoop.ozone.om.response.key.TestOMKeyCreateResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.apache.hadoop.util.Time;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
-
-import java.io.IOException;
-import java.util.ArrayList;
 
 /**
  * Tests MKeyCreateResponse - prefix layout1.
@@ -40,12 +40,12 @@ public class TestOMFileCreateResponseWithFSO extends TestOMKeyCreateResponse {
   @NotNull
   @Override
   protected OmKeyInfo getOmKeyInfo() {
-    Assert.assertNotNull(omBucketInfo);
-    return OMRequestTestUtils.createOmKeyInfo(volumeName,
-            omBucketInfo.getBucketName(), keyName, replicationType,
-            replicationFactor,
-            omBucketInfo.getObjectID() + 1,
-            omBucketInfo.getObjectID(), 100, Time.now());
+    assertNotNull(omBucketInfo);
+    return OMRequestTestUtils.createOmKeyInfo(volumeName, omBucketInfo.getBucketName(), keyName, replicationConfig)
+        .setObjectID(omBucketInfo.getObjectID() + 1)
+        .setParentObjectID(omBucketInfo.getObjectID())
+        .setUpdateID(100L)
+        .build();
   }
 
   @NotNull

@@ -19,20 +19,19 @@
 
 package org.apache.hadoop.ozone.om.request.s3.multipart;
 
+import java.io.IOException;
+import java.util.UUID;
+import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .OMRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.util.Time;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.UUID;
 
 /**
  * Tests S3 Multipart upload commit part request.
@@ -221,9 +220,8 @@ public class TestS3MultipartUploadCommitPartRequest
 
   protected void addKeyToOpenKeyTable(String volumeName, String bucketName,
       String keyName, long clientID) throws Exception {
-    OMRequestTestUtils.addKeyToTable(true, true,  volumeName, bucketName,
-            keyName, clientID, HddsProtos.ReplicationType.RATIS,
-            HddsProtos.ReplicationFactor.ONE, omMetadataManager);
+    OMRequestTestUtils.addKeyToTable(true, true, volumeName, bucketName,
+        keyName, clientID, RatisReplicationConfig.getInstance(HddsProtos.ReplicationFactor.ONE), omMetadataManager);
   }
 
   protected String getKeyName() {

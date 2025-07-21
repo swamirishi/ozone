@@ -19,16 +19,14 @@ package org.apache.hadoop.ozone.om.request.key;
 
 import java.io.IOException;
 import java.util.UUID;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
+import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetTimesRequest;
-import org.apache.hadoop.ozone.om.response.OMClientResponse;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Test cases for OMSetTimesRequest.
@@ -99,7 +97,7 @@ public class TestOMSetTimesRequest extends TestOMKeyRequest {
 
   protected String addKeyToTable() throws Exception {
     OMRequestTestUtils.addKeyToTable(false, false, volumeName, bucketName,
-        keyName, clientID, replicationType, replicationFactor, 1L,
+        keyName, clientID, replicationConfig, 1L,
         omMetadataManager);
 
     return omMetadataManager.getOzoneKey(volumeName, bucketName,
