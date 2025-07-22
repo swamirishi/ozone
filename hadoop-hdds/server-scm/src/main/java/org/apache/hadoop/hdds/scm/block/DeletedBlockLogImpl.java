@@ -432,12 +432,11 @@ public class DeletedBlockLogImpl
               Set<ContainerReplica> replicas = containerManager
                   .getContainerReplicas(
                       ContainerID.valueOf(txn.getContainerID()));
-              if (checkInadequateReplica(replicas, txn, dnList)) {
+              if (!checkInadequateReplica(replicas, txn, dnList)) {
+                getTransaction(txn, transactions, dnList, replicas, commandStatus);
+              } else {
                 metrics.incrSkippedTransaction();
-                continue;
               }
-              getTransaction(
-                  txn, transactions, dnList, replicas, commandStatus);
             } else if (txn.getCount() >= maxRetry || containerManager.getContainer(id).isOpen()) {
               metrics.incrSkippedTransaction();
             }
