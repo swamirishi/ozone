@@ -21,12 +21,22 @@ package org.apache.hadoop.ozone.reconfig;
 import com.google.common.collect.ImmutableSet;
 import org.apache.hadoop.conf.ReconfigurationException;
 import org.apache.hadoop.hdds.conf.ReconfigurationHandler;
+import org.apache.hadoop.ozone.om.KeyManagerImpl;
+import org.apache.hadoop.ozone.om.OzoneManager;
 import org.junit.jupiter.api.Test;
 
+import static com.amazonaws.util.ValidationUtils.assertNotNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.commons.lang3.RandomStringUtils.randomAlphabetic;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_ADMINISTRATORS;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_READONLY_ADMINISTRATORS;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL_DEFAULT;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for OM reconfiguration.
@@ -41,7 +51,8 @@ class TestOmReconfiguration extends ReconfigurationTestBase {
   @Test
   void reconfigurableProperties() {
     assertProperties(getSubject(),
-        ImmutableSet.of(OZONE_ADMINISTRATORS, OZONE_READONLY_ADMINISTRATORS));
+        ImmutableSet.of(OZONE_ADMINISTRATORS, OZONE_READONLY_ADMINISTRATORS,
+            OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL));
   }
 
   @Test
@@ -65,6 +76,58 @@ class TestOmReconfiguration extends ReconfigurationTestBase {
     assertEquals(
         ImmutableSet.of(newValue),
         getCluster().getOzoneManager().getOmReadOnlyAdminUsernames());
+  }
+
+  @Test
+  void sstFilteringServiceInterval() throws ReconfigurationException {
+    // Tests reconfiguration of SST filtering service interval
+    final OzoneManager om = getCluster().getOzoneManager();
+    final KeyManagerImpl keyManagerImpl = (KeyManagerImpl) om.getKeyManager();
+
+    // Get the original interval value
+    String originalValue = om.getConfiguration().get(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL);
+    // Verify the original value is valid (should be larger than -1)
+    long originalInterval = om.getConfiguration().getTimeDuration(
+        OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL, OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL_DEFAULT,
+        MILLISECONDS);
+    assertThat(originalInterval).isPositive();
+
+    // 1. Test reconfiguring to a different valid interval (30 seconds)
+    // This should restart the SstFilteringService
+    final String newIntervalValue = "30s";
+    getSubject().reconfigurePropertyImpl(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL, newIntervalValue);
+    assertEquals(newIntervalValue, om.getConfiguration()
+        .get(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL));
+    // Verify the service is still enabled with the new interval
+    assertTrue(keyManagerImpl.isSstFilteringSvcEnabled(),
+        "SstFilteringService should remain enabled with new interval");
+    assertNotNull(keyManagerImpl.getSnapshotSstFilteringService(),
+        "SstFilteringService should not be null with new interval");
+    // Verify the new interval is applied (30 seconds = 30000 milliseconds)
+    long newInterval = om.getConfiguration().getTimeDuration(
+        OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL, OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL_DEFAULT,
+        MILLISECONDS);
+    assertEquals(30000, newInterval, "New interval should be 30 seconds (30000ms)");
+
+    // 2. Service should stop when interval is reconfigured to -1
+    final String disableValue = String.valueOf(-1);
+    getSubject().reconfigurePropertyImpl(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL, disableValue);
+    assertEquals(disableValue, om.getConfiguration().get(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL));
+    // Verify that the SstFilteringService is stopped
+    assertFalse(keyManagerImpl.isSstFilteringSvcEnabled(),
+        "SstFilteringService should be disabled when interval is -1");
+    assertNull(keyManagerImpl.getSnapshotSstFilteringService(),
+        "SstFilteringService should be null when disabled");
+
+    // Set the interval back to the original value
+    // Service should be started again when reconfigured to a valid value
+    getSubject().reconfigurePropertyImpl(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL, originalValue);
+    assertEquals(originalValue, om.getConfiguration().get(OZONE_SNAPSHOT_SST_FILTERING_SERVICE_INTERVAL));
+    // Verify that the SstFilteringService is running again
+    assertTrue(keyManagerImpl.isSstFilteringSvcEnabled(),
+        "SstFilteringService should be enabled after restoring original interval");
+    assertNotNull(keyManagerImpl.getSnapshotSstFilteringService(),
+        "SstFilteringService should not be null when enabled");
   }
 
 }
