@@ -102,19 +102,21 @@ public class NSSummaryTask implements ReconOmTask {
 
   @Override
   public Pair<String, Boolean> process(OMUpdateEventBatch events) {
-    boolean success = nsSummaryTaskWithFSO.processWithFSO(events);
-    if (!success) {
+    if (!nsSummaryTaskWithFSO.processWithFSO(events)) {
       LOG.error("processWithFSO failed.");
+      return new ImmutablePair<>(getTaskName(), false);
     }
-    success = nsSummaryTaskWithLegacy.processWithLegacy(events);
-    if (!success) {
+
+    if (!nsSummaryTaskWithLegacy.processWithLegacy(events)) {
       LOG.error("processWithLegacy failed.");
+      return new ImmutablePair<>(getTaskName(), false);
     }
-    success = nsSummaryTaskWithOBS.processWithOBS(events);
-    if (!success) {
+
+    if (!nsSummaryTaskWithOBS.processWithOBS(events)) {
       LOG.error("processWithOBS failed.");
+      return new ImmutablePair<>(getTaskName(), false);
     }
-    return new ImmutablePair<>(getTaskName(), success);
+    return new ImmutablePair<>(getTaskName(), true);
   }
 
   @Override

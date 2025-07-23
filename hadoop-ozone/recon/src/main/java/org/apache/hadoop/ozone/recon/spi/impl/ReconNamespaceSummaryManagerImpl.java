@@ -71,6 +71,12 @@ public class ReconNamespaceSummaryManagerImpl
   }
 
   @Override
+  public void batchDeleteNSSummaries(BatchOperation batch, long objectId)
+      throws IOException {
+    nsSummaryTable.deleteWithBatch(batch, objectId);
+  }
+
+  @Override
   public void deleteNSSummary(long objectId) throws IOException {
     nsSummaryTable.delete(objectId);
   }

@@ -17,6 +17,8 @@
  */
 
 package org.apache.hadoop.ozone.recon.tasks;
+import java.util.ArrayList;
+import java.util.Collections;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.db.StringCodec;
 import org.apache.hadoop.hdds.utils.db.Table;
@@ -42,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_DIR_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DIRECTORY_TABLE;
 import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.FILE_TABLE;
 
@@ -66,112 +69,146 @@ public class NSSummaryTaskWithFSO extends NSSummaryTaskDbEventHandler {
         this.maxIterators = maxIterators;
   }
 
-  // We only listen to updates from FSO-enabled KeyTable(FileTable) and DirTable
+  // We only listen to updates from FSO-enabled KeyTable(FileTable) and DirTable and DeletedDirTable
   public Collection<String> getTaskTables() {
-    return Arrays.asList(FILE_TABLE, DIRECTORY_TABLE);
+    return Arrays.asList(FILE_TABLE, DIRECTORY_TABLE, DELETED_DIR_TABLE);
   }
 
   public boolean processWithFSO(OMUpdateEventBatch events) {
     Iterator<OMDBUpdateEvent> eventIterator = events.getIterator();
     final Collection<String> taskTables = getTaskTables();
     Map<Long, NSSummary> nsSummaryMap = new HashMap<>();
-
+    final Collection<Long> objectIdsToBeDeleted = Collections.synchronizedList(new ArrayList<>());
     while (eventIterator.hasNext()) {
       OMDBUpdateEvent<String, ? extends
               WithParentObjectId> omdbUpdateEvent = eventIterator.next();
       OMDBUpdateEvent.OMDBUpdateAction action = omdbUpdateEvent.getAction();
 
-      // we only process updates on OM's FileTable and Dirtable
+      // we only process updates on OM's FileTable, Dirtable and DeletedDirTable
       String table = omdbUpdateEvent.getTable();
-      boolean updateOnFileTable = table.equals(FILE_TABLE);
       if (!taskTables.contains(table)) {
         continue;
       }
-
-      String updatedKey = omdbUpdateEvent.getKey();
-
       try {
-        if (updateOnFileTable) {
-          // key update on fileTable
-          OMDBUpdateEvent<String, OmKeyInfo> keyTableUpdateEvent =
-                  (OMDBUpdateEvent<String, OmKeyInfo>) omdbUpdateEvent;
-          OmKeyInfo updatedKeyInfo = keyTableUpdateEvent.getValue();
-          OmKeyInfo oldKeyInfo = keyTableUpdateEvent.getOldValue();
-
-          switch (action) {
-          case PUT:
-            handlePutKeyEvent(updatedKeyInfo, nsSummaryMap);
-            break;
-
-          case DELETE:
-            handleDeleteKeyEvent(updatedKeyInfo, nsSummaryMap);
-            break;
-
-          case UPDATE:
-            if (oldKeyInfo != null) {
-              // delete first, then put
-              handleDeleteKeyEvent(oldKeyInfo, nsSummaryMap);
-            } else {
-              LOG.warn("Update event does not have the old keyInfo for {}.",
-                      updatedKey);
-            }
-            handlePutKeyEvent(updatedKeyInfo, nsSummaryMap);
-            break;
-
-          default:
-            LOG.debug("Skipping DB update event : {}",
-                    omdbUpdateEvent.getAction());
-          }
-
+        if (table.equals(FILE_TABLE)) {
+          handleUpdateOnFileTable(omdbUpdateEvent, action, nsSummaryMap);
+        } else if (table.equals(DELETED_DIR_TABLE)) {
+          // Hard delete from deletedDirectoryTable - cleanup memory leak for directories
+          handleUpdateOnDeletedDirTable(omdbUpdateEvent, action, nsSummaryMap, objectIdsToBeDeleted);
         } else {
           // directory update on DirTable
-          OMDBUpdateEvent<String, OmDirectoryInfo> dirTableUpdateEvent =
-                  (OMDBUpdateEvent<String, OmDirectoryInfo>) omdbUpdateEvent;
-          OmDirectoryInfo updatedDirectoryInfo = dirTableUpdateEvent.getValue();
-          OmDirectoryInfo oldDirectoryInfo = dirTableUpdateEvent.getOldValue();
-
-          switch (action) {
-          case PUT:
-            handlePutDirEvent(updatedDirectoryInfo, nsSummaryMap);
-            break;
-
-          case DELETE:
-            handleDeleteDirEvent(updatedDirectoryInfo, nsSummaryMap);
-            break;
-
-          case UPDATE:
-            if (oldDirectoryInfo != null) {
-              // delete first, then put
-              handleDeleteDirEvent(oldDirectoryInfo, nsSummaryMap);
-            } else {
-              LOG.warn("Update event does not have the old dirInfo for {}.",
-                      updatedKey);
-            }
-            handlePutDirEvent(updatedDirectoryInfo, nsSummaryMap);
-            break;
-
-          default:
-            LOG.debug("Skipping DB update event : {}",
-                    omdbUpdateEvent.getAction());
-          }
+          handleUpdateOnDirTable(omdbUpdateEvent, action, nsSummaryMap);
         }
       } catch (IOException ioEx) {
-        LOG.error("Unable to process Namespace Summary data in Recon DB. ",
-                ioEx);
+        LOG.error("Unable to process Namespace Summary data in Recon DB. ", ioEx);
+        nsSummaryMap.clear();
         return false;
       }
-      if (!checkAndCallFlushToDB(nsSummaryMap)) {
-        return false;
+      if (nsSummaryMap.size() >= nsSummaryFlushToDBMaxThreshold) {
+        // Deleting hard deleted directories also along with this flush operation from NSSummary table
+        // Same list of objectIdsToBeDeleted is used for follow up flush operation as well and done intentionally
+        // to make sure that after final flush all objectIds are deleted from NSSummary table.
+        return flushAndCommitUpdatedNSToDB(nsSummaryMap, objectIdsToBeDeleted);
       }
     }
 
     // flush and commit left out entries at end
-    if (!flushAndCommitNSToDB(nsSummaryMap)) {
+    if (!flushAndCommitUpdatedNSToDB(nsSummaryMap, objectIdsToBeDeleted)) {
       return false;
     }
 
     LOG.info("Completed a process run of NSSummaryTaskWithFSO");
     return true;
+  }
+
+  private void handleUpdateOnDirTable(OMDBUpdateEvent<String, ? extends WithParentObjectId> omdbUpdateEvent,
+                                      OMDBUpdateEvent.OMDBUpdateAction action, Map<Long, NSSummary> nsSummaryMap)
+      throws IOException {
+    OMDBUpdateEvent<String, OmDirectoryInfo> dirTableUpdateEvent =
+        (OMDBUpdateEvent<String, OmDirectoryInfo>) omdbUpdateEvent;
+    OmDirectoryInfo updatedDirectoryInfo = dirTableUpdateEvent.getValue();
+    OmDirectoryInfo oldDirectoryInfo = dirTableUpdateEvent.getOldValue();
+
+    switch (action) {
+    case PUT:
+      handlePutDirEvent(updatedDirectoryInfo, nsSummaryMap);
+      break;
+
+    case DELETE:
+      handleDeleteDirEvent(updatedDirectoryInfo, nsSummaryMap);
+      break;
+
+    case UPDATE:
+      if (oldDirectoryInfo != null) {
+        // delete first, then put
+        handleDeleteDirEvent(oldDirectoryInfo, nsSummaryMap);
+      } else {
+        LOG.warn("Update event does not have the old dirInfo for {}.", dirTableUpdateEvent.getKey());
+      }
+      handlePutDirEvent(updatedDirectoryInfo, nsSummaryMap);
+      break;
+
+    default:
+      LOG.debug("Skipping DB update event : {}",
+          omdbUpdateEvent.getAction());
+    }
+  }
+
+  private void handleUpdateOnDeletedDirTable(OMDBUpdateEvent<String, ? extends WithParentObjectId> omdbUpdateEvent,
+                                             OMDBUpdateEvent.OMDBUpdateAction action, Map<Long, NSSummary> nsSummaryMap,
+                                             Collection<Long> objectIdsToBeDeleted) {
+    OMDBUpdateEvent<String, OmKeyInfo> deletedDirTableUpdateEvent =
+        (OMDBUpdateEvent<String, OmKeyInfo>) omdbUpdateEvent;
+    OmKeyInfo deletedKeyInfo = deletedDirTableUpdateEvent.getValue();
+
+    switch (action) {
+    case DELETE:
+      // When entry is removed from deletedDirTable, remove from nsSummaryMap to prevent memory leak
+      if (deletedKeyInfo != null) {
+        long objectId = deletedKeyInfo.getObjectID();
+        nsSummaryMap.remove(objectId);
+        LOG.debug("Removed hard deleted directory with objectId {} from nsSummaryMap", objectId);
+        objectIdsToBeDeleted.add(objectId);
+      }
+      break;
+
+    default:
+      LOG.debug("Skipping DB update event on deletedDirTable: {}", action);
+    }
+  }
+
+  private void handleUpdateOnFileTable(OMDBUpdateEvent<String, ? extends WithParentObjectId> omdbUpdateEvent,
+                                       OMDBUpdateEvent.OMDBUpdateAction action, Map<Long, NSSummary> nsSummaryMap)
+      throws IOException {
+    // key update on fileTable
+    OMDBUpdateEvent<String, OmKeyInfo> keyTableUpdateEvent =
+        (OMDBUpdateEvent<String, OmKeyInfo>) omdbUpdateEvent;
+    OmKeyInfo updatedKeyInfo = keyTableUpdateEvent.getValue();
+    OmKeyInfo oldKeyInfo = keyTableUpdateEvent.getOldValue();
+
+    switch (action) {
+    case PUT:
+      handlePutKeyEvent(updatedKeyInfo, nsSummaryMap);
+      break;
+
+    case DELETE:
+      handleDeleteKeyEvent(updatedKeyInfo, nsSummaryMap);
+      break;
+
+    case UPDATE:
+      if (oldKeyInfo != null) {
+        // delete first, then put
+        handleDeleteKeyEvent(oldKeyInfo, nsSummaryMap);
+      } else {
+        LOG.warn("Update event does not have the old keyInfo for {}.", omdbUpdateEvent.getKey());
+      }
+      handlePutKeyEvent(updatedKeyInfo, nsSummaryMap);
+      break;
+
+    default:
+      LOG.debug("Skipping DB update event : {}",
+          omdbUpdateEvent.getAction());
+    }
   }
 
   public boolean reprocessWithFSO(OMMetadataManager omMetadataManager) {
