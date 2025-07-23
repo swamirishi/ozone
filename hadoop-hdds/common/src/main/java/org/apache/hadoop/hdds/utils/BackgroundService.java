@@ -110,6 +110,10 @@ public abstract class BackgroundService {
     exec.scheduleWithFixedDelay(service, 0, interval, unit);
   }
 
+  protected synchronized long getIntervalMillis() {
+    return this.unit.toMillis(interval);
+  }
+
   public abstract BackgroundTaskQueue getTasks();
 
   /**
