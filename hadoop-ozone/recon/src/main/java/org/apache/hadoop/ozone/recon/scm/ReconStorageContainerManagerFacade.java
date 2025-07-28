@@ -235,7 +235,8 @@ public class ReconStorageContainerManagerFacade
         scmhaManager,
         scmContext);
     ContainerReplicaPendingOps pendingOps = new ContainerReplicaPendingOps(
-        Clock.system(ZoneId.systemDefault()));
+        Clock.system(ZoneId.systemDefault()),
+        conf.getObject(ReplicationManager.ReplicationManagerConfiguration.class));
     this.containerManager = new ReconContainerManager(conf,
         dbStore,
         ReconSCMDBDefinition.CONTAINERS.getTable(dbStore),

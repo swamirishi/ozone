@@ -37,19 +37,29 @@ public class ContainerReplicaOp {
   private final int replicaIndex;
   private final SCMCommand<?> command;
   private final long deadlineEpochMillis;
+  private final long containerSize;
 
   public static ContainerReplicaOp create(PendingOpType opType,
       DatanodeDetails target, int replicaIndex) {
-    return new ContainerReplicaOp(opType, target, replicaIndex, null, System.currentTimeMillis());
+    return new ContainerReplicaOp(opType, target, replicaIndex, null,
+        System.currentTimeMillis(), 0);
   }
 
   public ContainerReplicaOp(PendingOpType opType,
-      DatanodeDetails target, int replicaIndex, SCMCommand<?> command, long deadlineEpochMillis) {
+      DatanodeDetails target, int replicaIndex, SCMCommand<?> command,
+      long deadlineEpochMillis) {
+    this(opType, target, replicaIndex, command, deadlineEpochMillis, 0);
+  }
+
+  public ContainerReplicaOp(PendingOpType opType,
+      DatanodeDetails target, int replicaIndex, SCMCommand<?> command,
+      long deadlineEpochMillis, long containerSize) {
     this.opType = opType;
     this.target = target;
     this.replicaIndex = replicaIndex;
     this.command = command;
     this.deadlineEpochMillis = deadlineEpochMillis;
+    this.containerSize = containerSize;
   }
 
   public PendingOpType getOpType() {
@@ -72,4 +82,7 @@ public class ContainerReplicaOp {
     return deadlineEpochMillis;
   }
 
+  public long getContainerSize() {
+    return containerSize;
+  }
 }

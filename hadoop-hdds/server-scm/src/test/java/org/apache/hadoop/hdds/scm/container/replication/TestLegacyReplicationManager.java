@@ -281,6 +281,7 @@ public class TestLegacyReplicationManager {
         SCMDBDefinition.MOVE.getTable(dbStore));
 
     replicationManager = new ReplicationManager(
+        config.getObject(ReplicationManager.ReplicationManagerConfiguration.class),
         config,
         containerManager,
         ratisContainerPlacementPolicy,

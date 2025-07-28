@@ -100,6 +100,8 @@ public class TestRatisUnderReplicationHandler {
             ReplicationManagerConfiguration.class));
     metrics = ReplicationManagerMetrics.create(replicationManager);
     Mockito.when(replicationManager.getMetrics()).thenReturn(metrics);
+    Mockito.when(replicationManager.getContainerReplicaPendingOps())
+        .thenReturn(Mockito.mock(ContainerReplicaPendingOps.class));
 
     /*
       Return NodeStatus with NodeOperationalState as specified in
