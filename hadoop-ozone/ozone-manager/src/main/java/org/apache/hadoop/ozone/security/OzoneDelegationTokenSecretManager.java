@@ -460,10 +460,6 @@ public class OzoneDelegationTokenSecretManager
     if (StringUtils.isNotEmpty(secretKeyId)) {
       try {
         ManagedSecretKey verifyKey = secretKeyClient.getSecretKey(UUID.fromString(secretKeyId));
-        if (verifyKey == null) {
-          throw new SCMSecurityException("Secret verify key " + UUID.fromString(secretKeyId) +
-              " not found for token " + formatTokenId(identifier));
-        }
         return verifyKey.isValidSignature(identifier.getBytes(), password);
       } catch (SCMSecurityException e) {
         LOG.error("verifySignature for identifier {} failed", identifier, e);
