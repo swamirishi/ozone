@@ -24,6 +24,15 @@
     <pnpm.version>5.18.9</pnpm.version>
     <solr.version>8.11.2.7.1.9.1003-SNAPSHOT</solr.version>
   </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-jdbc</artifactId>
+        <version>${spring.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <build>
     <resources>
       <resource>
