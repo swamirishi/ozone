@@ -102,6 +102,7 @@ public abstract class BackgroundService {
     while (tasks.size() > 0) {
       tasks.poll().call();
     }
+    execTaskCompletion();
   }
 
 
