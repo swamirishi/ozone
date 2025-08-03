@@ -19,42 +19,41 @@
 
 package org.apache.hadoop.ozone.om.request.s3.multipart;
 
-import java.io.IOException;
-import java.util.List;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.ozone.audit.AuditLogger;
+import org.apache.hadoop.ozone.audit.AuditMessage;
+import org.apache.hadoop.ozone.om.IOmMetadataReader;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
+import org.apache.hadoop.ozone.om.OMMetadataManager;
+import org.apache.hadoop.ozone.om.OMMetrics;
+import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
+import org.apache.hadoop.ozone.om.OmMetadataReader;
+import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.om.ResolvedBucket;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
+import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyLocation;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Part;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
-import org.apache.hadoop.security.UserGroupInformation;
-
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.ozone.audit.AuditLogger;
-import org.apache.hadoop.ozone.audit.AuditMessage;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.om.OMMetadataManager;
-import org.apache.hadoop.ozone.om.OmMetadataReader;
-import org.apache.hadoop.ozone.om.IOmMetadataReader;
-import org.apache.hadoop.ozone.om.OMMetrics;
-import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
-import org.apache.hadoop.ozone.om.OzoneManager;
-import org.apache.hadoop.ozone.om.ResolvedBucket;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos
-    .OMRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Part;
-import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
-import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Base test class for S3 Multipart upload request.
@@ -146,26 +145,43 @@ public class TestS3MultipartRequest {
   }
 
   /**
-   * Perform preExecute of Commit Multipart Upload request for given volume,
-   * bucket and keyName.
-   * @param volumeName
-   * @param bucketName
-   * @param keyName
-   * @param clientID
-   * @param multipartUploadID
-   * @param partNumber
+   * Perform preExecute of Commit Multipart Upload request.
+   * @param volumeName volume name.
+   * @param bucketName bucket name.
+   * @param keyName key name.
+   * @param clientID client ID.
+   * @param multipartUploadID multipart upload ID.
+   * @param partNumber part number.
    * @return OMRequest - returned from preExecute.
    */
   protected OMRequest doPreExecuteCommitMPU(
       String volumeName, String bucketName, String keyName,
       long clientID, String multipartUploadID, int partNumber)
       throws Exception {
+    return doPreExecuteCommitMPU(volumeName, bucketName, keyName, clientID, multipartUploadID,
+        partNumber, Collections.emptyList());
+  }
 
-    // Just set dummy size
-    long dataSize = 100L;
+  /**
+   * Perform preExecute of Commit Multipart Upload request.
+   * @param volumeName volume name.
+   * @param bucketName bucket name.
+   * @param keyName key name.
+   * @param clientID client ID.
+   * @param multipartUploadID multipart upload ID.
+   * @param partNumber part number.
+   * @param keyLocations key location info list.
+   * @return OMRequest - returned from preExecute.
+   */
+  protected OMRequest doPreExecuteCommitMPU(
+      String volumeName, String bucketName, String keyName,
+      long clientID, String multipartUploadID, int partNumber, List<KeyLocation> keyLocations)
+      throws Exception {
+
+    long dataSize = keyLocations.stream().mapToLong(KeyLocation::getLength).sum();
     OMRequest omRequest =
         OMRequestTestUtils.createCommitPartMPURequest(volumeName, bucketName,
-            keyName, clientID, dataSize, multipartUploadID, partNumber);
+            keyName, clientID, dataSize, multipartUploadID, partNumber, keyLocations);
     S3MultipartUploadCommitPartRequest s3MultipartUploadCommitPartRequest =
             getS3MultipartUploadCommitReq(omRequest);
 

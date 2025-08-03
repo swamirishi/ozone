@@ -18,26 +18,28 @@
 
 package org.apache.hadoop.ozone.om.response.s3.multipart;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.BUCKET_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.MULTIPARTINFO_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_FILE_TABLE;
+
+import java.util.Map;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmMultipartKeyInfo;
+import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_FILE_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.MULTIPARTINFO_TABLE;
 
 /**
  * Response for S3MultipartUploadCommitPartWithFSO request.
  */
 @CleanupTableInfo(cleanupTables = {OPEN_FILE_TABLE, DELETED_TABLE,
-    MULTIPARTINFO_TABLE})
+    MULTIPARTINFO_TABLE, BUCKET_TABLE})
 public class S3MultipartUploadCommitPartResponseWithFSO
         extends S3MultipartUploadCommitPartResponse {
 
@@ -45,26 +47,18 @@ public class S3MultipartUploadCommitPartResponseWithFSO
    * Regular response.
    * 1. Update MultipartKey in MultipartInfoTable with new PartKeyInfo
    * 2. Delete openKey from OpenKeyTable
-   * 3. If old PartKeyInfo exists, put it in DeletedKeyTable
-   * @param omResponse
-   * @param multipartKey
-   * @param openKey
-   * @param omMultipartKeyInfo
-   * @param oldPartKeyInfo
-   * @param openPartKeyInfoToBeDeleted
-   * @param isRatisEnabled
-   * @param omBucketInfo
+   * 3. If old key or uncommitted (pseudo) key exists, put it in DeletedTable
    */
   @SuppressWarnings("checkstyle:ParameterNumber")
   public S3MultipartUploadCommitPartResponseWithFSO(
       @Nonnull OMResponse omResponse, String multipartKey, String openKey,
       @Nullable OmMultipartKeyInfo omMultipartKeyInfo,
-      @Nullable OzoneManagerProtocolProtos.PartKeyInfo oldPartKeyInfo,
+      @Nullable Map<String, RepeatedOmKeyInfo> keyToDeleteMap,
       @Nullable OmKeyInfo openPartKeyInfoToBeDeleted, boolean isRatisEnabled,
       @Nonnull OmBucketInfo omBucketInfo, @Nonnull BucketLayout bucketLayout) {
 
     super(omResponse, multipartKey, openKey, omMultipartKeyInfo,
-            oldPartKeyInfo, openPartKeyInfoToBeDeleted, isRatisEnabled,
+            keyToDeleteMap, openPartKeyInfoToBeDeleted, isRatisEnabled,
             omBucketInfo, bucketLayout);
   }
 }
