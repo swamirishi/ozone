@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.container.common.impl;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.io.IOException;
@@ -231,6 +232,11 @@ public abstract class ContainerData {
     }
   }
 
+  @VisibleForTesting
+  void setCommittedSpace(boolean committedSpace) {
+    this.committedSpace = committedSpace;
+  }
+
   /**
    * Return's maximum size of the container in bytes.
    * @return maxSize in bytes
@@ -436,8 +442,6 @@ public abstract class ContainerData {
    * @param bytes the number of bytes write into the container.
    */
   public void incrWriteBytes(long bytes) {
-    long unused = getMaxSize() - getBytesUsed();
-
     this.writeBytes.addAndGet(bytes);
     /*
        Increase the cached Used Space in VolumeInfo as it
@@ -445,11 +449,16 @@ public abstract class ContainerData {
        periodically to update the Used Space in VolumeInfo.
      */
     this.getVolume().incrementUsedSpace(bytes);
-    // only if container size < max size
-    if (committedSpace && unused > 0) {
-      //with this write, container size might breach max size
-      long decrement = Math.min(bytes, unused);
-      this.getVolume().incCommittedBytes(0 - decrement);
+    // Calculate bytes used before this write operation.
+    // Note that getBytesUsed() already includes the 'bytes' from the current write.
+    long bytesUsedBeforeWrite = getBytesUsed() - bytes;
+    // Calculate how much space was available within the max size limit before this write
+    long availableSpaceBeforeWrite = getMaxSize() - bytesUsedBeforeWrite;
+    if (committedSpace && availableSpaceBeforeWrite > 0) {
+      // Decrement committed space only by the portion of the write that fits within the originally committed space,
+      // up to maxSize
+      long decrement = Math.min(bytes, availableSpaceBeforeWrite);
+      this.getVolume().incCommittedBytes(-decrement);
     }
   }
 
