@@ -25,7 +25,7 @@ import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static org.apache.hadoop.ozone.container.common.volume.VolumeChoosingUtil.logIfSomeVolumesOutOfSpace;
@@ -46,11 +46,8 @@ public class CapacityVolumeChoosingPolicy implements VolumeChoosingPolicy {
   public static final Logger LOG = LoggerFactory.getLogger(
       CapacityVolumeChoosingPolicy.class);
 
-  // Stores the index of the next volume to be returned.
-  private final Random random = new Random();
-
   @Override
-  public HddsVolume chooseVolume(List<HddsVolume> volumes,
+  public synchronized HddsVolume chooseVolume(List<HddsVolume> volumes,
       long maxContainerSize) throws IOException {
 
     // No volumes available to choose from
@@ -71,9 +68,8 @@ public class CapacityVolumeChoosingPolicy implements VolumeChoosingPolicy {
     }
 
     int count = volumesWithEnoughSpace.size();
-    if (count == 1) {
-      return volumesWithEnoughSpace.get(0);
-    } else {
+    HddsVolume selectedVolume = volumesWithEnoughSpace.get(0);
+    if (count > 1) {
       // Even if we don't have too many volumes in volumesWithEnoughSpace, this
       // algorithm will still help us choose the volume with larger
       // available space than other volumes.
@@ -85,8 +81,8 @@ public class CapacityVolumeChoosingPolicy implements VolumeChoosingPolicy {
       // 4. vol2 + vol2: 25%, result is vol2
       // So we have a total of 75% chances to choose vol1, which meets our
       // expectation.
-      int firstIndex = random.nextInt(count);
-      int secondIndex = random.nextInt(count);
+      int firstIndex = ThreadLocalRandom.current().nextInt(count);
+      int secondIndex = ThreadLocalRandom.current().nextInt(count);
 
       HddsVolume firstVolume = volumesWithEnoughSpace.get(firstIndex);
       HddsVolume secondVolume = volumesWithEnoughSpace.get(secondIndex);
@@ -95,7 +91,9 @@ public class CapacityVolumeChoosingPolicy implements VolumeChoosingPolicy {
           - firstVolume.getCommittedBytes();
       long secondAvailable = secondVolume.getAvailable()
           - secondVolume.getCommittedBytes();
-      return firstAvailable < secondAvailable ? secondVolume : firstVolume;
+      selectedVolume = firstAvailable < secondAvailable ? secondVolume : firstVolume;
     }
+    selectedVolume.incCommittedBytes(maxContainerSize);
+    return selectedVolume;
   }
 }

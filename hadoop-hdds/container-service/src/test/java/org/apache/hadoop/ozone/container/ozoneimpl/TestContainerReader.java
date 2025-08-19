@@ -234,6 +234,14 @@ public class TestContainerReader {
 
   @Test
   public void testContainerReader() throws Exception {
+    ContainerReader containerReader = new ContainerReader(volumeSet,
+        hddsVolume, containerSet, conf, true);
+    Thread thread = new Thread(containerReader);
+    thread.start();
+    thread.join();
+    long originalCommittedBytes = hddsVolume.getCommittedBytes();
+    ContainerCache.getInstance(conf).shutdownCache();
+
     KeyValueContainerData recoveringContainerData = new KeyValueContainerData(
         10, layout, (long) StorageUnit.GB.toBytes(5),
         UUID.randomUUID().toString(), datanodeId.toString());
@@ -246,12 +254,12 @@ public class TestContainerReader {
     recoveringKeyValueContainer.create(
         volumeSet, volumeChoosingPolicy, clusterId);
 
-    ContainerReader containerReader = new ContainerReader(volumeSet,
-        hddsVolume, containerSet, conf, true);
-
-    Thread thread = new Thread(containerReader);
+    thread = new Thread(containerReader);
     thread.start();
     thread.join();
+
+    // no change, only open containers have committed space
+    assertEquals(originalCommittedBytes, hddsVolume.getCommittedBytes());
 
     // Ratis replicated recovering containers are deleted upon datanode startup
     if (recoveringKeyValueContainer.getContainerData().getReplicaIndex() == 0) {
@@ -279,6 +287,8 @@ public class TestContainerReader {
 
       Assert.assertEquals(i,
           keyValueContainerData.getNumPendingDeletionBlocks());
+
+      assertTrue(keyValueContainerData.isCommittedSpace());
     }
   }
 
@@ -325,7 +335,15 @@ public class TestContainerReader {
     ContainerReader containerReader = new ContainerReader(volumeSet1,
         hddsVolume1, containerSet1, conf, true);
     containerReader.readVolume(hddsVolume1.getHddsRootDir());
-    Assert.assertEquals(containerCount - 1, containerSet1.containerCount());
+    assertEquals(containerCount - 1, containerSet1.containerCount());
+    for (Container c : containerSet1.getContainerMap().values()) {
+      if (c.getContainerData().getContainerID() == 0) {
+        Assertions.assertFalse(c.getContainerData().isCommittedSpace());
+      } else {
+        Assertions.assertTrue(c.getContainerData().isCommittedSpace());
+      }
+    }
+    Assertions.assertEquals(hddsVolume1.getCommittedBytes(), (containerCount - 1) * StorageUnit.GB.toBytes(5));
   }
 
   @Test
@@ -371,6 +389,7 @@ public class TestContainerReader {
         hddsVolume1, containerSet1, conf, true);
     containerReader.readVolume(hddsVolume1.getHddsRootDir());
     assertEquals(0, containerSet1.containerCount());
+    assertEquals(0, hddsVolume1.getCommittedBytes());
     assertTrue(dnLogs.getOutput().contains("Container DB file is missing"));
   }
 

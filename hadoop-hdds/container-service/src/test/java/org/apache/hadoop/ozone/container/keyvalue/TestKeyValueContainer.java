@@ -980,4 +980,17 @@ public class TestKeyValueContainer {
       Assert.assertTrue(container.getContainerData().isEmpty());
     }
   }
+
+  @Test
+  public void testContainerCreationCommitSpaceReserve() throws Exception {
+    keyValueContainerData = Mockito.spy(keyValueContainerData);
+    keyValueContainer = new KeyValueContainer(keyValueContainerData, CONF);
+    keyValueContainer = Mockito.spy(keyValueContainer);
+
+    keyValueContainer.create(volumeSet, volumeChoosingPolicy, scmId);
+
+    // verify that
+    Mockito.verify(volumeChoosingPolicy).chooseVolume(anyList(), anyLong()); // this would reserve commit space
+    assertTrue(keyValueContainerData.isCommittedSpace());
+  }
 }

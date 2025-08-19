@@ -84,7 +84,7 @@ public class ContainerImporter {
   }
 
   public void importContainer(long containerID, Path tarFilePath,
-      HddsVolume hddsVolume, CopyContainerCompression compression)
+      HddsVolume targetVolume, CopyContainerCompression compression)
       throws IOException {
 
     if (!importContainerProgress.add(containerID)) {
@@ -102,11 +102,6 @@ public class ContainerImporter {
         throw new StorageContainerException("Container already exists " +
             "with container Id " + containerID,
             ContainerProtos.Result.CONTAINER_EXISTS);
-      }
-
-      HddsVolume targetVolume = hddsVolume;
-      if (targetVolume == null) {
-        targetVolume = chooseNextVolume();
       }
 
       KeyValueContainerData containerData;
@@ -146,7 +141,7 @@ public class ContainerImporter {
     // Choose volume that can hold both container in tmp and dest directory
     return volumeChoosingPolicy.chooseVolume(
         StorageVolumeUtil.getHddsVolumesList(volumeSet.getVolumesList()),
-        HddsServerUtil.requiredReplicationSpace(containerSize));
+        getDefaultReplicationSpace());
   }
 
   public static Path getUntarDirectory(HddsVolume hddsVolume)
@@ -157,5 +152,9 @@ public class ContainerImporter {
 
   public long getDefaultContainerSize() {
     return containerSize;
+  }
+
+  public long getDefaultReplicationSpace() {
+    return HddsServerUtil.requiredReplicationSpace(containerSize);
   }
 }
