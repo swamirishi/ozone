@@ -20,6 +20,8 @@ package org.apache.hadoop.ozone.container.keyvalue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
 import java.util.Collections;
@@ -431,6 +433,63 @@ public class TestKeyValueHandler {
     }
   }
 
+  /**
+   * Tests that deleting a container decrements the cached used space of its volume.
+   */
+  @Test
+  public void testDeleteDecrementsVolumeUsedSpace() throws IOException {
+    final long containerID = 1;
+    final String clusterId = UUID.randomUUID().toString();
+    final String datanodeId = UUID.randomUUID().toString();
+    final ContainerSet containerSet = new ContainerSet(1000);
+    final MutableVolumeSet volumeSet = mock(MutableVolumeSet.class);
+    final HddsVolume hddsVolume = mock(HddsVolume.class);
+    File deletedContainerDir = new File(tempDir.getRoot(), "tmp");
+    Assertions.assertTrue(deletedContainerDir.mkdirs());
+    when(hddsVolume.getDeletedContainerDir()).thenReturn(deletedContainerDir);
+
+    final ConfigurationSource conf = new OzoneConfiguration();
+    final ContainerMetrics metrics = ContainerMetrics.create(conf);
+    final AtomicInteger icrReceived = new AtomicInteger(0);
+    final long containerBytesUsed = 1024 * 1024;
+
+    // We're testing KeyValueHandler in this test, all the other objects are mocked
+    final KeyValueHandler kvHandler = new KeyValueHandler(conf,
+        datanodeId, containerSet, volumeSet, metrics,
+        c -> icrReceived.incrementAndGet());
+    kvHandler.setClusterID(clusterId);
+
+    // Setup ContainerData and Container mocks
+    KeyValueContainerData containerData = mock(KeyValueContainerData.class);
+    when(containerData.getContainerID()).thenReturn(containerID);
+    when(containerData.getVolume()).thenReturn(hddsVolume);
+    when(containerData.getBytesUsed()).thenReturn(containerBytesUsed);
+    when(containerData.getState()).thenReturn(ContainerProtos.ContainerDataProto.State.CLOSED);
+    when(containerData.isOpen()).thenReturn(false);
+    when(containerData.getLayoutVersion()).thenReturn(ContainerLayoutVersion.FILE_PER_BLOCK);
+    when(containerData.getDbFile()).thenReturn(new File(tempDir.getRoot(), "dummy.db"));
+    Path containerPath = Files.createDirectory(tempDir.getRoot().toPath().resolve(
+        "container"));
+    when(containerData.getContainerPath()).thenReturn(containerPath.toString());
+    when(containerData.getMetadataPath()).thenReturn(containerPath.toString());
+
+    KeyValueContainer container = mock(KeyValueContainer.class);
+    when(container.getContainerData()).thenReturn(containerData);
+    when(container.hasBlocks()).thenReturn(true);
+
+    containerSet.addContainer(container);
+    assertNotNull(containerSet.getContainer(containerID));
+
+    // This is the method we're testing. It should decrement used space in the volume when deleting this container
+    kvHandler.deleteContainer(container, true);
+    assertNull(containerSet.getContainer(containerID));
+
+    // Verify ICR was sent (once for delete)
+    Assertions.assertEquals(1, icrReceived.get(), "ICR should be sent for delete");
+    Mockito.verify(container, times(1)).delete();
+    // Verify decrementUsedSpace was called with the correct amount
+    Mockito.verify(hddsVolume, times(1)).decrementUsedSpace(Mockito.eq(containerBytesUsed));
+  }
 
   @Test
   public void testDeleteContainerTimeout() throws IOException {
