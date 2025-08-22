@@ -23,10 +23,8 @@ import moment from 'moment';
 import { showDataFetchError } from 'utils/common';
 import './heatmap.less';
 import HeatMapConfiguration from './heatMapConfiguration';
-import * as CONSTANTS from './constants/heatmapConstants';
 import { AxiosGetHelper } from 'utils/axiosRequestHelper';
 
-type inputPathValidity = "" | "error" | "success" | "warning" | "validating" | undefined
 
 interface ITreeResponse {
   label: string;
