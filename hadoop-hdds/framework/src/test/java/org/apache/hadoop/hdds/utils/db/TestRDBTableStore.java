@@ -19,7 +19,10 @@
 
 package org.apache.hadoop.hdds.utils.db;
 
+import static org.apache.hadoop.hdds.StringUtils.bytes2String;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,20 +34,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.apache.hadoop.hdds.StringUtils;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.hadoop.hdds.StringUtils;
+import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
+import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.apache.hadoop.hdds.utils.MetadataKeyFilters;
-import org.junit.Assert;
-import org.junit.Rule;
 import org.rocksdb.RocksDB;
 import org.rocksdb.Statistics;
 import org.rocksdb.StatsLevel;
@@ -61,7 +63,7 @@ public class TestRDBTableStore {
   public static final int MAX_DB_UPDATES_SIZE_THRESHOLD = 80;
   private static int count = 0;
   private final List<String> families =
-      Arrays.asList(StringUtils.bytes2String(RocksDB.DEFAULT_COLUMN_FAMILY),
+      Arrays.asList(bytes2String(RocksDB.DEFAULT_COLUMN_FAMILY),
           "First", "Second", "Third",
           "Fourth", "Fifth",
           "Sixth", "Seventh",
@@ -92,7 +94,7 @@ public class TestRDBTableStore {
   private static boolean consume(Table.KeyValue keyValue)  {
     count++;
     try {
-      Assertions.assertNotNull(keyValue.getKey());
+      assertNotNull(keyValue.getKey());
     } catch (IOException ex) {
       Assertions.fail("Unexpected Exception " + ex);
     }
@@ -140,8 +142,8 @@ public class TestRDBTableStore {
   @Test
   public void getHandle() throws Exception {
     try (Table testTable = rdbStore.getTable("First")) {
-      Assertions.assertNotNull(testTable);
-      Assertions.assertNotNull(((RDBTable) testTable).getColumnFamily());
+      assertNotNull(testTable);
+      assertNotNull(((RDBTable) testTable).getColumnFamily());
     }
   }
 
@@ -191,11 +193,11 @@ public class TestRDBTableStore {
       }
 
       for (int x = 0; x < validKeys.size(); x++) {
-        Assertions.assertNotNull(testTable.get(validKeys.get(x)));
+        assertNotNull(testTable.get(validKeys.get(x)));
       }
 
       for (int x = 0; x < deletedKeys.size(); x++) {
-        Assertions.assertNull(testTable.get(deletedKeys.get(x)));
+        assertNull(testTable.get(deletedKeys.get(x)));
       }
     }
   }
@@ -222,7 +224,7 @@ public class TestRDBTableStore {
 
       // All keys should exist at this point
       for (int x = 0; x < keys.size(); x++) {
-        Assertions.assertNotNull(testTable.get(keys.get(x)));
+        assertNotNull(testTable.get(keys.get(x)));
       }
 
       // Delete a range of keys: [10th, 20th), zero-indexed
@@ -234,15 +236,15 @@ public class TestRDBTableStore {
 
       // Keys [10th, 20th) should be gone now
       for (int x = deleteRangeBegin; x < deleteRangeEnd; x++) {
-        Assertions.assertNull(testTable.get(keys.get(x)));
+        assertNull(testTable.get(keys.get(x)));
       }
 
       // While the rest of the keys should be untouched
       for (int x = 0; x < deleteRangeBegin; x++) {
-        Assertions.assertNotNull(testTable.get(keys.get(x)));
+        assertNotNull(testTable.get(keys.get(x)));
       }
       for (int x = deleteRangeEnd; x < 100; x++) {
-        Assertions.assertNotNull(testTable.get(keys.get(x)));
+        assertNotNull(testTable.get(keys.get(x)));
       }
 
       // Delete the rest of the keys
@@ -250,15 +252,15 @@ public class TestRDBTableStore {
 
       // Confirm key deletion
       for (int x = 0; x < 100 - 1; x++) {
-        Assertions.assertNull(testTable.get(keys.get(x)));
+        assertNull(testTable.get(keys.get(x)));
       }
       // The last key is still there because
       // deleteRange() excludes the endKey by design
-      Assertions.assertNotNull(testTable.get(keys.get(100 - 1)));
+      assertNotNull(testTable.get(keys.get(100 - 1)));
 
       // Delete the last key
       testTable.delete(keys.get(100 - 1));
-      Assertions.assertNull(testTable.get(keys.get(100 - 1)));
+      assertNull(testTable.get(keys.get(100 - 1)));
     }
 
   }
@@ -272,14 +274,14 @@ public class TestRDBTableStore {
           RandomStringUtils.random(10).getBytes(StandardCharsets.UTF_8);
       byte[] value =
           RandomStringUtils.random(10).getBytes(StandardCharsets.UTF_8);
-      Assertions.assertNull(testTable.get(key));
+      assertNull(testTable.get(key));
 
       //when
       testTable.putWithBatch(batch, key, value);
       rdbStore.commitBatchOperation(batch);
 
       //then
-      Assertions.assertNotNull(testTable.get(key));
+      assertNotNull(testTable.get(key));
     }
   }
 
@@ -294,7 +296,7 @@ public class TestRDBTableStore {
       byte[] value =
           RandomStringUtils.random(10).getBytes(StandardCharsets.UTF_8);
       testTable.put(key, value);
-      Assertions.assertNotNull(testTable.get(key));
+      assertNotNull(testTable.get(key));
 
 
       //when
@@ -302,7 +304,7 @@ public class TestRDBTableStore {
       rdbStore.commitBatchOperation(batch);
 
       //then
-      Assertions.assertNull(testTable.get(key));
+      assertNull(testTable.get(key));
     }
   }
 
@@ -354,7 +356,7 @@ public class TestRDBTableStore {
       Assertions.assertFalse(testTable.isExist(key));
 
       // Test a key with zero size value.
-      Assertions.assertNull(testTable.get(zeroSizeKey));
+      assertNull(testTable.get(zeroSizeKey));
       testTable.put(zeroSizeKey, zeroSizeValue);
       assertEquals(0, testTable.get(zeroSizeKey).length);
 
@@ -424,16 +426,16 @@ public class TestRDBTableStore {
       testTable.put(key, value);
 
       // Test if isExist returns value for a key that definitely exists.
-      Assertions.assertNotNull(testTable.getIfExist(key));
+      assertNotNull(testTable.getIfExist(key));
 
       // Test if isExist returns null for a key that has been deleted.
       testTable.delete(key);
-      Assertions.assertNull(testTable.getIfExist(key));
+      assertNull(testTable.getIfExist(key));
 
       byte[] invalidKey =
           RandomStringUtils.random(5).getBytes(StandardCharsets.UTF_8);
       // Test if isExist returns null for a key that is definitely not present.
-      Assertions.assertNull(testTable.getIfExist(invalidKey));
+      assertNull(testTable.getIfExist(invalidKey));
 
       RDBMetrics rdbMetrics = rdbStore.getMetrics();
       assertEquals(3, rdbMetrics.getNumDBKeyGetIfExistChecks());
@@ -450,7 +452,7 @@ public class TestRDBTableStore {
     setUp();
     try (Table<byte[], byte[]> testTable = rdbStore.getTable(tableName)) {
       // Verify getIfExists works with key not in block cache.
-      Assertions.assertNotNull(testTable.getIfExist(key));
+      assertNotNull(testTable.getIfExist(key));
     }
   }
 
@@ -483,9 +485,9 @@ public class TestRDBTableStore {
           testTable.iterator()) {
         iterator.removeFromDB();
       }
-      Assertions.assertNull(testTable.get(bytesOf[1]));
-      Assertions.assertNotNull(testTable.get(bytesOf[2]));
-      Assertions.assertNotNull(testTable.get(bytesOf[3]));
+      assertNull(testTable.get(bytesOf[1]));
+      assertNotNull(testTable.get(bytesOf[2]));
+      assertNotNull(testTable.get(bytesOf[3]));
     }
 
     // Remove after seekToLast removes lastEntry
@@ -496,9 +498,9 @@ public class TestRDBTableStore {
         iterator.seekToLast();
         iterator.removeFromDB();
       }
-      Assertions.assertNotNull(testTable.get(bytesOf[1]));
-      Assertions.assertNotNull(testTable.get(bytesOf[2]));
-      Assertions.assertNull(testTable.get(bytesOf[3]));
+      assertNotNull(testTable.get(bytesOf[1]));
+      assertNotNull(testTable.get(bytesOf[2]));
+      assertNull(testTable.get(bytesOf[3]));
     }
 
     // Remove after seek deletes that entry.
@@ -509,9 +511,9 @@ public class TestRDBTableStore {
         iterator.seek(bytesOf[3]);
         iterator.removeFromDB();
       }
-      Assertions.assertNotNull(testTable.get(bytesOf[1]));
-      Assertions.assertNotNull(testTable.get(bytesOf[2]));
-      Assertions.assertNull(testTable.get(bytesOf[3]));
+      assertNotNull(testTable.get(bytesOf[1]));
+      assertNotNull(testTable.get(bytesOf[2]));
+      assertNull(testTable.get(bytesOf[3]));
     }
 
     // Remove after next() deletes entry that was returned by next.
@@ -523,9 +525,9 @@ public class TestRDBTableStore {
         iterator.next();
         iterator.removeFromDB();
       }
-      Assertions.assertNotNull(testTable.get(bytesOf[1]));
-      Assertions.assertNull(testTable.get(bytesOf[2]));
-      Assertions.assertNotNull(testTable.get(bytesOf[3]));
+      assertNotNull(testTable.get(bytesOf[1]));
+      assertNull(testTable.get(bytesOf[2]));
+      assertNotNull(testTable.get(bytesOf[3]));
     }
   }
 
@@ -812,6 +814,79 @@ public class TestRDBTableStore {
         table.put(entry.getKey(), entry.getValue());
         LOG.info("put {}", entry);
       }
+    }
+  }
+
+  @Test
+  public void batchDeleteWithRange() throws Exception {
+    final Table<byte[], byte[]> testTable = rdbStore.getTable("Fifth");
+    try (BatchOperation batch = rdbStore.initBatchOperation()) {
+
+      //given
+      String keyStr = RandomStringUtils.secure().next(10);
+      byte[] startKey = ("1-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] keyInRange1 = ("2-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] keyInRange2 = ("3-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] endKey = ("4-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] value =
+          RandomStringUtils.secure().next(10).getBytes(StandardCharsets.UTF_8);
+      testTable.put(startKey, value);
+      testTable.put(keyInRange1, value);
+      testTable.put(keyInRange2, value);
+      testTable.put(endKey, value);
+      assertNotNull(testTable.get(startKey));
+      assertNotNull(testTable.get(keyInRange1));
+      assertNotNull(testTable.get(keyInRange2));
+      assertNotNull(testTable.get(endKey));
+
+      //when
+      testTable.deleteRangeWithBatch(batch, startKey, endKey);
+      rdbStore.commitBatchOperation(batch);
+
+      //then
+      assertNull(testTable.get(startKey));
+      assertNull(testTable.get(keyInRange1));
+      assertNull(testTable.get(keyInRange2));
+      assertNotNull(testTable.get(endKey));
+    }
+  }
+
+  @Test
+  public void orderOfBatchOperations() throws Exception {
+    final Table<byte[], byte[]> testTable = rdbStore.getTable("Fifth");
+    try (BatchOperation batch = rdbStore.initBatchOperation()) {
+
+      //given
+      String keyStr = RandomStringUtils.secure().next(10);
+      byte[] startKey = ("1-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] keyInRange1 = ("2-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] endKey = ("3-" + keyStr).getBytes(StandardCharsets.UTF_8);
+      byte[] value1 = ("value1-" + RandomStringUtils.secure().next(10)).getBytes(StandardCharsets.UTF_8);
+      byte[] value2 = ("value2-" + RandomStringUtils.secure().next(10)).getBytes(StandardCharsets.UTF_8);
+      byte[] value3 = ("value3-" + RandomStringUtils.secure().next(10)).getBytes(StandardCharsets.UTF_8);
+
+      //when
+      testTable.putWithBatch(batch, startKey, value1);
+      testTable.putWithBatch(batch, keyInRange1, value1);
+      testTable.deleteWithBatch(batch, keyInRange1);
+      // ops map key should be <<startKey, endKey>, 1>
+      testTable.deleteRangeWithBatch(batch, startKey, endKey);
+      testTable.putWithBatch(batch, startKey, value2);
+      testTable.putWithBatch(batch, keyInRange1, value2);
+      // ops map key is <<startKey, keyInRange1>, 2>.
+      testTable.deleteRangeWithBatch(batch, startKey, keyInRange1);
+      testTable.putWithBatch(batch, endKey, value1);
+      testTable.putWithBatch(batch, endKey, value2);
+      // ops map key is <<startKey, endKey>, 3>.
+      testTable.deleteRangeWithBatch(batch, startKey, endKey);
+      testTable.putWithBatch(batch, startKey, value3);
+
+      rdbStore.commitBatchOperation(batch);
+
+      //then
+      assertEquals(bytes2String(value3), bytes2String(testTable.get(startKey)));
+      assertNull(testTable.get(keyInRange1));
+      assertEquals(bytes2String(value2), bytes2String(testTable.get(endKey)));
     }
   }
 }

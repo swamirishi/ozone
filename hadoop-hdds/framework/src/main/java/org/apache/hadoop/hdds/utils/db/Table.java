@@ -150,6 +150,14 @@ public interface Table<KEY, VALUE> extends AutoCloseable {
   void deleteWithBatch(BatchOperation batch, KEY key) throws IOException;
 
   /**
+   * Deletes a range of keys from the metadata store as part of a batch operation.
+   * @param batch Batch operation to perform the delete operation.
+   * @param beginKey start metadata key, inclusive.
+   * @param endKey end metadata key, exclusive.
+   */
+  void deleteRangeWithBatch(BatchOperation batch, KEY beginKey, KEY endKey) throws CodecException;
+
+  /**
    * Deletes a range of keys from the metadata store.
    *
    * @param beginKey start metadata key

@@ -400,6 +400,11 @@ public class TypedTable<KEY, VALUE> implements Table<KEY, VALUE> {
   }
 
   @Override
+  public void deleteRangeWithBatch(BatchOperation batch, KEY beginKey, KEY endKey) throws IOException {
+    rawTable.deleteRangeWithBatch(batch, encodeKey(beginKey), encodeKey(endKey));
+  }
+
+  @Override
   public void deleteRange(KEY beginKey, KEY endKey) throws IOException {
     rawTable.deleteRange(encodeKey(beginKey), encodeKey(endKey));
   }

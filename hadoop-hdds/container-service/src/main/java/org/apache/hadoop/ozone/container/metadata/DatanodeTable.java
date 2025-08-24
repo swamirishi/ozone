@@ -77,6 +77,11 @@ public class DatanodeTable<KEY, VALUE> implements Table<KEY, VALUE> {
   }
 
   @Override
+  public void deleteRangeWithBatch(BatchOperation batch, KEY beginKey, KEY endKey) throws IOException {
+    table.deleteRangeWithBatch(batch, beginKey, endKey);
+  }
+
+  @Override
   public final TableIterator<KEY, ? extends KeyValue<KEY, VALUE>> iterator() {
     throw new UnsupportedOperationException("Iterating tables directly is not" +
             " supported for datanode containers due to differing schema " +
