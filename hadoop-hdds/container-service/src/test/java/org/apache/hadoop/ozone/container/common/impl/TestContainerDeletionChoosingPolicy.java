@@ -28,8 +28,10 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdfs.server.datanode.StorageLocation;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
@@ -141,6 +143,70 @@ public class TestContainerDeletionChoosingPolicy {
     }
     Assert.fail("Chosen container results were same 100 times");
 
+  }
+
+  @Test
+  public void testBlockDeletionAllowedAndDisallowedStates()
+      throws IOException {
+    File containerDir = new File(path);
+    if (containerDir.exists()) {
+      FileUtils.deleteDirectory(new File(path));
+    }
+    Assert.assertTrue(containerDir.mkdirs());
+
+    conf.set(
+        ScmConfigKeys.OZONE_SCM_KEY_VALUE_CONTAINER_DELETION_CHOOSING_POLICY,
+        TopNOrderedContainerDeletionChoosingPolicy.class.getName());
+    containerSet = new ContainerSet(1000);
+
+    // Helper to create container with given state and blocks
+    KeyValueContainerData closedData = createContainerWithState(layout,
+        ContainerProtos.ContainerDataProto.State.CLOSED);
+    KeyValueContainerData quasiClosedData = createContainerWithState(layout,
+        ContainerProtos.ContainerDataProto.State.QUASI_CLOSED);
+    KeyValueContainerData openData = createContainerWithState(layout,
+        ContainerProtos.ContainerDataProto.State.OPEN);
+    KeyValueContainerData closingData = createContainerWithState(layout,
+        ContainerProtos.ContainerDataProto.State.CLOSING);
+
+    blockDeletingService = getBlockDeletingService();
+    ContainerDeletionChoosingPolicy deletionPolicy =
+        new TopNOrderedContainerDeletionChoosingPolicy();
+
+    List<ContainerBlockInfo> result = blockDeletingService
+        .chooseContainerForBlockDeletion(20, deletionPolicy);
+
+    List<Long> selectedIds = result.stream()
+        .map(info -> info.getContainerData().getContainerID())
+        .collect(Collectors.toList());
+    // Allowed states
+    Assert.assertTrue("CLOSED container must be selected for block deletion.",
+        selectedIds.contains(closedData.getContainerID()));
+    Assert.assertTrue("QUASI_CLOSED container must be selected for block deletion.",
+        selectedIds.contains(quasiClosedData.getContainerID()));
+
+    // Disallowed states
+    Assert.assertFalse("OPEN container must NOT be selected for block deletion.",
+        selectedIds.contains(openData.getContainerID()));
+    Assert.assertFalse("CLOSING container must NOT be selected for block deletion.",
+        selectedIds.contains(closingData.getContainerID()));
+  }
+
+  private KeyValueContainerData createContainerWithState(
+      ContainerLayoutVersion layout,
+      ContainerProtos.ContainerDataProto.State state) throws IOException {
+
+    long containerId = RandomUtils.secure().randomLong();
+    KeyValueContainerData data = new KeyValueContainerData(
+        containerId, layout, ContainerTestHelper.CONTAINER_MAX_SIZE,
+        UUID.randomUUID().toString(), UUID.randomUUID().toString());
+
+    data.incrPendingDeletionBlocks(5);
+    data.setState(state);
+    containerSet.addContainer(new KeyValueContainer(data, conf));
+
+    Assert.assertTrue(containerSet.getContainerMapCopy().containsKey(containerId));
+    return data;
   }
 
   @Test
