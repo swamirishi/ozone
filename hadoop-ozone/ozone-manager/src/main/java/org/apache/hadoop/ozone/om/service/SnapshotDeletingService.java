@@ -333,6 +333,9 @@ public class SnapshotDeletingService extends AbstractKeyDeletingService {
             rcOmPreviousSnapshot.close();
             rcOmPreviousSnapshot = null;
           }
+          // Properly decrement ref count for rcOmSnapshot
+          rcOmSnapshot.close();
+          rcOmSnapshot = null;
         }
       } catch (IOException e) {
         LOG.error("Error while running Snapshot Deleting Service", e);
