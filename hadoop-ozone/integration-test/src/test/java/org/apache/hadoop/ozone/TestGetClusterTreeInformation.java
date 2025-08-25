@@ -78,7 +78,7 @@ public class TestGetClusterTreeInformation {
     failoverProxyProvider.changeCurrentProxy(scm.getSCMNodeId());
     ScmBlockLocationProtocolClientSideTranslatorPB scmBlockLocationClient =
         new ScmBlockLocationProtocolClientSideTranslatorPB(
-            failoverProxyProvider);
+            failoverProxyProvider, conf);
 
     InnerNode expectedInnerNode = (InnerNode) scm.getClusterMap().getNode(ROOT);
     InnerNode actualInnerNode = scmBlockLocationClient.getNetworkTopology();

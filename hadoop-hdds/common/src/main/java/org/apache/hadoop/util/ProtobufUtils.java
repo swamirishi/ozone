@@ -19,6 +19,7 @@ package org.apache.hadoop.util;
 
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 
+import com.google.protobuf.CodedOutputStream;
 import java.util.UUID;
 
 /**
@@ -37,5 +38,13 @@ public final class ProtobufUtils {
 
   public static UUID fromProtobuf(HddsProtos.UUID proto) {
     return new UUID(proto.getMostSigBits(), proto.getLeastSigBits());
+  }
+
+  /**
+   * Computes the serialized size of a string in a repeated string field.
+   * Wraps protobuf's computeStringSizeNoTag for safer use.
+   */
+  public static int computeRepeatedStringSize(String value) {
+    return CodedOutputStream.computeStringSizeNoTag(value);
   }
 }

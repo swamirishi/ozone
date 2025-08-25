@@ -29,6 +29,8 @@ import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.ScmBlockLocationProtocolProtos.SCMBlockLocationRequest;
@@ -47,6 +49,7 @@ import org.apache.hadoop.hdds.protocol.proto.ScmBlockLocationProtocolProtos
 import org.apache.hadoop.hdds.protocol.proto.ScmBlockLocationProtocolProtos
     .SortDatanodesResponseProto;
 import org.apache.hadoop.hdds.scm.AddSCMRequest;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.ScmInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
@@ -64,6 +67,8 @@ import org.apache.hadoop.ipc.ProtocolTranslator;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.ozone.common.DeleteBlockGroupResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.RpcController;
@@ -80,6 +85,12 @@ import static org.apache.hadoop.hdds.protocol.proto.ScmBlockLocationProtocolProt
 public final class ScmBlockLocationProtocolClientSideTranslatorPB
     implements ScmBlockLocationProtocol, ProtocolTranslator, Closeable {
 
+  private static final Logger LOG =
+      LoggerFactory.getLogger(ScmBlockLocationProtocolClientSideTranslatorPB.class);
+
+  private static final double RATIS_LIMIT_FACTOR = 0.9;
+  private int ratisByteLimit;
+
   /**
    * RpcController is not used and hence is set to null.
    */
@@ -95,12 +106,18 @@ public final class ScmBlockLocationProtocolClientSideTranslatorPB
    * failover proxy provider.
    */
   public ScmBlockLocationProtocolClientSideTranslatorPB(
-      SCMBlockLocationFailoverProxyProvider proxyProvider) {
+      SCMBlockLocationFailoverProxyProvider proxyProvider, OzoneConfiguration conf) {
     Preconditions.checkState(proxyProvider != null);
     this.failoverProxyProvider = proxyProvider;
     this.rpcProxy = (ScmBlockLocationProtocolPB) RetryProxy.create(
         ScmBlockLocationProtocolPB.class, failoverProxyProvider,
         failoverProxyProvider.getSCMBlockLocationRetryPolicy(null));
+    int limit = (int) conf.getStorageSize(
+        ScmConfigKeys.OZONE_SCM_HA_RAFT_LOG_APPENDER_QUEUE_BYTE_LIMIT,
+        ScmConfigKeys.OZONE_SCM_HA_RAFT_LOG_APPENDER_QUEUE_BYTE_LIMIT_DEFAULT,
+        StorageUnit.BYTES);
+    // always go to 90% of max limit for request as other header will be added
+    this.ratisByteLimit = (int) (limit * RATIS_LIMIT_FACTOR);
   }
 
   /**
@@ -225,18 +242,43 @@ public final class ScmBlockLocationProtocolClientSideTranslatorPB
   @Override
   public List<DeleteBlockGroupResult> deleteKeyBlocks(
       List<BlockGroup> keyBlocksInfoList) throws IOException {
-    List<KeyBlocks> keyBlocksProto = keyBlocksInfoList.stream()
-        .map(BlockGroup::getProto).collect(Collectors.toList());
+
+    List<DeleteBlockGroupResult> allResults = new ArrayList<>();
+    List<KeyBlocks> batch = new ArrayList<>();
+
+    int serializedSize = 0;
+    for (BlockGroup bg : keyBlocksInfoList) {
+      KeyBlocks bgProto = bg.getProto();
+      int currSize = bgProto.getSerializedSize();
+      if (currSize + serializedSize > ratisByteLimit) {
+        allResults.addAll(submitDeleteKeyBlocks(batch));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Sending batch of {} KeyBlocks (~{} bytes)", batch.size(), serializedSize);
+        }
+        serializedSize = 0;
+        batch.clear();
+      }
+      batch.add(bgProto);
+      serializedSize += currSize;
+    }
+
+    if (!batch.isEmpty()) {
+      allResults.addAll(submitDeleteKeyBlocks(batch));
+    }
+
+    return allResults;
+  }
+
+  private List<DeleteBlockGroupResult> submitDeleteKeyBlocks(List<KeyBlocks> batch)
+      throws IOException {
     DeleteScmKeyBlocksRequestProto request = DeleteScmKeyBlocksRequestProto
         .newBuilder()
-        .addAllKeyBlocks(keyBlocksProto)
+        .addAllKeyBlocks(batch)
         .build();
-
     SCMBlockLocationRequest wrapper = createSCMBlockRequest(
         Type.DeleteScmKeyBlocks)
         .setDeleteScmKeyBlocksRequest(request)
         .build();
-
     final SCMBlockLocationResponse wrappedResponse =
         handleError(submitRequest(wrapper));
     final DeleteScmKeyBlocksResponseProto resp =
