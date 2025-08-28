@@ -19,6 +19,7 @@
 package org.apache.hadoop.ozone.om;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.apache.hadoop.hdds.StringUtils.getLexicographicallyHigherString;
 import static org.apache.hadoop.hdds.utils.db.DBStoreBuilder.DEFAULT_COLUMN_FAMILY_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
@@ -71,7 +72,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.server.ServerUtils;
-import org.apache.hadoop.hdds.utils.ThrowableFunction;
 import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.CodecRegistry;
@@ -80,15 +80,12 @@ import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.RocksDBCheckpoint;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase;
 import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
-import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
-import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotDiffJob;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.service.SnapshotDiffCleanupService;
@@ -113,9 +110,6 @@ public final class OmSnapshotManager implements AutoCloseable {
   public static final String OM_HARDLINK_FILE = "hardLinkFile";
   public static final Logger LOG =
       LoggerFactory.getLogger(OmSnapshotManager.class);
-
-  // Threshold for the table iterator loop in nanoseconds.
-  private static final long DB_TABLE_ITER_LOOP_THRESHOLD_NS = 100000;
 
   private final OzoneManager ozoneManager;
   private final SnapshotDiffManager snapshotDiffManager;
@@ -471,11 +465,15 @@ public final class OmSnapshotManager implements AutoCloseable {
     }
 
     // Clean up active DB's deletedTable right after checkpoint is taken,
-    // There is no need to take any lock as of now, because transactions are flushed sequentially.
+    // Snapshot create is processed as a single transaction and
+    // transactions are flushed sequentially so, no need to take any lock as of now.
     deleteKeysFromDelKeyTableInSnapshotScope(omMetadataManager,
         snapshotInfo.getVolumeName(), snapshotInfo.getBucketName(), batchOperation);
     // Clean up deletedDirectoryTable as well
     deleteKeysFromDelDirTableInSnapshotScope(omMetadataManager,
+        snapshotInfo.getVolumeName(), snapshotInfo.getBucketName(), batchOperation);
+    // Remove entries from snapshotRenamedTable
+    deleteKeysFromSnapRenamedTableInSnapshotScope(omMetadataManager,
         snapshotInfo.getVolumeName(), snapshotInfo.getBucketName(), batchOperation);
 
     if (dbCheckpoint != null && snapshotDirExist) {
@@ -491,11 +489,42 @@ public final class OmSnapshotManager implements AutoCloseable {
   }
 
   /**
+   * Helper method to perform batch delete range operation on a given key prefix.
+   * @param prefix prefix of keys to be deleted
+   * @param table table from which keys are to be deleted
+   * @param batchOperation batch operation
+   */
+  private static void deleteKeysFromTableWithPrefix(
+      String prefix, Table<String, ?> table, BatchOperation batchOperation) throws IOException {
+    String endKey = getLexicographicallyHigherString(prefix);
+    LOG.debug("Deleting key range from {} - startKey: {}, endKey: {}",
+        table.getName(), prefix, endKey);
+    table.deleteRangeWithBatch(batchOperation, prefix, endKey);
+  }
+
+  /**
    * Helper method to delete DB keys in the snapshot scope (bucket)
    * from active DB's deletedDirectoryTable.
    * @param omMetadataManager OMMetadataManager instance
    * @param volumeName volume name
    * @param bucketName bucket name
+   * @param batchOperation batch operation
+   */
+  private static void deleteKeysFromSnapRenamedTableInSnapshotScope(
+      OMMetadataManager omMetadataManager, String volumeName,
+      String bucketName, BatchOperation batchOperation) throws IOException {
+
+    final String keyPrefix = omMetadataManager.getBucketKeyPrefix(volumeName, bucketName);
+    deleteKeysFromTableWithPrefix(keyPrefix, omMetadataManager.getSnapshotRenamedTable(), batchOperation);
+  }
+
+  /**
+   * Helper method to delete DB keys in the snapshot scope (bucket)
+   * from active DB's deletedDirectoryTable.
+   * @param omMetadataManager OMMetadataManager instance
+   * @param volumeName volume name
+   * @param bucketName bucket name
+   * @param batchOperation batch operation
    */
   private static void deleteKeysFromDelDirTableInSnapshotScope(
       OMMetadataManager omMetadataManager, String volumeName,
@@ -503,18 +532,7 @@ public final class OmSnapshotManager implements AutoCloseable {
 
     // Range delete start key (inclusive)
     final String keyPrefix = omMetadataManager.getBucketKeyPrefixFSO(volumeName, bucketName);
-
-    try (TableIterator<String, ? extends Table.KeyValue<String, OmKeyInfo>>
-         iter = omMetadataManager.getDeletedDirTable().iterator(keyPrefix)) {
-      performOperationOnKeys(iter,
-          entry -> {
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("Removing key {} from DeletedDirTable", entry.getKey());
-            }
-            omMetadataManager.getDeletedDirTable().deleteWithBatch(batchOperation, entry.getKey());
-            return null;
-          });
-    }
+    deleteKeysFromTableWithPrefix(keyPrefix, omMetadataManager.getDeletedDirTable(), batchOperation);
   }
 
   @VisibleForTesting
@@ -528,87 +546,19 @@ public final class OmSnapshotManager implements AutoCloseable {
   }
 
   /**
-   * Helper method to perform operation on keys with a given iterator.
-   * @param keyIter TableIterator
-   * @param operationFunction operation to be performed for each key.
-   */
-  private static void performOperationOnKeys(
-      TableIterator<String, ? extends Table.KeyValue<String, ?>> keyIter,
-      ThrowableFunction<Table.KeyValue<String, ?>,
-      Void, IOException> operationFunction) throws IOException {
-    // Continue only when there are entries of snapshot (bucket) scope
-    // in deletedTable in the first place
-    // Loop until prefix matches.
-    // Start performance tracking timer
-    long startTime = System.nanoTime();
-    while (keyIter.hasNext()) {
-      Table.KeyValue<String, ?> entry = keyIter.next();
-      operationFunction.apply(entry);
-    }
-    // Time took for the iterator to finish (in ns)
-    long timeElapsed = System.nanoTime() - startTime;
-    if (timeElapsed >= DB_TABLE_ITER_LOOP_THRESHOLD_NS) {
-      // Print time elapsed
-      LOG.warn("Took {} ns to find endKey. Caller is {}", timeElapsed,
-          new Throwable().fillInStackTrace().getStackTrace()[1]
-              .getMethodName());
-    }
-  }
-
-  /**
-   * Helper method to do deleteRange on a table, including endKey.
-   * TODO: Do remove this method, it is not used anywhere. Need to check if
-   *       deleteRange causes RocksDB corruption.
-   * TODO: Move this into {@link Table} ?
-   * @param table Table
-   * @param beginKey begin key
-   * @param endKey end key
-   */
-  private static void deleteRangeInclusive(
-      Table<String, ?> table, String beginKey, String endKey)
-      throws IOException {
-
-    if (endKey != null) {
-      table.deleteRange(beginKey, endKey);
-      // Remove range end key itself
-      table.delete(endKey);
-    }
-  }
-
-  /**
    * Helper method to delete DB keys in the snapshot scope (bucket)
    * from active DB's deletedTable.
    * @param omMetadataManager OMMetadataManager instance
    * @param volumeName volume name
    * @param bucketName bucket name
+   * @param batchOperation batch operation
    */
   private static void deleteKeysFromDelKeyTableInSnapshotScope(
       OMMetadataManager omMetadataManager, String volumeName,
       String bucketName, BatchOperation batchOperation) throws IOException {
-
-    // Range delete start key (inclusive)
-    final String keyPrefix =
-        omMetadataManager.getBucketKeyPrefix(volumeName, bucketName);
-
-    try (TableIterator<String,
-        ? extends Table.KeyValue<String, RepeatedOmKeyInfo>>
-             iter = omMetadataManager.getDeletedTable().iterator(keyPrefix)) {
-      performOperationOnKeys(iter, entry -> {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Removing key {} from DeletedTable", entry.getKey());
-        }
-        omMetadataManager.getDeletedTable().deleteWithBatch(batchOperation, entry.getKey());
-        return null;
-      });
-    }
-
-    // No need to invalidate deletedTable (or deletedDirectoryTable) table
-    // cache since entries are not added to its table cache in the first place.
-    // See OMKeyDeleteRequest and OMKeyPurgeRequest#validateAndUpdateCache.
-    //
-    // This makes the table clean up efficient as we only need one
-    // deleteRange() operation. No need to invalidate cache entries
-    // one by one.
+    // Range delete prefix (inclusive)
+    final String keyPrefix = omMetadataManager.getBucketKeyPrefix(volumeName, bucketName);
+    deleteKeysFromTableWithPrefix(keyPrefix, omMetadataManager.getDeletedTable(), batchOperation);
   }
 
   // Get OmSnapshot if the keyName has ".snapshot" key indicator

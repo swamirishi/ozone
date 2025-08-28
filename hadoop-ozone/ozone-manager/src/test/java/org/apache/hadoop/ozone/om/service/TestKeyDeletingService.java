@@ -1141,9 +1141,8 @@ class TestKeyDeletingService extends OzoneTestBase {
 
     } finally {
       // Clean up the temporary OzoneManager and its resources
-      if (testOm.stop()) {
-        testOm.join();
-      }
+      testOm.stop();
+      testOm.join();
       // Clean up the temporary directory for this test
       org.apache.commons.io.FileUtils.deleteDirectory(innerTestDir);
     }

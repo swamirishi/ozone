@@ -18,23 +18,19 @@
  */
 package org.apache.hadoop.ozone.om.response.snapshot;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_RENAMED_TABLE;
+
+import java.io.IOException;
+import javax.annotation.Nonnull;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
-import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OmSnapshotManager;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-
-import javax.annotation.Nonnull;
-import java.io.IOException;
-
-import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_RENAMED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
 
 /**
  * Response for OMSnapshotCreateRequest.
@@ -80,25 +76,5 @@ public class OMSnapshotCreateResponse extends OMClientResponse {
     // Create the snapshot checkpoint. Also cleans up some tables.
     OmSnapshotManager.createOmSnapshotCheckpoint(omMetadataManager,
         snapshotInfo, batchOperation);
-
-    // TODO: [SNAPSHOT] Move to createOmSnapshotCheckpoint and add table lock
-    // Remove all entries from snapshotRenamedTable
-    try (TableIterator<String, ? extends Table.KeyValue<String, String>>
-        iterator = omMetadataManager.getSnapshotRenamedTable().iterator()) {
-
-      String dbSnapshotBucketKey = omMetadataManager.getBucketKey(
-          snapshotInfo.getVolumeName(), snapshotInfo.getBucketName())
-          + OM_KEY_PREFIX;
-      iterator.seek(dbSnapshotBucketKey);
-
-      while (iterator.hasNext()) {
-        String renameDbKey = iterator.next().getKey();
-        if (!renameDbKey.startsWith(dbSnapshotBucketKey)) {
-          break;
-        }
-        omMetadataManager.getSnapshotRenamedTable()
-            .deleteWithBatch(batchOperation, renameDbKey);
-      }
-    }
   }
 }
