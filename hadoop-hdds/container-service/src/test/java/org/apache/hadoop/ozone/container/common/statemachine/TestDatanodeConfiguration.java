@@ -181,18 +181,19 @@ public class TestDatanodeConfiguration {
   }
 
   @Test
-  void usesDefaultFreeSpaceIfBothMinFreeSpacePropertiesSet() {
+  void useMinFreeSpaceIfBothMinFreeSpacePropertiesSet() {
     OzoneConfiguration conf = new OzoneConfiguration();
-    conf.setStorageSize(DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE, 10000, StorageUnit.BYTES);
+    int minFreeSpace = 10000;
+    conf.setStorageSize(DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE, minFreeSpace, StorageUnit.BYTES);
     conf.setFloat(DatanodeConfiguration.HDDS_DATANODE_VOLUME_MIN_FREE_SPACE_PERCENT, .5f);
 
     DatanodeConfiguration subject = conf.getObject(DatanodeConfiguration.class);
 
-    assertEquals(getDefaultFreeSpace(), subject.getMinFreeSpace());
+    assertEquals(minFreeSpace, subject.getMinFreeSpace());
     assertEquals(DatanodeConfiguration.MIN_FREE_SPACE_UNSET, subject.getMinFreeSpaceRatio());
 
     for (long capacity : CAPACITIES) {
-      assertEquals(getDefaultFreeSpace(), subject.getMinFreeSpace(capacity));
+      assertEquals(minFreeSpace, subject.getMinFreeSpace(capacity));
     }
   }
 
