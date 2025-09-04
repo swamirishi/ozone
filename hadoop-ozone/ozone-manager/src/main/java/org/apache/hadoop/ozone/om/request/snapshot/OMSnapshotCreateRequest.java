@@ -18,6 +18,17 @@
 
 package org.apache.hadoop.ozone.om.request.snapshot;
 
+import static org.apache.hadoop.hdds.HddsUtils.fromProtobuf;
+import static org.apache.hadoop.hdds.HddsUtils.toProtobuf;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_ALREADY_EXISTS;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.BUCKET_LOCK;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.SNAPSHOT_LOCK;
+import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.FILESYSTEM_SNAPSHOT;
+
+import com.google.protobuf.ByteString;
+import java.io.IOException;
+import java.nio.file.InvalidPathException;
+import java.util.UUID;
 import org.apache.commons.lang3.tuple.Pair;
 
 import org.apache.ratis.server.protocol.TermIndex;
@@ -174,7 +185,9 @@ public class OMSnapshotCreateRequest extends OMClientRequest {
           ((RDBStore) omMetadataManager.getStore()).getDb()
               .getLatestSequenceNumber();
       snapshotInfo.setDbTxSequenceNumber(dbLatestSequenceNumber);
-      snapshotInfo.setLastTransactionInfo(TransactionInfo.valueOf(termIndex).toByteString());
+      ByteString txnBytes = TransactionInfo.valueOf(termIndex).toByteString();
+      snapshotInfo.setCreateTransactionInfo(txnBytes);
+      snapshotInfo.setLastTransactionInfo(txnBytes);
       // Snapshot referenced size should be bucket's used bytes
       OmBucketInfo omBucketInfo =
           getBucketInfo(omMetadataManager, volumeName, bucketName);

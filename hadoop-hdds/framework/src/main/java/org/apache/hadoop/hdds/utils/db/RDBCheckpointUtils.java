@@ -18,16 +18,15 @@
 
 package org.apache.hadoop.hdds.utils.db;
 
-import org.awaitility.core.ConditionTimeoutException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.awaitility.Awaitility.with;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-
-import static org.awaitility.Awaitility.with;
+import org.awaitility.core.ConditionTimeoutException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * RocksDB Checkpoint Utilities.
@@ -35,8 +34,8 @@ import static org.awaitility.Awaitility.with;
 public final class RDBCheckpointUtils {
   static final Logger LOG =
       LoggerFactory.getLogger(RDBCheckpointUtils.class);
-  private static final Duration POLL_DELAY_DURATION = Duration.ZERO;
-  private static final Duration POLL_INTERVAL_DURATION = Duration.ofMillis(100);
+  public static final Duration POLL_DELAY_DURATION = Duration.ZERO;
+  public static final Duration POLL_INTERVAL_DURATION = Duration.ofMillis(100);
   private static final Duration POLL_MAX_DURATION = Duration.ofSeconds(20);
 
   private RDBCheckpointUtils() { }

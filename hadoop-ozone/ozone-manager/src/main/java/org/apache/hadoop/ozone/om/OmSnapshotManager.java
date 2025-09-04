@@ -21,6 +21,8 @@ package org.apache.hadoop.ozone.om;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.hadoop.hdds.StringUtils.getLexicographicallyHigherString;
 import static org.apache.hadoop.hdds.utils.db.DBStoreBuilder.DEFAULT_COLUMN_FAMILY_NAME;
+import static org.apache.hadoop.hdds.utils.db.RDBCheckpointUtils.POLL_DELAY_DURATION;
+import static org.apache.hadoop.hdds.utils.db.RDBCheckpointUtils.POLL_INTERVAL_DURATION;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_SNAPSHOT_CHECKPOINT_DIR;
@@ -41,12 +43,16 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_CLE
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_DB_DIR;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_REPORT_MAX_PAGE_SIZE;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SNAPSHOT_DIFF_REPORT_MAX_PAGE_SIZE_DEFAULT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT_DEFAULT;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FILE_NOT_FOUND;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.INVALID_KEY_NAME;
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.TIMEOUT;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotDiffManager.getSnapshotRootPath;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.checkSnapshotActive;
 import static org.apache.hadoop.ozone.om.snapshot.SnapshotUtils.dropColumnFamilyHandle;
 import static org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse.JobStatus.DONE;
+import static org.awaitility.Awaitility.with;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -57,6 +63,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,6 +78,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.StringUtils;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.ratis.RatisHelper;
 import org.apache.hadoop.hdds.server.ServerUtils;
 import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
@@ -80,8 +88,6 @@ import org.apache.hadoop.hdds.utils.db.RDBStore;
 import org.apache.hadoop.hdds.utils.db.RocksDBCheckpoint;
 import org.apache.hadoop.hdds.utils.db.RocksDatabase;
 import org.apache.hadoop.hdds.utils.db.Table;
-import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
-import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedColumnFamilyOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
@@ -353,13 +359,6 @@ public final class OmSnapshotManager implements AutoCloseable {
 
         final SnapshotInfo snapshotInfo = getSnapshotInfo(snapshotTableKey);
 
-        CacheValue<SnapshotInfo> cacheValue = ozoneManager.getMetadataManager()
-            .getSnapshotInfoTable()
-            .getCacheValue(new CacheKey<>(snapshotTableKey));
-
-        boolean isSnapshotInCache = Objects.nonNull(cacheValue) &&
-            Objects.nonNull(cacheValue.getCacheValue());
-
         // read in the snapshot
         OzoneConfiguration conf = ozoneManager.getConfiguration();
 
@@ -368,9 +367,34 @@ public final class OmSnapshotManager implements AutoCloseable {
         // on that.
         OMMetadataManager snapshotMetadataManager;
         try {
+          // The check is only to prevent every snapshot read to perform a disk IO
+          // and check if a checkpoint dir exists. If entry is present in cache,
+          // it is most likely DB entries will get flushed in this wait time.
+          Duration maxPollDuration =
+              Duration.ofMillis(conf.getTimeDuration(
+                  OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT,
+                  OZONE_SNAPSHOT_CHECKPOINT_DIR_CREATION_POLL_TIMEOUT_DEFAULT,
+                  TimeUnit.MILLISECONDS));
+          with().atMost(maxPollDuration)
+              .pollDelay(POLL_DELAY_DURATION)
+              .pollInterval(POLL_INTERVAL_DURATION)
+              .await()
+              .until(() -> {
+                try {
+                  return OmSnapshotManager.isSnapshotFlushedToDB(ozoneManager.getMetadataManager(), snapshotInfo);
+                } catch (IOException e) {
+                  return false;
+                }
+              });
+          boolean flushed = OmSnapshotManager.isSnapshotFlushedToDB(ozoneManager.getMetadataManager(), snapshotInfo);
+          if (!flushed) {
+            throw new OMException("Unable to load snapshot. " +
+                "Create Snapshot Txn '" + snapshotInfo.getTableKey() +
+                "' with txnId : '" + TransactionInfo.fromByteString(snapshotInfo.getCreateTransactionInfo()) +
+                "' has not been flushed yet. Please wait a few more seconds before retrying", TIMEOUT);
+          }
           snapshotMetadataManager = new OmMetadataManagerImpl(conf,
-              snapshotInfo.getCheckpointDirName(), isSnapshotInCache,
-              maxOpenSstFilesInSnapshotDb);
+              snapshotInfo.getCheckpointDirName(), maxOpenSstFilesInSnapshotDb);
         } catch (IOException e) {
           LOG.error("Failed to retrieve snapshot: {}", snapshotTableKey, e);
           throw e;
@@ -658,11 +682,26 @@ public final class OmSnapshotManager implements AutoCloseable {
     if (snapshotInfo != null) {
       TransactionInfo snapshotTransactionInfo = snapshotInfo.getLastTransactionInfo() != null ?
           TransactionInfo.fromByteString(snapshotInfo.getLastTransactionInfo()) : null;
-      TransactionInfo omTransactionInfo = TransactionInfo.readTransactionInfo(metadataManager);
-      // If transactionInfo field is null then return true to keep things backward compatible.
-      return snapshotTransactionInfo == null || omTransactionInfo.compareTo(snapshotTransactionInfo) >= 0;
+      return isTransactionFlushedToDisk(metadataManager, snapshotTransactionInfo);
     }
     return true;
+  }
+
+  public static boolean isSnapshotFlushedToDB(OMMetadataManager metadataManager, SnapshotInfo snapshotInfo)
+      throws IOException {
+    if (snapshotInfo != null) {
+      TransactionInfo snapshotTransactionInfo = snapshotInfo.getCreateTransactionInfo() != null ?
+          TransactionInfo.fromByteString(snapshotInfo.getCreateTransactionInfo()) : null;
+      return isTransactionFlushedToDisk(metadataManager, snapshotTransactionInfo);
+    }
+    return true;
+  }
+
+  private static boolean isTransactionFlushedToDisk(OMMetadataManager metadataManager,
+      TransactionInfo txnInfo) throws IOException {
+    TransactionInfo omTransactionInfo = TransactionInfo.readTransactionInfo(metadataManager);
+    // If transactionInfo field is null then return true to keep things backward compatible.
+    return txnInfo == null || omTransactionInfo.compareTo(txnInfo) >= 0;
   }
 
 
