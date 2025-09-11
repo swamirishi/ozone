@@ -734,18 +734,6 @@ public final class XceiverServerRatis implements XceiverServerSpi {
         RaftGroupId.valueOf(PipelineID.getFromProtobuf(pipelineId).getId()));
   }
 
-  private long calculatePipelineBytesWritten(HddsProtos.PipelineID pipelineID) {
-    long bytesWritten = 0;
-    for (Container<?> container : containerController.getContainers()) {
-      ContainerData containerData = container.getContainerData();
-      if (containerData.getOriginPipelineId()
-          .compareTo(pipelineID.getId()) == 0) {
-        bytesWritten += containerData.getWriteBytes();
-      }
-    }
-    return bytesWritten;
-  }
-
   @Override
   public List<PipelineReport> getPipelineReport() {
     try {
@@ -757,7 +745,6 @@ public final class XceiverServerRatis implements XceiverServerSpi {
         reports.add(PipelineReport.newBuilder()
             .setPipelineID(pipelineID)
             .setIsLeader(groupLeaderMap.getOrDefault(groupId, Boolean.FALSE))
-            .setBytesWritten(calculatePipelineBytesWritten(pipelineID))
             .build());
       }
       return reports;

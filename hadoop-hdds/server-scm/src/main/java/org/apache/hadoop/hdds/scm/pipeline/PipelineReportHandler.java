@@ -59,7 +59,6 @@ public class PipelineReportHandler implements
   private final SafeModeManager scmSafeModeManager;
   private final SCMContext scmContext;
   private final boolean pipelineAvailabilityCheck;
-  private final SCMPipelineMetrics metrics;
 
   public PipelineReportHandler(SafeModeManager scmSafeModeManager,
                                PipelineManager pipelineManager,
@@ -70,7 +69,6 @@ public class PipelineReportHandler implements
     this.pipelineManager = pipelineManager;
     this.scmContext = scmContext;
     this.conf = conf;
-    this.metrics = SCMPipelineMetrics.create();
     this.pipelineAvailabilityCheck = conf.getBoolean(
         HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_AVAILABILITY_CHECK,
         HddsConfigKeys.HDDS_SCM_SAFEMODE_PIPELINE_AVAILABILITY_CHECK_DEFAULT);
@@ -157,7 +155,6 @@ public class PipelineReportHandler implements
         RatisReplicationConfig.hasFactor(pipeline.getReplicationConfig(),
             ReplicationFactor.ONE)) {
       pipeline.setLeaderId(dn.getUuid());
-      metrics.incNumPipelineBytesWritten(pipeline, report.getBytesWritten());
     }
   }
 
