@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.
     ContainerType;
@@ -63,6 +64,8 @@ public abstract class ContainerData {
   //Type of the container.
   // For now, we support only KeyValueContainer.
   private final ContainerType containerType;
+
+  private final AtomicBoolean immediateCloseActionSent = new AtomicBoolean(false);
 
   // Unique identifier for the container
   private final long containerID;
@@ -174,6 +177,10 @@ public abstract class ContainerData {
    */
   public long getContainerID() {
     return containerID;
+  }
+
+  public AtomicBoolean getImmediateCloseActionSent() {
+    return immediateCloseActionSent;
   }
 
   /**

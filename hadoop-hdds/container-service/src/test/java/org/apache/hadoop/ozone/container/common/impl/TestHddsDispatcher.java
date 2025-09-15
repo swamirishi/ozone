@@ -124,6 +124,15 @@ public class TestHddsDispatcher {
     return ContainerLayoutTestInfo.containerLayoutParameters();
   }
 
+  /*
+   * Tests that close container action is sent when a container is full. First two containers are created. Then we
+   * write to one of them to confirm normal writes are successful. Then we increase the used space of both containers
+   * such that they're close to full, and write to both of them simultaneously. The expectation is that close
+   * container action should be added for both of them and two immediate heartbeats should be sent. Next, we write
+   * again to the first container. This time the close container action should be queued but immediate heartbeat
+   * should not be sent because of throttling. This confirms that the throttling is per container.
+   * @throws IOException
+   */
   @Test
   public void testContainerCloseActionWhenFull() throws IOException {
     String testDir = GenericTestUtils.getTempPath(
@@ -144,14 +153,21 @@ public class TestHddsDispatcher {
       StateContext context = Mockito.mock(StateContext.class);
       Mockito.when(stateMachine.getDatanodeDetails()).thenReturn(dd);
       Mockito.when(context.getParent()).thenReturn(stateMachine);
+      // create both containers
       KeyValueContainerData containerData = new KeyValueContainerData(1L,
           layout,
           (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
           dd.getUuidString());
+      KeyValueContainerData containerData2 = new KeyValueContainerData(2L,
+          layout, (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(), dd.getUuidString());
       Container container = new KeyValueContainer(containerData, conf);
+      Container container2 = new KeyValueContainer(containerData2, conf);
       container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
           scmId.toString());
+      container2.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
+          scmId.toString());
       containerSet.addContainer(container);
+      containerSet.addContainer(container2);
       ContainerMetrics metrics = ContainerMetrics.create(conf);
       Map<ContainerType, Handler> handlers = Maps.newHashMap();
       for (ContainerType containerType : ContainerType.values()) {
@@ -160,6 +176,7 @@ public class TestHddsDispatcher {
                 context.getParent().getDatanodeDetails().getUuidString(),
                 containerSet, volumeSet, volumeChoosingPolicy, metrics, NO_OP_ICR_SENDER));
       }
+      // write successfully to first container
       HddsDispatcher hddsDispatcher = new HddsDispatcher(
           conf, containerSet, volumeSet, handlers, context, metrics, null);
       hddsDispatcher.setClusterId(scmId.toString());
@@ -169,15 +186,29 @@ public class TestHddsDispatcher {
           responseOne.getResult());
       verify(context, times(0))
           .addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
+      // increment used space of both containers
       containerData.setBytesUsed(Double.valueOf(
+          StorageUnit.MB.toBytes(950)).longValue());
+      containerData2.setBytesUsed(Double.valueOf(
           StorageUnit.MB.toBytes(950)).longValue());
       ContainerCommandResponseProto responseTwo = hddsDispatcher
           .dispatch(getWriteChunkRequest(dd.getUuidString(), 1L, 2L), null);
-      Assert.assertEquals(ContainerProtos.Result.SUCCESS,
+      ContainerCommandResponseProto responseThree = hddsDispatcher
+          .dispatch(getWriteChunkRequest(dd.getUuidString(), 2L, 1L), null);
+      assertEquals(ContainerProtos.Result.SUCCESS,
           responseTwo.getResult());
-      verify(context, times(1))
+      assertEquals(ContainerProtos.Result.SUCCESS, responseThree.getResult());
+      // container action should be added for both containers
+      verify(context, times(2))
           .addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
+      // immediate heartbeat should be triggered for both the containers
+      verify(stateMachine, times(2)).triggerHeartbeat();
 
+      // if we write again to container 1, the container action should get added but heartbeat should not get triggered
+      // again because of throttling
+      hddsDispatcher.dispatch(getWriteChunkRequest(dd.getUuidString(), 1L, 3L), null);
+      verify(context, times(3)).addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
+      verify(stateMachine, times(2)).triggerHeartbeat(); // was called twice before
     } finally {
       volumeSet.shutdown();
       ContainerMetrics.remove();
@@ -240,14 +271,21 @@ public class TestHddsDispatcher {
           conf, containerSet, volumeSet, handlers, context, metrics, null);
       hddsDispatcher.setClusterId(scmId.toString());
       containerData.getVolume().getVolumeInfo()
-          .ifPresent(volumeInfo -> volumeInfo.incrementUsedSpace(50));
-      usedSpace.addAndGet(50);
+          .ifPresent(volumeInfo -> volumeInfo.incrementUsedSpace(60));
+      usedSpace.addAndGet(60);
       ContainerCommandResponseProto response = hddsDispatcher
           .dispatch(getWriteChunkRequest(dd.getUuidString(), 1L, 1L), null);
       Assert.assertEquals(ContainerProtos.Result.SUCCESS,
           response.getResult());
       verify(context, times(1))
           .addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
+      // verify that immediate heartbeat is triggered
+      verify(stateMachine, times(1)).triggerHeartbeat();
+      // the volume has reached the min free space boundary but this time the heartbeat should not be triggered because
+      // of throttling
+      hddsDispatcher.dispatch(getWriteChunkRequest(dd.getUuidString(), 1L, 2L), null);
+      verify(context, times(2)).addContainerActionIfAbsent(Mockito.any(ContainerAction.class));
+      verify(stateMachine, times(1)).triggerHeartbeat(); // was called once before
 
       // try creating another container now as the volume used has crossed
       // threshold
