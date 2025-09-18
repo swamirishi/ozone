@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +62,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.PipelineReportsProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.PipelineReport;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.SCMCommandProto;
+import org.apache.hadoop.ozone.container.common.statemachine.commandhandler.ClosePipelineCommandHandler;
 import org.apache.hadoop.ozone.container.common.states.DatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.InitDatanodeState;
 import org.apache.hadoop.ozone.container.common.states.datanode.RunningDatanodeState;
@@ -795,6 +797,12 @@ public class StateContext {
       lock.unlock();
     }
     return summary;
+  }
+
+  public boolean isPipelineCloseInProgress(UUID pipelineID) {
+    ClosePipelineCommandHandler handler = parentDatanodeStateMachine.getCommandDispatcher()
+        .getClosePipelineCommandHandler();
+    return handler.isPipelineCloseInProgress(pipelineID);
   }
 
   /**

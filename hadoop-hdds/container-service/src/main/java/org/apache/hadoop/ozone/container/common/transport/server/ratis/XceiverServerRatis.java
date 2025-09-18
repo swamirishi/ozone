@@ -117,7 +117,7 @@ import static org.apache.hadoop.hdds.DatanodeVersion.SEPARATE_RATIS_PORTS_AVAILA
  * Ozone containers.
  */
 public final class XceiverServerRatis implements XceiverServerSpi {
-  private static final Logger LOG = LoggerFactory
+  public static final Logger LOG = LoggerFactory
       .getLogger(XceiverServerRatis.class);
   private static final AtomicLong CALL_ID_COUNTER = new AtomicLong();
   private static final List<Integer> DEFAULT_PRIORITY_LIST =
@@ -705,9 +705,19 @@ public final class XceiverServerRatis implements XceiverServerSpi {
         ClosePipelineInfo.Reason.PIPELINE_FAILED, false);
   }
 
-  private void triggerPipelineClose(RaftGroupId groupId, String detail,
+  @VisibleForTesting
+  public void triggerPipelineClose(RaftGroupId groupId, String detail,
       ClosePipelineInfo.Reason reasonCode, boolean triggerHB) {
     PipelineID pipelineID = PipelineID.valueOf(groupId.getUuid());
+
+    if (context != null) {
+      if (context.isPipelineCloseInProgress(pipelineID.getId())) {
+        LOG.debug("Skipped triggering pipeline close for {} as it is already in progress. Reason: {}",
+            pipelineID.getId(), detail);
+        return;
+      }
+    }
+
     ClosePipelineInfo.Builder closePipelineInfo =
         ClosePipelineInfo.newBuilder()
             .setPipelineID(pipelineID.getProtobuf())
