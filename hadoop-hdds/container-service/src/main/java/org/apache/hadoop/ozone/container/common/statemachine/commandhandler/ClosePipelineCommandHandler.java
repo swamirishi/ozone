@@ -16,6 +16,18 @@
  */
 package org.apache.hadoop.ozone.container.common.statemachine.commandhandler;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.
@@ -51,12 +63,14 @@ public class ClosePipelineCommandHandler implements CommandHandler {
   private final AtomicInteger queuedCount = new AtomicInteger(0);
   private long totalTime;
   private final Executor executor;
+  private final Set<UUID> pipelinesInProgress;
 
   /**
    * Constructs a closePipelineCommand handler.
    */
   public ClosePipelineCommandHandler(Executor executor) {
     this.executor = executor;
+    this.pipelinesInProgress = ConcurrentHashMap.newKeySet();
   }
 
   /**
@@ -70,33 +84,51 @@ public class ClosePipelineCommandHandler implements CommandHandler {
   @Override
   public void handle(SCMCommand command, OzoneContainer ozoneContainer,
       StateContext context, SCMConnectionManager connectionManager) {
-    queuedCount.incrementAndGet();
-    CompletableFuture.runAsync(() -> {
-      invocationCount.incrementAndGet();
-      final long startTime = Time.monotonicNow();
-      final DatanodeDetails dn = context.getParent().getDatanodeDetails();
-      ClosePipelineCommand closePipelineCommand =
-          (ClosePipelineCommand) command;
-      final PipelineID pipelineID = closePipelineCommand.getPipelineID();
-      final HddsProtos.PipelineID pipelineIdProto = pipelineID.getProtobuf();
+    final ClosePipelineCommand closePipelineCommand = (ClosePipelineCommand) command;
+    final PipelineID pipelineID = closePipelineCommand.getPipelineID();
+    final UUID pipelineUUID = pipelineID.getId();
 
-      try {
-        XceiverServerSpi server = ozoneContainer.getWriteChannel();
-        if (server.isExist(pipelineIdProto)) {
-          server.removeGroup(pipelineIdProto);
-          LOG.info("Close Pipeline {} command on datanode {}.", pipelineID,
-              dn.getUuidString());
-        } else {
-          LOG.debug("Ignoring close pipeline command for pipeline {} " +
-              "as it does not exist", pipelineID);
+    // Check if this pipeline is already being processed
+    if (!pipelinesInProgress.add(pipelineUUID)) {
+      LOG.debug("Close Pipeline command for pipeline {} is already in progress, " +
+          "skipping duplicate command.", pipelineID);
+      return;
+    }
+
+    try {
+      queuedCount.incrementAndGet();
+      CompletableFuture.runAsync(() -> {
+        invocationCount.incrementAndGet();
+        final long startTime = Time.monotonicNow();
+        final DatanodeDetails dn = context.getParent().getDatanodeDetails();
+        final HddsProtos.PipelineID pipelineIdProto = pipelineID.getProtobuf();
+
+        try {
+          XceiverServerSpi server = ozoneContainer.getWriteChannel();
+          if (server.isExist(pipelineIdProto)) {
+            server.removeGroup(pipelineIdProto);
+            LOG.info("Close Pipeline {} command on datanode {}.", pipelineID,
+                dn.getUuidString());
+          } else {
+            LOG.debug("Ignoring close pipeline command for pipeline {} " +
+                "as it does not exist", pipelineID);
+          }
+        } catch (IOException e) {
+          LOG.error("Can't close pipeline {}", pipelineID, e);
+        } finally {
+          long endTime = Time.monotonicNow();
+          totalTime += endTime - startTime;
         }
-      } catch (IOException e) {
-        LOG.error("Can't close pipeline {}", pipelineID, e);
-      } finally {
-        long endTime = Time.monotonicNow();
-        totalTime += endTime - startTime;
-      }
-    }, executor).whenComplete((v, e) -> queuedCount.decrementAndGet());
+      }, executor).whenComplete((v, e) -> {
+          queuedCount.decrementAndGet();
+          pipelinesInProgress.remove(pipelineUUID);
+      });
+    } catch (RejectedExecutionException ex) {
+        queuedCount.decrementAndGet();
+        pipelinesInProgress.remove(pipelineUUID);
+        LOG.warn("Close Pipeline command for pipeline {} is rejected as " +
+                "command queue has reached max size.", pipelineID);
+    }
   }
 
   /**
