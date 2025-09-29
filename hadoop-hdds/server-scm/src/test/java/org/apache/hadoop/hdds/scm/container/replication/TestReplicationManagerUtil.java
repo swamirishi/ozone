@@ -96,6 +96,12 @@ public class TestReplicationManagerUtil {
             IN_MAINTENANCE, ContainerReplicaProto.State.CLOSED, 1);
     replicas.add(maintenance);
 
+    // dead maintenance node should neither be on the used list nor on the excluded list
+    ContainerReplica deadMaintenanceReplica = createContainerReplica(cid, 0,
+        IN_MAINTENANCE, ContainerReplicaProto.State.CLOSED, 1);
+    DatanodeDetails deadMaintenanceNode = deadMaintenanceReplica.getDatanodeDetails();
+    replicas.add(deadMaintenanceReplica);
+
     // Take one of the replicas and set it to be removed. It should be on the
     // excluded list rather than the used list.
     Set<ContainerReplica> toBeRemoved = new HashSet<>();
@@ -114,6 +120,9 @@ public class TestReplicationManagerUtil {
     Mockito.when(replicationManager.getNodeStatus(Mockito.any())).thenAnswer(
         invocation -> {
           final DatanodeDetails dn = invocation.getArgument(0);
+          if (dn.equals(deadMaintenanceNode)) {
+            return new NodeStatus(dn.getPersistedOpState(), HddsProtos.NodeState.DEAD);
+          }
           for (ContainerReplica r : replicas) {
             if (r.getDatanodeDetails().equals(dn)) {
               return new NodeStatus(
@@ -136,6 +145,7 @@ public class TestReplicationManagerUtil {
         .contains(maintenance.getDatanodeDetails()));
     Assertions.assertTrue(excludedAndUsedNodes.getUsedNodes()
         .contains(pendingAdd));
+    Assertions.assertFalse(excludedAndUsedNodes.getUsedNodes().contains(deadMaintenanceNode));
 
     Assertions.assertEquals(4, excludedAndUsedNodes.getExcludedNodes().size());
     Assertions.assertTrue(excludedAndUsedNodes.getExcludedNodes()
@@ -146,6 +156,7 @@ public class TestReplicationManagerUtil {
         .contains(remove.getDatanodeDetails()));
     Assertions.assertTrue(excludedAndUsedNodes.getExcludedNodes()
         .contains(pendingDelete));
+    Assertions.assertFalse(excludedAndUsedNodes.getExcludedNodes().contains(deadMaintenanceNode));
   }
 
   @Test
