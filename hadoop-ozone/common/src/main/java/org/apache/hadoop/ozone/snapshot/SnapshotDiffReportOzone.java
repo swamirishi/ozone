@@ -115,7 +115,6 @@ public class SnapshotDiffReportOzone
     if (StringUtils.isNotEmpty(token)) {
       str.append("Next token: ")
           .append(token)
-          .append(LINE_SEPARATOR);
     }
     return str.toString();
   }
