@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -137,8 +138,8 @@ public class TestOMKeyRequest {
     ozoneConfiguration.set(OzoneConfigKeys.OZONE_METADATA_DIRS,
         folder.newFolder().getAbsolutePath());
     ozoneConfiguration.setBoolean(OzoneConfigKeys.OZONE_FS_HSYNC_ENABLED, true);
-    omMetadataManager = new OmMetadataManagerImpl(ozoneConfiguration,
-        ozoneManager);
+    omMetadataManager = spy(new OmMetadataManagerImpl(ozoneConfiguration,
+        ozoneManager));
     when(ozoneManager.resolveBucketLink(any(Pair.class), anyBoolean(), anyBoolean()))
         .thenAnswer(i -> new ResolvedBucket(i.getArgument(0),
             i.getArgument(0), "dummyBucketOwner", BucketLayout.FILE_SYSTEM_OPTIMIZED));

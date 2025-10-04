@@ -24,7 +24,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.TransactionInfo;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
@@ -36,6 +37,7 @@ import org.apache.hadoop.ozone.om.DeletingServiceMetrics;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
 import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -46,6 +48,7 @@ import org.apache.hadoop.ozone.om.response.key.OMDirectoriesPurgeResponseWithFSO
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PurgeDirectoriesRequest;
 
 import java.util.List;
 
@@ -63,15 +66,15 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
   }
 
   @Override
+  @SuppressWarnings("methodlength")
   public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, TermIndex termIndex) {
-    OzoneManagerProtocolProtos.PurgeDirectoriesRequest purgeDirsRequest =
+    PurgeDirectoriesRequest purgeDirsRequest =
         getOmRequest().getPurgeDirectoriesRequest();
     String fromSnapshot = purgeDirsRequest.hasSnapshotTableKey() ?
         purgeDirsRequest.getSnapshotTableKey() : null;
 
     List<OzoneManagerProtocolProtos.PurgePathRequest> purgeRequests =
             purgeDirsRequest.getDeletedPathList();
-    Set<Pair<String, String>> lockSet = new HashSet<>();
     Map<Pair<String, String>, OmBucketInfo> volBucketInfoMap = new HashMap<>();
     OmMetadataManagerImpl omMetadataManager = (OmMetadataManagerImpl) ozoneManager.getMetadataManager();
     OMMetrics omMetrics = ozoneManager.getMetrics();
@@ -98,6 +101,14 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
       LOG.error("Error occurred while performing OMDirectoriesPurge. ", e);
       return new OMDirectoriesPurgeResponseWithFSO(createErrorOMResponse(omResponse, e));
     }
+    List<String[]> bucketLockKeys = getBucketLockKeySet(purgeDirsRequest);
+    boolean lockAcquired = omMetadataManager.getLock().acquireWriteLocks(BUCKET_LOCK, bucketLockKeys).isLockAcquired();
+    if (!lockAcquired && !purgeDirsRequest.getBucketNameInfosList().isEmpty()) {
+      OMException oe = new OMException("Unable to acquire write locks on buckets while performing DirectoryPurge",
+          OMException.ResultCodes.KEY_DELETION_ERROR);
+      LOG.error("Error occurred while performing OMDirectoriesPurge. ", oe);
+      return new OMDirectoriesPurgeResponseWithFSO(createErrorOMResponse(omResponse, oe));
+    }
     try {
       int numSubDirMoved = 0, numSubFilesMoved = 0, numDirsDeleted = 0;
       for (OzoneManagerProtocolProtos.PurgePathRequest path : purgeRequests) {
@@ -107,11 +118,7 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
           String volumeName = keyInfo.getVolumeName();
           String bucketName = keyInfo.getBucketName();
           Pair<String, String> volBucketPair = Pair.of(volumeName, bucketName);
-          if (!lockSet.contains(volBucketPair)) {
-            omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-                volumeName, bucketName);
-            lockSet.add(volBucketPair);
-          }
+
           omMetrics.decNumKeys();
           numSubDirMoved++;
           OmBucketInfo omBucketInfo = getBucketInfo(omMetadataManager,
@@ -135,11 +142,6 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
           String volumeName = keyInfo.getVolumeName();
           String bucketName = keyInfo.getBucketName();
           Pair<String, String> volBucketPair = Pair.of(volumeName, bucketName);
-          if (!lockSet.contains(volBucketPair)) {
-            omMetadataManager.getLock().acquireWriteLock(BUCKET_LOCK,
-                volumeName, bucketName);
-            lockSet.add(volBucketPair);
-          }
           omMetrics.decNumKeys();
           numSubFilesMoved++;
           OmBucketInfo omBucketInfo = getBucketInfo(omMetadataManager,
@@ -176,17 +178,34 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
       // only case of upgrade where compatibility is broken can have
       throw new IllegalStateException(ex);
     } finally {
-      lockSet.stream().forEach(e -> omMetadataManager.getLock()
-          .releaseWriteLock(BUCKET_LOCK, e.getKey(),
-              e.getValue()));
       for (Map.Entry<Pair<String, String>, OmBucketInfo> entry :
           volBucketInfoMap.entrySet()) {
         entry.setValue(entry.getValue().copyObject());
       }
+      omMetadataManager.getLock().releaseWriteLocks(BUCKET_LOCK, bucketLockKeys);
     }
 
     return new OMDirectoriesPurgeResponseWithFSO(
         omResponse.build(), purgeRequests, ozoneManager.isRatisEnabled(),
             getBucketLayout(), volBucketInfoMap, fromSnapshotInfo);
   }
+
+  private List<String[]> getBucketLockKeySet(PurgeDirectoriesRequest purgeDirsRequest) {
+    if (!purgeDirsRequest.getBucketNameInfosList().isEmpty()) {
+      return purgeDirsRequest.getBucketNameInfosList().stream()
+          .map(keyInfo -> Pair.of(keyInfo.getVolumeName(), keyInfo.getBucketName()))
+          .distinct()
+          .map(pair -> new String[]{pair.getLeft(), pair.getRight()})
+          .collect(Collectors.toList());
+    }
+
+    return purgeDirsRequest.getDeletedPathList().stream()
+        .flatMap(purgePathRequest -> Stream.concat(purgePathRequest.getDeletedSubFilesList().stream(),
+            purgePathRequest.getMarkDeletedSubDirsList().stream()))
+        .map(keyInfo -> Pair.of(keyInfo.getVolumeName(), keyInfo.getBucketName()))
+        .distinct()
+        .map(pair -> new String[]{pair.getLeft(), pair.getRight()})
+        .collect(Collectors.toList());
+  }
+
 }
