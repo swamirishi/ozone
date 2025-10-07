@@ -105,9 +105,9 @@ public class OMKeyPurgeRequest extends OMKeyRequest {
     deletingServiceMetrics.incrNumRenameEntriesPurged(renamedKeysToBePurged.size());
 
     if (keysToBePurgedList.isEmpty() && renamedKeysToBePurged.isEmpty()) {
-      return new OMKeyPurgeResponse(createErrorOMResponse(omResponse,
-          new OMException("None of the keys can be purged be purged since a new snapshot was created for all the " +
-              "buckets, making this request invalid", OMException.ResultCodes.KEY_DELETION_ERROR)));
+      OMException oe = new OMException("No keys found to be purged or renamed in the request.",
+          OMException.ResultCodes.KEY_DELETION_ERROR);
+      return new OMKeyPurgeResponse(createErrorOMResponse(omResponse, oe));
     }
     // Setting transaction info for snapshot, this is to prevent duplicate purge requests to OM from background
     // services.

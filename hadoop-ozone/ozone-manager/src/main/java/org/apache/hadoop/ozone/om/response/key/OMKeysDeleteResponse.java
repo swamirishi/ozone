@@ -88,7 +88,7 @@ public class OMKeysDeleteResponse extends AbstractOMKeyDeleteResponse {
           keyName);
 
       addDeletionToBatch(omMetadataManager, batchOperation, keyTable,
-          deleteKey, omKeyInfo, getOmBucketInfo().getObjectID());
+          deleteKey, omKeyInfo, getOmBucketInfo().getObjectID(), true);
     }
 
     // update bucket usedBytes.

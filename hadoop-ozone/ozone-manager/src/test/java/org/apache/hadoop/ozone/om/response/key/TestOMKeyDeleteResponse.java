@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.junit.Assert.assertTrue;
+
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.hdds.client.BlockID;
@@ -55,7 +57,7 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
     OMKeyDeleteResponse omKeyDeleteResponse = getOmKeyDeleteResponse(omKeyInfo,
             omResponse);
 
-    Assert.assertTrue(
+    assertTrue(
         omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
     omKeyDeleteResponse.addToDBBatch(omMetadataManager, batchOperation);
 
@@ -111,15 +113,13 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
     OMKeyDeleteResponse omKeyDeleteResponse = getOmKeyDeleteResponse(omKeyInfo,
             omResponse);
 
-    Assert.assertTrue(
+    assertTrue(
         omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
     omKeyDeleteResponse.addToDBBatch(omMetadataManager, batchOperation);
 
     // Do manual commit and see whether addToBatch is successful or not.
     omMetadataManager.getStore().commitBatchOperation(batchOperation);
-
-    Assert.assertFalse(
-        omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
+    Assert.assertFalse(omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
     
     String deletedKey = omMetadataManager.getOzoneKey(volumeName, bucketName,
         keyName);
@@ -128,7 +128,10 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
         null, 100, deletedKey);
 
     // Key has blocks, it should not be in deletedKeyTable.
-    Assert.assertTrue(rangeKVs.size() > 0);
+    assertTrue(rangeKVs.size() > 0);
+    for (Table.KeyValue<String, RepeatedOmKeyInfo> kv : rangeKVs) {
+      assertTrue(kv.getValue().getOmKeyInfoList().get(0).isDeletedKeyCommitted());
+    }
   }
 
 
@@ -148,7 +151,7 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
 
     String ozoneKey = addKeyToTable();
 
-    Assert.assertTrue(
+    assertTrue(
         omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
 
     omKeyDeleteResponse.checkAndUpdateDB(omMetadataManager, batchOperation);
@@ -158,7 +161,7 @@ public class TestOMKeyDeleteResponse extends TestOMKeyResponse {
 
     // As omResponse is error it is a no-op. So, entry should be still in the
     // keyTable.
-    Assert.assertTrue(
+    assertTrue(
         omMetadataManager.getKeyTable(getBucketLayout()).isExist(ozoneKey));
 
   }

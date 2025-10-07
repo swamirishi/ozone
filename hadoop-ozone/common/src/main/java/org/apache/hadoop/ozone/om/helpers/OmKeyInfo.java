@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.ozone.om.helpers;
 
+import static org.apache.hadoop.ozone.OzoneConsts.ETAG;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -25,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.FileChecksum;
@@ -34,8 +36,8 @@ import org.apache.hadoop.hdds.client.ContainerBlockID;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.utils.db.Codec;
-import org.apache.hadoop.hdds.utils.db.DelegatedCodec;
 import org.apache.hadoop.hdds.utils.db.CopyObject;
+import org.apache.hadoop.hdds.utils.db.DelegatedCodec;
 import org.apache.hadoop.hdds.utils.db.Proto2Codec;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneAcl;
@@ -45,11 +47,8 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyInfo
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyLocationList;
 import org.apache.hadoop.ozone.protocolPB.OMPBHelper;
 import org.apache.hadoop.util.Time;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.hadoop.ozone.OzoneConsts.ETAG;
 
 /**
  * Args for key block. The block instance for the key requested in putKey.
@@ -62,6 +61,12 @@ public final class OmKeyInfo extends WithParentObjectId
 
   private static final Codec<OmKeyInfo> CODEC_TRUE = newCodec(true);
   private static final Codec<OmKeyInfo> CODEC_FALSE = newCodec(false);
+  /**
+   * Metadata key flag to indicate whether a deleted key was a committed key.
+   * The flag is set when a committed key is deleted from AOS but still held in
+   * a snapshot to help with accurate bucket quota usage calculation.
+   */
+  private static final String COMMITTED_KEY_DELETED_FLAG = "CKDEL";
 
   private static Codec<OmKeyInfo> newCodec(boolean ignorePipeline) {
     return new DelegatedCodec<>(
@@ -86,6 +91,7 @@ public final class OmKeyInfo extends WithParentObjectId
   private ReplicationConfig replicationConfig;
   private FileEncryptionInfo encInfo;
   private final FileChecksum fileChecksum;
+
   /**
    * Support OFS use-case to identify if the key is a file or a directory.
    */
@@ -158,6 +164,18 @@ public final class OmKeyInfo extends WithParentObjectId
 
   public String getFileName() {
     return fileName;
+  }
+
+  public void setCommittedKeyDeletedFlag(boolean val) {
+    if (val) {
+      this.getMetadata().put(COMMITTED_KEY_DELETED_FLAG, "true");
+    } else {
+      this.getMetadata().remove(COMMITTED_KEY_DELETED_FLAG);
+    }
+  }
+
+  public boolean isDeletedKeyCommitted() {
+    return Boolean.parseBoolean(getMetadata().get(COMMITTED_KEY_DELETED_FLAG));
   }
 
   public synchronized OmKeyLocationInfoGroup getLatestVersionLocations() {
@@ -863,5 +881,21 @@ public final class OmKeyInfo extends WithParentObjectId
       return getKeyName();
     }
     return getParentObjectID() + OzoneConsts.OM_KEY_PREFIX + getFileName();
+  }
+
+  public boolean hasBlocks() {
+    for (OmKeyLocationInfoGroup keyLocationList : getKeyLocationVersions()) {
+      if (keyLocationList.getLocationListCount() != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public static boolean isKeyEmpty(@Nullable OmKeyInfo keyInfo) {
+    if (keyInfo == null) {
+      return true;
+    }
+    return !keyInfo.hasBlocks();
   }
 }

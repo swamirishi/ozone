@@ -464,6 +464,12 @@ public class TestBucketManagerImpl {
         bucketInfo.getUsedNamespace(),
         storedLinkBucket.getUsedNamespace());
     Assert.assertEquals(
+        bucketInfo.getSnapshotUsedBytes(),
+        storedLinkBucket.getSnapshotUsedBytes());
+    Assert.assertEquals(
+        bucketInfo.getSnapshotUsedNamespace(),
+        storedLinkBucket.getSnapshotUsedNamespace());
+    Assert.assertEquals(
         bucketInfo.getDefaultReplicationConfig(),
         storedLinkBucket.getDefaultReplicationConfig());
     Assert.assertEquals(

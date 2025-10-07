@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.ozone.om.request.key;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -78,12 +79,11 @@ public class OmKeysDeleteRequestWithFSO extends OMKeysDeleteRequest {
   }
 
   @Override
-  protected long markKeysAsDeletedInCache(
-          OzoneManager ozoneManager, long trxnLogIndex,
-          List<OmKeyInfo> omKeyInfoList,
-          List<OmKeyInfo> dirList, OMMetadataManager omMetadataManager,
-          long quotaReleased) throws IOException {
-
+  protected Pair<Long, Integer> markKeysAsDeletedInCache(
+      OzoneManager ozoneManager, long trxnLogIndex, List<OmKeyInfo> omKeyInfoList, List<OmKeyInfo> dirList,
+      OMMetadataManager omMetadataManager) throws IOException {
+    long quotaReleased = 0;
+    int emptyKeys = 0;
     // Mark all keys which can be deleted, in cache as deleted.
     for (OmKeyInfo omKeyInfo : omKeyInfoList) {
       final long volumeId = omMetadataManager.getVolumeId(
@@ -96,7 +96,7 @@ public class OmKeysDeleteRequestWithFSO extends OMKeysDeleteRequest {
                       omKeyInfo.getParentObjectID(),
                       omKeyInfo.getFileName())),
           CacheValue.get(trxnLogIndex));
-
+      emptyKeys += OmKeyInfo.isKeyEmpty(omKeyInfo) ? 1 : 0;
       omKeyInfo.setUpdateID(trxnLogIndex, ozoneManager.isRatisEnabled());
       quotaReleased += sumBlockLengths(omKeyInfo);
     }
@@ -115,7 +115,7 @@ public class OmKeysDeleteRequestWithFSO extends OMKeysDeleteRequest {
       omKeyInfo.setUpdateID(trxnLogIndex, ozoneManager.isRatisEnabled());
       quotaReleased += sumBlockLengths(omKeyInfo);
     }
-    return quotaReleased;
+    return Pair.of(quotaReleased, emptyKeys);
   }
 
   @NotNull @Override
