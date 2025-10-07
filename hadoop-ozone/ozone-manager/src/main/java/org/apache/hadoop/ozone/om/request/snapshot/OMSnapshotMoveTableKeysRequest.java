@@ -28,8 +28,10 @@ import org.apache.hadoop.ozone.om.OmSnapshotInternalMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.SnapshotChainManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotMoveTableKeysResponse;
@@ -156,6 +158,8 @@ public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
     try {
       SnapshotInfo fromSnapshot = SnapshotUtils.getSnapshotInfo(ozoneManager,
           snapshotChainManager, fromProtobuf(moveTableKeysRequest.getFromSnapshotID()));
+      OmBucketInfo omBucketInfo = OMKeyRequest.getBucketInfo(omMetadataManager, fromSnapshot.getVolumeName(),
+          fromSnapshot.getBucketName());
       // If there is no snapshot in the chain after the current snapshot move the keys to Active Object Store.
       SnapshotInfo nextSnapshot = SnapshotUtils.getNextSnapshot(ozoneManager, snapshotChainManager, fromSnapshot);
 
@@ -174,9 +178,9 @@ public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
         omMetadataManager.getSnapshotInfoTable().addCacheEntry(new CacheKey<>(nextSnapshot.getTableKey()),
             CacheValue.get(termIndex.getIndex(), nextSnapshot));
       }
-      omClientResponse = new OMSnapshotMoveTableKeysResponse(omResponse.build(), fromSnapshot, nextSnapshot,
-          moveTableKeysRequest.getDeletedKeysList(), moveTableKeysRequest.getDeletedDirsList(),
-          moveTableKeysRequest.getRenamedKeysList());
+      omClientResponse = new OMSnapshotMoveTableKeysResponse(omResponse.build(),
+          fromSnapshot, nextSnapshot, omBucketInfo.getObjectID(), moveTableKeysRequest.getDeletedKeysList(),
+          moveTableKeysRequest.getDeletedDirsList(), moveTableKeysRequest.getRenamedKeysList());
       omSnapshotIntMetrics.incNumSnapshotMoveTableKeys();
     } catch (IOException ex) {
       omClientResponse = new OMSnapshotMoveTableKeysResponse(createErrorOMResponse(omResponse, ex));

@@ -17,6 +17,14 @@
  */
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.BUCKET_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_KEY_TABLE;
+
+import java.io.IOException;
+import java.util.Map;
+import javax.annotation.Nonnull;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -25,14 +33,6 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 
-import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.util.Map;
-
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.BUCKET_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_KEY_TABLE;
-
 /**
  * Handles responses to move open keys from the open key table to the delete
  * table. Modifies the open key table and delete table databases.
@@ -40,11 +40,11 @@ import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.OPEN_KEY_TABLE;
 @CleanupTableInfo(cleanupTables = {OPEN_KEY_TABLE, DELETED_TABLE, BUCKET_TABLE})
 public class OMOpenKeysDeleteResponse extends AbstractOMKeyDeleteResponse {
 
-  private Map<String, OmKeyInfo> keysToDelete;
+  private Map<String, Pair<Long, OmKeyInfo>> keysToDelete;
 
   public OMOpenKeysDeleteResponse(
       @Nonnull OMResponse omResponse,
-      @Nonnull Map<String, OmKeyInfo> keysToDelete,
+      @Nonnull Map<String, Pair<Long, OmKeyInfo>> keysToDelete,
       boolean isRatisEnabled,
       @Nonnull BucketLayout bucketLayout) {
 
@@ -70,9 +70,9 @@ public class OMOpenKeysDeleteResponse extends AbstractOMKeyDeleteResponse {
     Table<String, OmKeyInfo> openKeyTable =
         omMetadataManager.getOpenKeyTable(getBucketLayout());
 
-    for (Map.Entry<String, OmKeyInfo> keyInfoPair : keysToDelete.entrySet()) {
+    for (Map.Entry<String, Pair<Long, OmKeyInfo>> keyInfoPair : keysToDelete.entrySet()) {
       addDeletionToBatch(omMetadataManager, batchOperation, openKeyTable,
-          keyInfoPair.getKey(), keyInfoPair.getValue());
+          keyInfoPair.getKey(), keyInfoPair.getValue().getValue(), keyInfoPair.getValue().getKey());
     }
   }
 }

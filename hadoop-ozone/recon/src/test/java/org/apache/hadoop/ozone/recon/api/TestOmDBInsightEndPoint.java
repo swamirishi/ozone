@@ -508,15 +508,15 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
         reconOMMetadataManager.getKeyTable(getBucketLayout())
             .get("/sampleVol/bucketOne/key_one");
     Assertions.assertEquals("key_one", omKeyInfoCopy.getKeyName());
-    RepeatedOmKeyInfo repeatedOmKeyInfo1 = new RepeatedOmKeyInfo(omKeyInfoCopy);
+    RepeatedOmKeyInfo repeatedOmKeyInfo1 = new RepeatedOmKeyInfo(omKeyInfoCopy, 1);
 
     reconOMMetadataManager.getDeletedTable()
         .put("/sampleVol/bucketOne/key_one", repeatedOmKeyInfo1);
     Assertions.assertEquals("key_one",
         repeatedOmKeyInfo1.getOmKeyInfoList().get(0).getKeyName());
 
-    RepeatedOmKeyInfo repeatedOmKeyInfo2 = new RepeatedOmKeyInfo(omKeyInfo2);
-    RepeatedOmKeyInfo repeatedOmKeyInfo3 = new RepeatedOmKeyInfo(omKeyInfo2);
+    RepeatedOmKeyInfo repeatedOmKeyInfo2 = new RepeatedOmKeyInfo(omKeyInfo2, 1);
+    RepeatedOmKeyInfo repeatedOmKeyInfo3 = new RepeatedOmKeyInfo(omKeyInfo2, 1);
     reconOMMetadataManager.getDeletedTable()
         .put("/sampleVol/bucketOne/key_two", repeatedOmKeyInfo2);
     reconOMMetadataManager.getDeletedTable()
@@ -542,9 +542,9 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
     OmKeyInfo omKeyInfo3 =
         getOmKeyInfo("sampleVol", "bucketOne", "key_three", true);
 
-    RepeatedOmKeyInfo repeatedOmKeyInfo1 = new RepeatedOmKeyInfo(omKeyInfo1);
-    RepeatedOmKeyInfo repeatedOmKeyInfo2 = new RepeatedOmKeyInfo(omKeyInfo2);
-    RepeatedOmKeyInfo repeatedOmKeyInfo3 = new RepeatedOmKeyInfo(omKeyInfo3);
+    RepeatedOmKeyInfo repeatedOmKeyInfo1 = new RepeatedOmKeyInfo(omKeyInfo1, 1);
+    RepeatedOmKeyInfo repeatedOmKeyInfo2 = new RepeatedOmKeyInfo(omKeyInfo2, 1);
+    RepeatedOmKeyInfo repeatedOmKeyInfo3 = new RepeatedOmKeyInfo(omKeyInfo3, 1);
 
     reconOMMetadataManager.getDeletedTable()
         .put("/sampleVol/bucketOne/key_one", repeatedOmKeyInfo1);
@@ -580,7 +580,7 @@ public class TestOmDBInsightEndPoint extends AbstractReconSqlDBTest {
     OmKeyInfo omKeyInfo1 = reconOMMetadataManager.getKeyTable(getBucketLayout())
         .get("/sampleVol/bucketOne/key_one");
     Assertions.assertEquals("key_one", omKeyInfo1.getKeyName());
-    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(omKeyInfo);
+    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(omKeyInfo, 1);
     reconOMMetadataManager.getDeletedTable()
         .put("/sampleVol/bucketOne/key_one", repeatedOmKeyInfo);
     RepeatedOmKeyInfo repeatedOmKeyInfo1 =

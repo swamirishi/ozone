@@ -18,12 +18,15 @@
 package org.apache.hadoop.ozone.om.request.key;
 
 import org.apache.ratis.server.protocol.TermIndex;
+import static org.apache.hadoop.ozone.om.lock.OzoneManagerLock.LeveledResource.BUCKET_LOCK;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OMMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
@@ -86,7 +89,8 @@ public class OMOpenKeysDeleteRequest extends OMKeyRequest {
     Exception exception = null;
     OMClientResponse omClientResponse = null;
     Result result = null;
-    Map<String, OmKeyInfo> deletedOpenKeys = new HashMap<>();
+    // Map containing a pair of BucketId and delete key info.
+    Map<String, Pair<Long, OmKeyInfo>> deletedOpenKeys = new HashMap<>();
 
     try {
       for (OpenKeyBucket openKeyBucket: submittedOpenKeyBuckets) {
@@ -140,18 +144,18 @@ public class OMOpenKeysDeleteRequest extends OMKeyRequest {
 
   private void updateOpenKeyTableCache(OzoneManager ozoneManager,
       long trxnLogIndex, OpenKeyBucket keysPerBucket,
-      Map<String, OmKeyInfo> deletedOpenKeys) throws IOException {
+      Map<String, Pair<Long, OmKeyInfo>> deletedOpenKeys) throws IOException {
 
     boolean acquiredLock = false;
     String volumeName = keysPerBucket.getVolumeName();
     String bucketName = keysPerBucket.getBucketName();
     OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
-
     try {
       mergeOmLockDetails(omMetadataManager.getLock()
           .acquireWriteLock(BUCKET_LOCK, volumeName, bucketName));
       acquiredLock = getOmLockDetails().isLockAcquired();
-
+      OmBucketInfo omBucketInfo = getBucketInfo(omMetadataManager, volumeName, bucketName);
+      long bucketId = omBucketInfo == null ? 0L : omBucketInfo.getObjectID();
       for (OpenKey key: keysPerBucket.getKeysList()) {
         String fullKeyName = key.getName();
 
@@ -171,7 +175,7 @@ public class OMOpenKeysDeleteRequest extends OMKeyRequest {
 
           // Set the UpdateID to current transactionLogIndex
           omKeyInfo.setUpdateID(trxnLogIndex, ozoneManager.isRatisEnabled());
-          deletedOpenKeys.put(fullKeyName, omKeyInfo);
+          deletedOpenKeys.put(fullKeyName, Pair.of(bucketId, omKeyInfo));
 
           // Update openKeyTable cache.
           omMetadataManager.getOpenKeyTable(getBucketLayout()).addCacheEntry(

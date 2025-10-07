@@ -55,10 +55,10 @@ public class S3MultipartUploadCommitPartResponseWithFSO
       @Nullable OmMultipartKeyInfo omMultipartKeyInfo,
       @Nullable Map<String, RepeatedOmKeyInfo> keyToDeleteMap,
       @Nullable OmKeyInfo openPartKeyInfoToBeDeleted, boolean isRatisEnabled,
-      @Nonnull OmBucketInfo omBucketInfo, @Nonnull BucketLayout bucketLayout) {
+      @Nonnull OmBucketInfo omBucketInfo, long bucketId, @Nonnull BucketLayout bucketLayout) {
 
     super(omResponse, multipartKey, openKey, omMultipartKeyInfo,
             keyToDeleteMap, openPartKeyInfoToBeDeleted, isRatisEnabled,
-            omBucketInfo, bucketLayout);
+            omBucketInfo, bucketId, bucketLayout);
   }
 }

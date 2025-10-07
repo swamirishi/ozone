@@ -27,8 +27,10 @@ import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.SnapshotChainManager;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotMoveDeletedKeysResponse;
@@ -89,7 +91,8 @@ public class OMSnapshotMoveDeletedKeysRequest extends OMClientRequest {
       List<SnapshotMoveKeyInfos> reclaimKeysList = moveDeletedKeysRequest.getReclaimKeysList();
       List<HddsProtos.KeyValue> renamedKeysList = moveDeletedKeysRequest.getRenamedKeysList();
       List<String> movedDirs = moveDeletedKeysRequest.getDeletedDirsToMoveList();
-
+      OmBucketInfo omBucketInfo = OMKeyRequest.getBucketInfo(omMetadataManager, snapshotInfo.getVolumeName(),
+          snapshotInfo.getBucketName());
       // Update lastTransactionInfo for fromSnapshot and the nextSnapshot.
       fromSnapshot.setLastTransactionInfo(TransactionInfo.valueOf(termIndex).toByteString());
       omMetadataManager.getSnapshotInfoTable().addCacheEntry(new CacheKey<>(fromSnapshot.getTableKey()),
@@ -101,7 +104,7 @@ public class OMSnapshotMoveDeletedKeysRequest extends OMClientRequest {
       }
       omClientResponse = new OMSnapshotMoveDeletedKeysResponse(
           omResponse.build(), fromSnapshot, nextSnapshot,
-          nextDBKeysList, reclaimKeysList, renamedKeysList, movedDirs);
+          nextDBKeysList, reclaimKeysList, renamedKeysList, movedDirs, omBucketInfo.getObjectID());
 
     } catch (IOException ex) {
       omClientResponse = new OMSnapshotMoveDeletedKeysResponse(

@@ -81,7 +81,8 @@ public abstract class AbstractOMKeyDeleteResponse extends OmKeyResponse {
       BatchOperation batchOperation,
       Table<String, ?> fromTable,
       String keyName,
-      OmKeyInfo omKeyInfo) throws IOException {
+      OmKeyInfo omKeyInfo,
+      long bucketId) throws IOException {
 
     // For OmResponse with failure, this should do nothing. This method is
     // not called in failure scenario in OM code.
@@ -98,7 +99,7 @@ public abstract class AbstractOMKeyDeleteResponse extends OmKeyResponse {
       // if RepeatedOMKeyInfo structure is null, we create a new instance,
       // if it is not null, then we simply add to the list and store this
       // instance in deletedTable.
-      RepeatedOmKeyInfo repeatedOmKeyInfo = OmUtils.prepareKeyForDelete(
+      RepeatedOmKeyInfo repeatedOmKeyInfo = OmUtils.prepareKeyForDelete(bucketId,
           omKeyInfo, omKeyInfo.getUpdateID(),
           isRatisEnabled);
       String delKeyName = omMetadataManager.getOzoneDeletePathKey(
@@ -124,7 +125,8 @@ public abstract class AbstractOMKeyDeleteResponse extends OmKeyResponse {
       BatchOperation batchOperation,
       Table<String, ?> fromTable,
       String keyName, String deleteKeyName,
-      OmKeyInfo omKeyInfo) throws IOException {
+      OmKeyInfo omKeyInfo,
+      long bucketId) throws IOException {
 
     // For OmResponse with failure, this should do nothing. This method is
     // not called in failure scenario in OM code.
@@ -141,7 +143,7 @@ public abstract class AbstractOMKeyDeleteResponse extends OmKeyResponse {
       // if RepeatedOMKeyInfo structure is null, we create a new instance,
       // if it is not null, then we simply add to the list and store this
       // instance in deletedTable.
-      RepeatedOmKeyInfo repeatedOmKeyInfo = OmUtils.prepareKeyForDelete(
+      RepeatedOmKeyInfo repeatedOmKeyInfo = OmUtils.prepareKeyForDelete(bucketId,
           omKeyInfo, omKeyInfo.getUpdateID(),
           isRatisEnabled);
       omMetadataManager.getDeletedTable().putWithBatch(

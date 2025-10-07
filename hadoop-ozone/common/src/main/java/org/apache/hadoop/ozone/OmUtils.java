@@ -464,6 +464,7 @@ public final class OmUtils {
    * repeatedOmKeyInfo instance.
    * 3. Set the updateID to the transactionLogIndex.
    * @param keyInfo args supplied by client
+   * @param bucketId bucket id
    * @param trxnLogIndex For Multipart keys, this is the transactionLogIndex
    *                     of the MultipartUploadAbort request which needs to
    *                     be set as the updateID of the partKeyInfos.
@@ -471,7 +472,7 @@ public final class OmUtils {
    *                     the same updateID as is in keyInfo.
    * @return {@link RepeatedOmKeyInfo}
    */
-  public static RepeatedOmKeyInfo prepareKeyForDelete(OmKeyInfo keyInfo,
+  public static RepeatedOmKeyInfo prepareKeyForDelete(long bucketId, OmKeyInfo keyInfo,
       long trxnLogIndex, boolean isRatisEnabled) {
     // If this key is in a GDPR enforced bucket, then before moving
     // KeyInfo to deletedTable, remove the GDPR related metadata and
@@ -489,7 +490,7 @@ public final class OmUtils {
     keyInfo.setUpdateID(trxnLogIndex, isRatisEnabled);
 
     //The key doesn't exist in deletedTable, so create a new instance.
-    return new RepeatedOmKeyInfo(keyInfo);
+    return new RepeatedOmKeyInfo(keyInfo, bucketId);
   }
 
   /**

@@ -3899,7 +3899,6 @@ public abstract class TestOzoneRpcClientAbstract {
       verifyReplication(volumeName, bucketName, keyName,
           RatisReplicationConfig.getInstance(HddsProtos.ReplicationFactor.ONE));
     }
-
     //Step 4
     OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
     OmKeyInfo omKeyInfo = omMetadataManager.getKeyTable(getBucketLayout())

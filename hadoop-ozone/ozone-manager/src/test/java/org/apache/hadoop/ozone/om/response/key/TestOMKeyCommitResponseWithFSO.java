@@ -53,7 +53,7 @@ public class TestOMKeyCommitResponseWithFSO extends TestOMKeyCommitResponse {
           bucketName, keyName);
       deleteKeys.getOmKeyInfoList().stream().forEach(e -> deleteKeyMap.put(
           omMetadataManager.getOzoneDeletePathKey(e.getObjectID(), deleteKey),
-          new RepeatedOmKeyInfo(e)));
+          new RepeatedOmKeyInfo(e, omBucketInfo.getObjectID())));
     }
     return new OMKeyCommitResponseWithFSO(omResponse, omKeyInfo, ozoneKey,
         openKey, omBucketInfo, deleteKeyMap, volumeId, isHSync);

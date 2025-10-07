@@ -40,6 +40,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test {@link RepeatedOmKeyInfo#getCodec(boolean)}.
@@ -98,7 +99,8 @@ public class TestRepeatedOmKeyInfoCodec
   public void testWithoutPipeline(int chunkNum) {
     final Codec<RepeatedOmKeyInfo> codec = RepeatedOmKeyInfo.getCodec(true);
     OmKeyInfo originKey = getKeyInfo(chunkNum);
-    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(originKey);
+    long bucketId = Time.now();
+    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(originKey, bucketId);
     try {
       byte[] rawData = codec.toPersistedFormat(repeatedOmKeyInfo);
       RepeatedOmKeyInfo key = codec.fromPersistedFormat(rawData);
@@ -106,6 +108,7 @@ public class TestRepeatedOmKeyInfoCodec
           ", Serialized key size without pipeline = " + rawData.length);
       assertNull(key.getOmKeyInfoList().get(0).getLatestVersionLocations()
           .getLocationList().get(0).getPipeline());
+      assertEquals(bucketId, key.getBucketId());
     } catch (IOException e) {
       fail("Should success");
     }
@@ -117,7 +120,8 @@ public class TestRepeatedOmKeyInfoCodec
     final Codec<RepeatedOmKeyInfo> codecWithPipeline
         = RepeatedOmKeyInfo.getCodec(false);
     OmKeyInfo originKey = getKeyInfo(chunkNum);
-    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(originKey);
+    long bucketId = Time.now();
+    RepeatedOmKeyInfo repeatedOmKeyInfo = new RepeatedOmKeyInfo(originKey, bucketId);
     try {
       byte[] rawData = codecWithPipeline.toPersistedFormat(repeatedOmKeyInfo);
       RepeatedOmKeyInfo key = codecWithoutPipeline.fromPersistedFormat(rawData);
@@ -125,6 +129,7 @@ public class TestRepeatedOmKeyInfoCodec
           ", Serialized key size with pipeline = " + rawData.length);
       assertNotNull(key.getOmKeyInfoList().get(0).getLatestVersionLocations()
           .getLocationList().get(0).getPipeline());
+      assertEquals(bucketId, key.getBucketId());
     } catch (IOException e) {
       fail("Should success");
     }
@@ -132,7 +137,8 @@ public class TestRepeatedOmKeyInfoCodec
 
   public void threadSafety() throws InterruptedException {
     final OmKeyInfo key = getKeyInfo(1);
-    final RepeatedOmKeyInfo subject = new RepeatedOmKeyInfo(key);
+    long bucketId = Time.now();
+    final RepeatedOmKeyInfo subject = new RepeatedOmKeyInfo(key, bucketId);
     final Codec<RepeatedOmKeyInfo> codec = RepeatedOmKeyInfo.getCodec(true);
     final AtomicBoolean failed = new AtomicBoolean();
     ThreadFactory threadFactory = new ThreadFactoryBuilder().setDaemon(true)
