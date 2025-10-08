@@ -165,10 +165,15 @@ public class OMDirectoriesPurgeRequestWithFSO extends OMKeyRequest {
       deletingServiceMetrics.incrNumSubFilesMoved(numSubFilesMoved);
       deletingServiceMetrics.incrNumDirPurged(numDirsDeleted);
 
+      TransactionInfo transactionInfo = TransactionInfo.valueOf(termIndex);
       if (fromSnapshotInfo != null) {
-        fromSnapshotInfo.setLastTransactionInfo(TransactionInfo.valueOf(termIndex).toByteString());
+        fromSnapshotInfo.setLastTransactionInfo(transactionInfo.toByteString());
         omMetadataManager.getSnapshotInfoTable().addCacheEntry(new CacheKey<>(fromSnapshotInfo.getTableKey()),
             CacheValue.get(termIndex.getIndex(), fromSnapshotInfo));
+      } else {
+        // Update the deletingServiceMetrics with the transaction index to indicate the
+        // last purge transaction when running for AOS
+        deletingServiceMetrics.setLastAOSTransactionInfo(transactionInfo);
       }
 
     } catch (IOException ex) {

@@ -112,10 +112,15 @@ public class OMKeyPurgeRequest extends OMKeyRequest {
     // Setting transaction info for snapshot, this is to prevent duplicate purge requests to OM from background
     // services.
     try {
+      TransactionInfo transactionInfo = TransactionInfo.valueOf(termIndex);
       if (fromSnapshotInfo != null) {
-        fromSnapshotInfo.setLastTransactionInfo(TransactionInfo.valueOf(termIndex).toByteString());
+        fromSnapshotInfo.setLastTransactionInfo(transactionInfo.toByteString());
         omMetadataManager.getSnapshotInfoTable().addCacheEntry(new CacheKey<>(fromSnapshotInfo.getTableKey()),
             CacheValue.get(termIndex.getIndex(), fromSnapshotInfo));
+      } else {
+        // Update the deletingServiceMetrics with the transaction index to indicate the
+        // last purge transaction when running for AOS
+        deletingServiceMetrics.setLastAOSTransactionInfo(transactionInfo);
       }
     } catch (IOException e) {
       return new OMKeyPurgeResponse(createErrorOMResponse(omResponse, e));
