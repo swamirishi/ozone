@@ -18,35 +18,36 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
+import static org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotMoveDeletedKeysResponse.createRepeatedOmKeyInfo;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import javax.annotation.Nonnull;
+import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OmMetadataManagerImpl;
 import org.apache.hadoop.ozone.om.OmSnapshot;
 import org.apache.hadoop.ozone.om.OmSnapshotManager;
+import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
-import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.om.request.key.OMKeyPurgeRequest;
+import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyInfo;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotMoveKeyInfos;
 import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
-
-import org.apache.hadoop.hdds.utils.db.BatchOperation;
-
-import java.io.IOException;
-import java.util.List;
-import javax.annotation.Nonnull;
-
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
-import static org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotMoveDeletedKeysResponse.createRepeatedOmKeyInfo;
 
 /**
  * Response for {@link OMKeyPurgeRequest} request.
  */
 @CleanupTableInfo(cleanupTables = {DELETED_TABLE, SNAPSHOT_INFO_TABLE})
 public class OMKeyPurgeResponse extends OmKeyResponse {
+  private List<OmBucketInfo> bucketInfosToBeUpdated;
   private List<String> purgeKeyList;
   private List<String> renamedList;
   private SnapshotInfo fromSnapshot;
@@ -56,12 +57,14 @@ public class OMKeyPurgeResponse extends OmKeyResponse {
       @Nonnull List<String> keyList,
       @Nonnull List<String> renamedList,
       SnapshotInfo fromSnapshot,
-      List<SnapshotMoveKeyInfos> keysToUpdate) {
+      List<SnapshotMoveKeyInfos> keysToUpdate,
+      List<OmBucketInfo> bucketInfosToBeUpdated) {
     super(omResponse);
     this.purgeKeyList = keyList;
     this.renamedList = renamedList;
     this.fromSnapshot = fromSnapshot;
     this.keysToUpdateList = keysToUpdate;
+    this.bucketInfosToBeUpdated = bucketInfosToBeUpdated == null ? Collections.emptyList() : bucketInfosToBeUpdated;
   }
 
   /**
@@ -98,6 +101,10 @@ public class OMKeyPurgeResponse extends OmKeyResponse {
     } else {
       processKeys(batchOperation, omMetadataManager);
       processKeysToUpdate(batchOperation, omMetadataManager);
+    }
+    for (OmBucketInfo bucketInfo : bucketInfosToBeUpdated) {
+      String bucketKey = omMetadataManager.getBucketKey(bucketInfo.getVolumeName(), bucketInfo.getBucketName());
+      omMetadataManager.getBucketTable().putWithBatch(batchOperation, bucketKey, bucketInfo);
     }
   }
 
