@@ -38,6 +38,7 @@ import org.apache.log4j.Layout;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.ratis.util.function.CheckedSupplier;
 import org.junit.Assert;
 import org.mockito.Mockito;
 import java.lang.reflect.Field;
@@ -190,6 +191,25 @@ public abstract class GenericTestUtils {
     e.printStackTrace(wrt);
     wrt.close();
     return stm.toString();
+  }
+
+  /**
+   * Waits for a condition specified by the given {@code check} to return {@code true}.
+   * If the condition throws an exception, the operation would be retried assuming the condition didn't get satisfied.
+   * The condition will be checked initially and then at intervals specified by
+   * {@code checkEveryMillis}, until the total time exceeds {@code waitForMillis}.
+   * If the condition is not satisfied within the allowed time, a {@link TimeoutException}
+   * is thrown. If interrupted while waiting, an {@link InterruptedException} is thrown.
+   */
+  public static <E extends Exception> void waitFor(CheckedSupplier<Boolean, E> check, int checkEveryMillis,
+      int waitForMillis) throws InterruptedException, TimeoutException {
+    waitFor((BooleanSupplier) () -> {
+      try {
+        return check.get();
+      } catch (Exception e) {
+        return false;
+      }
+    }, checkEveryMillis, waitForMillis);
   }
 
   /**

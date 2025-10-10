@@ -101,6 +101,10 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
       <artifactId>mockito-core</artifactId>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.ratis</groupId>
+      <artifactId>ratis-common</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
