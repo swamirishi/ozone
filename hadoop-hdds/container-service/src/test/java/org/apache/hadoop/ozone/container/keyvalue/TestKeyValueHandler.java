@@ -49,12 +49,14 @@ import org.apache.hadoop.ozone.container.common.impl.ContainerSet;
 import org.apache.hadoop.ozone.container.common.impl.HddsDispatcher;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
 import org.apache.hadoop.ozone.container.common.interfaces.Handler;
+import org.apache.hadoop.ozone.container.common.report.IncrementalReportSender;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.statemachine.StateContext;
 import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
 import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.common.volume.MutableVolumeSet;
+import org.apache.hadoop.ozone.container.common.volume.RoundRobinVolumeChoosingPolicy;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
 import org.apache.hadoop.ozone.container.common.volume.VolumeSet;
 import org.apache.ozone.test.GenericTestUtils;
@@ -81,7 +83,9 @@ import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mockito;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +105,7 @@ public class TestKeyValueHandler {
   public final TemporaryFolder tempDir = new TemporaryFolder();
 
   private static final String DATANODE_UUID = UUID.randomUUID().toString();
+  private static final String CLUSTER_ID = UUID.randomUUID().toString();
 
   private static final long DUMMY_CONTAINER_ID = 9999;
   private static final String DUMMY_PATH = "dummy/dir/doesnt/exist";
@@ -625,6 +630,79 @@ public class TestKeyValueHandler {
     kvHandler.deleteContainer(containerSet.getContainer(containerID), true);
     assertEquals(2, icrReceived.get());
     assertNull(containerSet.getContainer(containerID));
+  }
+
+  /**
+   * Test to verify that immediate ICRs are sent when container state changes,
+   * and deferred ICRs are sent when closing a container without a state change.
+   */
+  @Test
+  public void testICRsOnContainerClose() throws Exception {
+    final long containerID = 1L;
+    final ConfigurationSource conf = new OzoneConfiguration();
+    final ContainerSet containerSet = new ContainerSet(1000);
+    final MutableVolumeSet volumeSet = mock(MutableVolumeSet.class);
+
+    KeyValueContainerData containerData = new KeyValueContainerData(
+        containerID, layout, (long) StorageUnit.GB.toBytes(1),
+        UUID.randomUUID().toString(), DATANODE_UUID);
+
+    HddsVolume hddsVolume = new HddsVolume.Builder(tempDir.toString()).conf(conf)
+        .clusterID(CLUSTER_ID).datanodeUuid(DATANODE_UUID)
+        .volumeSet(volumeSet)
+        .build();
+    hddsVolume.format(CLUSTER_ID);
+    hddsVolume.createWorkingDir(CLUSTER_ID, null);
+    hddsVolume.createTmpDirs(CLUSTER_ID);
+
+    when(volumeSet.getVolumesList()).thenReturn(Collections.singletonList(hddsVolume));
+    when(volumeSet.getFailedVolumesList()).thenReturn(Collections.emptyList());
+
+    IncrementalReportSender<Container> mockIcrSender = mock(IncrementalReportSender.class);
+
+    KeyValueHandler kvHandler = new KeyValueHandler(conf,
+        DATANODE_UUID, containerSet, volumeSet, ContainerMetrics.create(conf),
+        mockIcrSender);
+    kvHandler.setClusterID(CLUSTER_ID);
+
+    try {
+      // markContainerForClose - OPEN -> CLOSING (should send immediate ICR)
+      containerData.setState(ContainerProtos.ContainerDataProto.State.OPEN);
+      KeyValueContainer container = new KeyValueContainer(containerData, conf);
+      container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(), CLUSTER_ID);
+      containerSet.addContainer(container);
+
+      kvHandler.markContainerForClose(container);
+      verify(mockIcrSender, times(1)).send(any(Container.class)); // Immediate ICR
+      verify(mockIcrSender, times(0)).sendDeferred(any(Container.class)); // No deferred ICR
+      assertEquals(ContainerProtos.ContainerDataProto.State.CLOSING, container.getContainerState());
+
+      // markContainerForClose - CLOSING -> CLOSING (should send deferred ICR)
+      reset(mockIcrSender);
+      kvHandler.markContainerForClose(container);
+
+      verify(mockIcrSender, times(0)).send(any(Container.class)); // No immediate ICR
+      verify(mockIcrSender, times(1)).sendDeferred(any(Container.class)); // Deferred ICR
+      assertEquals(ContainerProtos.ContainerDataProto.State.CLOSING, container.getContainerState());
+
+      // closeContainer - CLOSING -> CLOSED (should send immediate ICR)
+      reset(mockIcrSender);
+      kvHandler.closeContainer(container);
+
+      verify(mockIcrSender, times(1)).send(any(Container.class));         // Immediate ICR
+      verify(mockIcrSender, times(0)).sendDeferred(any(Container.class)); // No deferred ICR
+      assertEquals(ContainerProtos.ContainerDataProto.State.CLOSED, container.getContainerState());
+
+      // closeContainer - CLOSED -> CLOSED (should return, no ICR)
+      reset(mockIcrSender);
+      kvHandler.closeContainer(container);
+
+      verify(mockIcrSender, times(0)).send(any(Container.class));         // No immediate ICR
+      verify(mockIcrSender, times(0)).sendDeferred(any(Container.class)); // No deferred ICR
+      assertEquals(ContainerProtos.ContainerDataProto.State.CLOSED, container.getContainerState());
+    } finally {
+      FileUtils.deleteDirectory(tempDir.getRoot());
+    }
   }
 
   private static ContainerCommandRequestProto createContainerRequest(

@@ -177,18 +177,7 @@ public class OzoneContainer {
     metrics = ContainerMetrics.create(conf);
     handlers = Maps.newHashMap();
 
-    IncrementalReportSender<Container> icrSender = container -> {
-      synchronized (containerSet) {
-        ContainerReplicaProto containerReport = container.getContainerReport();
-
-        IncrementalContainerReportProto icr = IncrementalContainerReportProto
-            .newBuilder()
-            .addReport(containerReport)
-            .build();
-        context.addIncrementalReport(icr);
-        context.getParent().triggerHeartbeat();
-      }
-    };
+    IncrementalReportSender<Container> icrSender = createIncrementalReportSender();
 
     for (ContainerType containerType : ContainerType.values()) {
       handlers.put(containerType,
@@ -334,6 +323,36 @@ public class OzoneContainer {
 
     LOG.info("Build ContainerSet costs {}s",
         (System.currentTimeMillis() - startTime) / 1000);
+  }
+
+  private IncrementalReportSender<Container> createIncrementalReportSender() {
+    return new IncrementalReportSender<Container>() {
+      private void sendICR(Container container, boolean immediate) throws StorageContainerException {
+        ContainerReplicaProto containerReport = container.getContainerReport();
+        IncrementalContainerReportProto icr = IncrementalContainerReportProto
+            .newBuilder()
+            .addReport(containerReport)
+            .build();
+        context.addIncrementalReport(icr);
+        if (immediate) {
+          context.getParent().triggerHeartbeat();
+        }
+      }
+
+      @Override
+      public void send(Container container) throws StorageContainerException {
+        synchronized (containerSet) {
+          sendICR(container, true); // Immediate
+        }
+      }
+
+      @Override
+      public void sendDeferred(Container container) throws StorageContainerException {
+        synchronized (containerSet) {
+          sendICR(container, false); // Deferred
+        }
+      }
+    };
   }
 
   /**
