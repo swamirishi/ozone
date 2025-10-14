@@ -126,16 +126,12 @@ public class OMKeyPurgeRequest extends OMKeyRequest {
         // last purge transaction when running for AOS
         deletingServiceMetrics.setLastAOSTransactionInfo(transactionInfo);
       }
-    } catch (IOException e) {
-      return new OMKeyPurgeResponse(createErrorOMResponse(omResponse, e));
-    }
-    try {
       List<OmBucketInfo> bucketInfoList = updateBucketSize(purgeKeysRequest.getBucketPurgeKeysSizeList(),
           omMetadataManager);
       return new OMKeyPurgeResponse(omResponse.build(),
           keysToBePurgedList, renamedKeysToBePurged, fromSnapshotInfo, keysToUpdateList, bucketInfoList);
-    } catch (OMException oe) {
-      return new OMKeyPurgeResponse(createErrorOMResponse(omResponse, oe));
+    } catch (IOException e) {
+      return new OMKeyPurgeResponse(createErrorOMResponse(omResponse, e));
     }
   }
 
@@ -187,5 +183,4 @@ public class OMKeyPurgeRequest extends OMKeyRequest {
       mergeOmLockDetails(omMetadataManager.getLock().releaseWriteLocks(BUCKET_LOCK, bucketKeyList));
     }
   }
-
 }

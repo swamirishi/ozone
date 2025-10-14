@@ -186,8 +186,8 @@ public class TestOMDirectoriesPurgeRequestAndResponse extends TestOMKeyRequest {
         volumeId, bucketId, purgeDeletedDir, subFiles, subDirs);
     purgePathRequestList.add(request);
     return createPurgeKeysRequest(fromSnapshot, purgePathRequestList, Collections.singletonList(
-        BucketNameInfo.newBuilder().setVolumeName(volumeName).setBucketName(bucketName)
-            .setBucketId(bucketId).setVolumeId(volumeId).buildPartial()));
+        BucketNameInfo.newBuilder().setVolumeName(bucketInfo.getVolumeName()).setBucketName(bucketInfo.getBucketName())
+            .setBucketId(bucketId).setVolumeId(volumeId).build()));
   }
 
   private PurgePathRequest wrapPurgeRequest(
@@ -358,100 +358,113 @@ public class TestOMDirectoriesPurgeRequestAndResponse extends TestOMKeyRequest {
 
   @Test
   public void testDirectoryPurge() throws Exception {
-    for (String record : Arrays.asList("false,false", "false,true", "true,false", "true,true")) {
+    for (String record : Arrays.asList("false,false,0", "false,true,0", "true,false,0", "true,true,0",
+        "false,false,10", "false,true,10", "true,false,10", "true,true,10")) {
       boolean fromSnapshot = Boolean.parseBoolean(record.split(",")[0]);
       boolean purgeDirectory = Boolean.parseBoolean(record.split(",")[1]);
-      when(ozoneManager.getDefaultReplicationConfig())
-          .thenReturn(RatisReplicationConfig.getInstance(HddsProtos.ReplicationFactor.THREE));
-      String bucket = "bucket" + RandomUtils.secure().randomInt();
-      // Add volume, bucket and key entries to OM DB.
-      OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucket,
-          omMetadataManager, BucketLayout.FILE_SYSTEM_OPTIMIZED);
-      String bucketKey = omMetadataManager.getBucketKey(volumeName, bucket);
-      OmBucketInfo bucketInfo = omMetadataManager.getBucketTable().get(bucketKey);
-      OmDirectoryInfo dir1 = new OmDirectoryInfo.Builder()
-          .setName("dir1")
+      int numberOfSubEntries = Integer.parseInt(record.split(",")[2]);
+      testDirectoryPurgeCase(fromSnapshot, purgeDirectory, numberOfSubEntries);
+    }
+  }
+
+  public void testDirectoryPurgeCase(boolean fromSnapshot, boolean purgeDirectory, int numberOfSubEntries)
+      throws Exception {
+    when(ozoneManager.getDefaultReplicationConfig())
+        .thenReturn(RatisReplicationConfig.getInstance(HddsProtos.ReplicationFactor.THREE));
+    String bucket = "bucket" + RandomUtils.secure().randomInt();
+    // Add volume, bucket and key entries to OM DB.
+    OMRequestTestUtils.addVolumeAndBucketToDB(volumeName, bucket,
+        omMetadataManager, BucketLayout.FILE_SYSTEM_OPTIMIZED);
+    String bucketKey = omMetadataManager.getBucketKey(volumeName, bucket);
+    OmBucketInfo bucketInfo = omMetadataManager.getBucketTable().get(bucketKey);
+    long purgeUsedNamespaceCountBeforePurge = bucketInfo.getSnapshotUsedNamespace();
+    OmDirectoryInfo dir1 = new OmDirectoryInfo.Builder()
+        .setName("dir1")
+        .setCreationTime(Time.now())
+        .setModificationTime(Time.now())
+        .setObjectID(1)
+        .setParentObjectID(bucketInfo.getObjectID())
+        .setUpdateID(0)
+        .build();
+    String dirKey = OMRequestTestUtils.addDirKeyToDirTable(false, dir1, volumeName, bucket,
+        1L, omMetadataManager);
+    List<OmKeyInfo> subFiles = new ArrayList<>();
+    List<OmKeyInfo> subDirs = new ArrayList<>();
+    List<String> subFileKeys = new ArrayList<>();
+    List<String> subDirKeys = new ArrayList<>();
+    List<String> deletedSubDirKeys = new ArrayList<>();
+    List<String> deletedSubFiles = new ArrayList<>();
+    for (int id = 0; id < numberOfSubEntries; id++) {
+      OmDirectoryInfo subdir = new OmDirectoryInfo.Builder()
+          .setName("subdir" + id)
           .setCreationTime(Time.now())
           .setModificationTime(Time.now())
-          .setObjectID(1)
-          .setParentObjectID(bucketInfo.getObjectID())
+          .setObjectID(2 * id)
+          .setParentObjectID(dir1.getObjectID())
           .setUpdateID(0)
           .build();
-      String dirKey = OMRequestTestUtils.addDirKeyToDirTable(false, dir1, volumeName, bucket,
-          1L, omMetadataManager);
-      List<OmKeyInfo> subFiles = new ArrayList<>();
-      List<OmKeyInfo> subDirs = new ArrayList<>();
-      List<String> subFileKeys = new ArrayList<>();
-      List<String> subDirKeys = new ArrayList<>();
-      List<String> deletedSubDirKeys = new ArrayList<>();
-      List<String> deletedSubFiles = new ArrayList<>();
-      for (int id = 1; id < 10; id++) {
-        OmDirectoryInfo subdir = new OmDirectoryInfo.Builder()
-            .setName("subdir" + id)
-            .setCreationTime(Time.now())
-            .setModificationTime(Time.now())
-            .setObjectID(2 * id)
-            .setParentObjectID(dir1.getObjectID())
-            .setUpdateID(0)
-            .build();
-        String subDirectoryPath = OMRequestTestUtils.addDirKeyToDirTable(false, subdir, volumeName, bucket,
-            2 * id, omMetadataManager);
-        subDirKeys.add(subDirectoryPath);
-        OmKeyInfo subFile =
-            OMRequestTestUtils.createOmKeyInfo(volumeName, bucket, "file" + id, RatisReplicationConfig.getInstance(ONE))
-                .setObjectID(2 * id + 1)
-                .setParentObjectID(dir1.getObjectID())
-                .setUpdateID(100L)
-                .build();
-        String subFilePath = OMRequestTestUtils.addFileToKeyTable(false, true, subFile.getKeyName(),
-            subFile, 1234L, 2 * id + 1, omMetadataManager);
-        subFileKeys.add(subFilePath);
-        subFile.setKeyName("dir1/" + subFile.getKeyName());
-        subFiles.add(subFile);
-        subDirs.add(getOmKeyInfo(volumeName, bucket, subdir,
-            "dir1/" + subdir.getName()));
-        deletedSubDirKeys.add(omMetadataManager.getOzoneDeletePathKey(subdir.getObjectID(), subDirectoryPath));
-        deletedSubFiles.add(omMetadataManager.getOzoneDeletePathKey(subFile.getObjectID(),
-            omMetadataManager.getOzoneKey(volumeName, bucket, subFile.getKeyName())));
-      }
-      String deletedDirKey = OMRequestTestUtils.deleteDir(dirKey, volumeName, bucket, omMetadataManager);
-      for (String subDirKey : subDirKeys) {
-        assertTrue(omMetadataManager.getDirectoryTable().isExist(subDirKey));
-      }
-      for (String subFileKey : subFileKeys) {
-        assertTrue(omMetadataManager.getFileTable().isExist(subFileKey));
-      }
-      assertFalse(omMetadataManager.getDirectoryTable().isExist(dirKey));
-      SnapshotInfo snapshotInfo = null;
-      if (fromSnapshot) {
-        snapshotInfo = createSnapshot(volumeName, bucket, "snapshot");
-      }
+      String subDirectoryPath = OMRequestTestUtils.addDirKeyToDirTable(false, subdir, volumeName, bucket,
+          2 * id, omMetadataManager);
+      subDirKeys.add(subDirectoryPath);
+      OmKeyInfo subFile =
+          OMRequestTestUtils.createOmKeyInfo(volumeName, bucket, "file" + id, RatisReplicationConfig.getInstance(ONE))
+              .setObjectID(2 * id + 1)
+              .setParentObjectID(dir1.getObjectID())
+              .setUpdateID(100L)
+              .build();
+      String subFilePath = OMRequestTestUtils.addFileToKeyTable(false, true, subFile.getKeyName(),
+          subFile, 1234L, 2 * id + 1, omMetadataManager);
+      subFileKeys.add(subFilePath);
+      subFile.setKeyName("dir1/" + subFile.getKeyName());
+      subFiles.add(subFile);
+      subDirs.add(getOmKeyInfo(volumeName, bucket, subdir,
+          "dir1/" + subdir.getName()));
+      deletedSubDirKeys.add(omMetadataManager.getOzoneDeletePathKey(subdir.getObjectID(), subDirectoryPath));
+      deletedSubFiles.add(omMetadataManager.getOzoneDeletePathKey(subFile.getObjectID(),
+          omMetadataManager.getOzoneKey(volumeName, bucket, subFile.getKeyName())));
+    }
+    String deletedDirKey = OMRequestTestUtils.deleteDir(dirKey, volumeName, bucket, omMetadataManager);
+    for (String subDirKey : subDirKeys) {
+      assertTrue(omMetadataManager.getDirectoryTable().isExist(subDirKey));
+    }
+    for (String subFileKey : subFileKeys) {
+      assertTrue(omMetadataManager.getFileTable().isExist(subFileKey));
+    }
+    assertFalse(omMetadataManager.getDirectoryTable().isExist(dirKey));
+    SnapshotInfo snapshotInfo = null;
+    if (fromSnapshot) {
+      snapshotInfo = createSnapshot(volumeName, bucket, "snapshot");
+    }
 
-      OMRequest omRequest = createPurgeKeysRequest(snapshotInfo == null ? null : snapshotInfo.getTableKey(),
-          purgeDirectory ? deletedDirKey : null, subDirs, subFiles, bucketInfo);
-      OMRequest preExecutedRequest = preExecute(omRequest);
-      OMDirectoriesPurgeRequestWithFSO omKeyPurgeRequest =
-          new OMDirectoriesPurgeRequestWithFSO(preExecutedRequest);
-      OMDirectoriesPurgeResponseWithFSO omClientResponse = (OMDirectoriesPurgeResponseWithFSO) omKeyPurgeRequest
-          .validateAndUpdateCache(ozoneManager, 100L);
-      performBatchOperationCommit(omClientResponse);
-      try (UncheckedAutoCloseableSupplier<OmSnapshot> snapshot = fromSnapshot ? ozoneManager.getOmSnapshotManager()
-          .getSnapshot(snapshotInfo.getSnapshotId()) : null) {
-        OMMetadataManager metadataManager = fromSnapshot ? snapshot.get().getMetadataManager() :
-            ozoneManager.getMetadataManager();
-        validateDeletedKeys(metadataManager, deletedSubFiles);
-        List<String> deletedDirs = new ArrayList<>(deletedSubDirKeys);
-        if (!purgeDirectory) {
-          deletedDirs.add(deletedDirKey);
-        }
-        validateDeletedDirs(metadataManager, deletedDirs);
+    OMRequest omRequest = createPurgeKeysRequest(snapshotInfo == null ? null : snapshotInfo.getTableKey(),
+        purgeDirectory ? deletedDirKey : null, subDirs, subFiles, bucketInfo);
+    OMRequest preExecutedRequest = preExecute(omRequest);
+    OMDirectoriesPurgeRequestWithFSO omKeyPurgeRequest = new OMDirectoriesPurgeRequestWithFSO(preExecutedRequest);
+    OMDirectoriesPurgeResponseWithFSO omClientResponse = (OMDirectoriesPurgeResponseWithFSO) omKeyPurgeRequest
+        .validateAndUpdateCache(ozoneManager, 100L);
+    performBatchOperationCommit(omClientResponse);
+    OmBucketInfo updatedBucketInfo = purgeDirectory || numberOfSubEntries > 0 ?
+        omMetadataManager.getBucketTable().getSkipCache(bucketKey) : omMetadataManager.getBucketTable().get(bucketKey);
+    long currentSnapshotUsedNamespace = updatedBucketInfo.getSnapshotUsedNamespace();
+
+    assertEquals(purgeUsedNamespaceCountBeforePurge - (purgeDirectory ? 1 : 0) +
+            (2 * (long)numberOfSubEntries), currentSnapshotUsedNamespace);
+    try (UncheckedAutoCloseableSupplier<OmSnapshot> snapshot = fromSnapshot ? ozoneManager.getOmSnapshotManager()
+        .getSnapshot(snapshotInfo.getSnapshotId()) : null) {
+      OMMetadataManager metadataManager = fromSnapshot ? snapshot.get().getMetadataManager() :
+          ozoneManager.getMetadataManager();
+      validateDeletedKeys(metadataManager, deletedSubFiles);
+      List<String> deletedDirs = new ArrayList<>(deletedSubDirKeys);
+      if (!purgeDirectory) {
+        deletedDirs.add(deletedDirKey);
       }
-      for (String subDirKey : subDirKeys) {
-        assertFalse(omMetadataManager.getDirectoryTable().isExist(subDirKey));
-      }
-      for (String subFileKey : subFileKeys) {
-        assertFalse(omMetadataManager.getFileTable().isExist(subFileKey));
-      }
+      validateDeletedDirs(metadataManager, deletedDirs);
+    }
+    for (String subDirKey : subDirKeys) {
+      assertFalse(omMetadataManager.getDirectoryTable().isExist(subDirKey));
+    }
+    for (String subFileKey : subFileKeys) {
+      assertFalse(omMetadataManager.getFileTable().isExist(subFileKey));
     }
   }
 

@@ -18,7 +18,17 @@
 
 package org.apache.hadoop.ozone.om.response.key;
 
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_DIR_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DIRECTORY_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.FILE_TABLE;
+import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
+
+import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.DBStore;
@@ -39,16 +49,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRespo
 import org.apache.ratis.util.function.UncheckedAutoCloseableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.util.List;
-
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_DIR_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DELETED_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.DIRECTORY_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.FILE_TABLE;
-import static org.apache.hadoop.ozone.om.OmMetadataManagerImpl.SNAPSHOT_INFO_TABLE;
 
 /**
  * Response for {@link OMDirectoriesPurgeRequestWithFSO} request.
@@ -180,5 +180,10 @@ public class OMDirectoriesPurgeResponseWithFSO extends OmKeyResponse {
         }
       }
     }
+  }
+
+  @VisibleForTesting
+  public Map<Pair<String, String>, OmBucketInfo> getVolBucketInfoMap() {
+    return volBucketInfoMap;
   }
 }
