@@ -44,7 +44,7 @@ public class OzoneAclConfig {
   private String userDefaultRights;
 
   @Config(key = "group.rights",
-      defaultValue = "READ, LIST",
+      defaultValue = "ALL",
       type = ConfigType.STRING,
       tags = {ConfigTag.OM, ConfigTag.SECURITY},
       description = "Default group permissions set for an object in " +
