@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -394,6 +395,7 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
         keyManager.getPendingDeletionSubDirs(volumeBucketId.getVolumeId(), volumeBucketId.getBucketId(),
             pendingDeletedDirInfo, keyInfo -> true, remainingBufLimit);
     List<OmKeyInfo> subDirs = subDirDeleteResult.getKeysToDelete();
+    subDirs.forEach(omKeyInfo -> omKeyInfo.setAcls(Collections.emptyList()));
     remainingBufLimit -= subDirDeleteResult.getConsumedSize();
 
     OMMetadataManager omMetadataManager = keyManager.getMetadataManager();
@@ -435,7 +437,7 @@ public class DirectoryDeletingService extends AbstractKeyDeletingService {
       final long bucketId,
       final String purgeDeletedDir,
       final List<OmKeyInfo> purgeDeletedFiles,
-      final List<OmKeyInfo> markDirsAsDeleted) {
+      final List<OmKeyInfo> markDirsAsDeleted) throws IOException {
     // Put all keys to be purged in a list
     PurgePathRequest.Builder purgePathsRequest = PurgePathRequest.newBuilder();
     purgePathsRequest.setVolumeId(volumeId);

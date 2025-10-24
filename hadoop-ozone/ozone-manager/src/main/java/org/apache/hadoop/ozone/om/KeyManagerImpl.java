@@ -21,6 +21,7 @@ import static java.lang.String.format;
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_KEY_PROVIDER_PATH;
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_BLOCK_TOKEN_ENABLED;
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_BLOCK_TOKEN_ENABLED_DEFAULT;
+import static org.apache.hadoop.hdds.StringUtils.getLexicographicallyHigherString;
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.BlockTokenSecretProto.AccessModeProto.READ;
 import static org.apache.hadoop.hdds.scm.net.NetConstants.NODE_COST_DEFAULT;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getRemoteUser;
@@ -2284,22 +2285,36 @@ public class KeyManagerImpl implements KeyManager {
         parentInfo.getObjectID(), "");
     long consumedSize = 0;
     try (TableIterator<String, ? extends KeyValue<String, T>> iterator = table.iterator(seekFileInDB)) {
-      while (iterator.hasNext() && remainingBufLimit > 0) {
+      String startKey = null;
+      // This would be the last expected prefix for the parent.
+      String lastLoopExclusiveKey = getLexicographicallyHigherString(seekFileInDB);
+      List<DeleteKeysResult.ExclusiveRange> keyRanges = new ArrayList<>();
+      while (iterator.hasNext()) {
         KeyValue<String, T> entry = iterator.next();
-        final long objectSerializedSize = entry.getValueByteSize();
         // No need to check the table again as the value in cache and iterator would be same when directory
         // deleting service runs.
+        final long objectSerializedSize = entry.getValueByteSize();
+        KeyValue<String, OmKeyInfo> keyInfo = deleteKeyTransformer.apply(entry);
         if (remainingBufLimit - objectSerializedSize < 0) {
+          // Set the last loop exclusive key.
+          lastLoopExclusiveKey = keyInfo.getKey();
           break;
         }
-        KeyValue<String, OmKeyInfo> keyInfo = deleteKeyTransformer.apply(entry);
         if (deleteKeyFilter.apply(keyInfo)) {
           keyInfos.add(keyInfo.getValue());
           remainingBufLimit -= objectSerializedSize;
           consumedSize += objectSerializedSize;
+          if (startKey == null) {
+            startKey = keyInfo.getKey();
+          }
+        } else {
+          keyRanges.add(new DeleteKeysResult.ExclusiveRange(startKey, keyInfo.getKey()));
         }
       }
-      return new DeleteKeysResult(keyInfos, consumedSize, !iterator.hasNext());
+      if (startKey != null) {
+        keyRanges.add(new DeleteKeysResult.ExclusiveRange(startKey, lastLoopExclusiveKey));
+      }
+      return new DeleteKeysResult(keyInfos, consumedSize, keyRanges, !iterator.hasNext());
     }
   }
 

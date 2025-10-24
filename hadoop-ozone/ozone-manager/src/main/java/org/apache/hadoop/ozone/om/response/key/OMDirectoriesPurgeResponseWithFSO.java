@@ -150,6 +150,9 @@ public class OMDirectoriesPurgeResponseWithFSO extends OmKeyResponse {
             bucketId, keyInfo.getParentObjectID(), keyInfo.getFileName());
         keySpaceOmMetadataManager.getKeyTable(getBucketLayout())
             .deleteWithBatch(keySpaceBatchOperation, ozoneDbKey);
+        keySpaceOmMetadataManager.getKeyTable(getBucketLayout())
+            .deleteRangeWithBatch(keySpaceBatchOperation, range[0], range[1]);
+
 
         if (LOG.isDebugEnabled()) {
           LOG.info("Move keyName:{} to DeletedTable DBKey: {}",
