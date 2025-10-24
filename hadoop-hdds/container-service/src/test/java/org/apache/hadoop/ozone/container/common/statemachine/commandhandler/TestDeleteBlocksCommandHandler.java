@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -118,6 +119,25 @@ public class TestDeleteBlocksCommandHandler {
     setup();
   }
 
+  /**
+   * Create a mock {@link HddsVolume} to track container IDs.
+   */
+  private HddsVolume mockHddsVolume(String storageId) {
+    HddsVolume volume = mock(HddsVolume.class);
+    when(volume.getStorageID()).thenReturn(storageId);
+
+    ConcurrentSkipListSet<Long> containerIds = new ConcurrentSkipListSet<>();
+
+    doAnswer(inv -> {
+      Long containerId = inv.getArgument(0);
+      containerIds.add(containerId);
+      return null;
+    }).when(volume).addContainer(any(Long.class));
+
+    when(volume.getContainerIterator()).thenAnswer(inv -> containerIds.iterator());
+    return volume;
+  }
+
   @Before
   public void setup() throws Exception {
     conf = new OzoneConfiguration();
@@ -130,8 +150,7 @@ public class TestDeleteBlocksCommandHandler {
     Mockito.when(context.getParent()).thenReturn(dnsm);
 
     containerSet = new ContainerSet(1000);
-    volume1 = Mockito.mock(HddsVolume.class);
-    Mockito.when(volume1.getStorageID()).thenReturn("uuid-1");
+    volume1 = mockHddsVolume("uuid-1");
     for (int i = 0; i <= 10; i++) {
       KeyValueContainerData data =
           new KeyValueContainerData(i,
@@ -309,7 +328,7 @@ public class TestDeleteBlocksCommandHandler {
         handler.executeCmdWithRetry(Collections.emptyList());
     assertEquals(1, deleteBlockTransactionResults.size());
   }
-  
+
   @ContainerTestVersionInfo.ContainerTest
   public void testDuplicateDeleteBlocksCommand(
       ContainerTestVersionInfo versionInfo) throws Exception {

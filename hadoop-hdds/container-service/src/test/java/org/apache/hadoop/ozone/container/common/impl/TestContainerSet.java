@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.LongStream;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -52,6 +53,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Class used to test ContainerSet operations.
@@ -70,6 +75,33 @@ public class TestContainerSet {
   @Parameterized.Parameters
   public static Iterable<Object[]> parameters() {
     return ContainerLayoutTestInfo.containerLayoutParameters();
+  }
+
+  /**
+   * Create a mock {@link HddsVolume} to track container IDs.
+   */
+  private HddsVolume mockHddsVolume(String storageId) {
+    HddsVolume volume = mock(HddsVolume.class);
+    when(volume.getStorageID()).thenReturn(storageId);
+
+    ConcurrentSkipListSet<Long> containerIds = new ConcurrentSkipListSet<>();
+
+    doAnswer(inv -> {
+      Long containerId = inv.getArgument(0);
+      containerIds.add(containerId);
+      return null;
+    }).when(volume).addContainer(any(Long.class));
+
+    doAnswer(inv -> {
+      Long containerId = inv.getArgument(0);
+      containerIds.remove(containerId);
+      return null;
+    }).when(volume).removeContainer(any(Long.class));
+
+    when(volume.getContainerIterator()).thenAnswer(inv -> containerIds.iterator());
+    when(volume.getContainerCount()).thenAnswer(inv -> (long) containerIds.size());
+
+    return volume;
   }
 
   @Test
@@ -158,10 +190,8 @@ public class TestContainerSet {
 
   @Test
   public void testIteratorPerVolume() throws StorageContainerException {
-    HddsVolume vol1 = Mockito.mock(HddsVolume.class);
-    Mockito.when(vol1.getStorageID()).thenReturn("uuid-1");
-    HddsVolume vol2 = Mockito.mock(HddsVolume.class);
-    Mockito.when(vol2.getStorageID()).thenReturn("uuid-2");
+    HddsVolume vol1 = mockHddsVolume("uuid-1");
+    HddsVolume vol2 = mockHddsVolume("uuid-2");
 
     ContainerSet containerSet = new ContainerSet(1000);
     for (int i = 0; i < 10; i++) {
@@ -201,8 +231,7 @@ public class TestContainerSet {
 
   @Test
   public void iteratorIsOrderedByScanTime() throws StorageContainerException {
-    HddsVolume vol = Mockito.mock(HddsVolume.class);
-    Mockito.when(vol.getStorageID()).thenReturn("uuid-1");
+    HddsVolume vol = mockHddsVolume("uuid-1");
     Random random = new Random();
     ContainerSet containerSet = new ContainerSet(1000);
     int containerCount = 50;
@@ -314,6 +343,100 @@ public class TestContainerSet {
       containerSet.addContainer(kv);
     }
     return containerSet;
+  }
+
+  /**
+   * Test that containerCount per volume returns correct count.
+   */
+  @Test
+  public void testContainerCountPerVolume() throws StorageContainerException {
+    HddsVolume vol1 = mockHddsVolume("uuid-1");
+    HddsVolume vol2 = mockHddsVolume("uuid-2");
+    HddsVolume vol3 = mockHddsVolume("uuid-3");
+
+    ContainerSet containerSet = new ContainerSet(1000);
+
+    // Add 100 containers to vol1, 50 to vol2, 0 to vol3
+    for (int i = 0; i < 100; i++) {
+      KeyValueContainerData kvData = new KeyValueContainerData(i,
+          layout,
+          (long) StorageUnit.GB.toBytes(5), UUID.randomUUID().toString(),
+          UUID.randomUUID().toString());
+      kvData.setVolume(vol1);
+      kvData.setState(ContainerProtos.ContainerDataProto.State.CLOSED);
+      containerSet.addContainer(new KeyValueContainer(kvData, new OzoneConfiguration()));
+    }
+
+    for (int i = 100; i < 150; i++) {
+      KeyValueContainerData kvData = new KeyValueContainerData(i,
+          layout,
+          (long) StorageUnit.GB.toBytes(5), UUID.randomUUID().toString(),
+          UUID.randomUUID().toString());
+      kvData.setVolume(vol2);
+      kvData.setState(ContainerProtos.ContainerDataProto.State.CLOSED);
+      containerSet.addContainer(new KeyValueContainer(kvData, new OzoneConfiguration()));
+    }
+
+    // Verify counts
+    assertEquals(100, containerSet.containerCount(vol1));
+    assertEquals(50, containerSet.containerCount(vol2));
+    assertEquals(0, containerSet.containerCount(vol3));
+
+    // Remove some containers and verify counts are updated
+    containerSet.removeContainer(0);
+    containerSet.removeContainer(1);
+    containerSet.removeContainer(100);
+    assertEquals(98, containerSet.containerCount(vol1));
+    assertEquals(49, containerSet.containerCount(vol2));
+  }
+
+  /**
+   * Test that per-volume iterator only returns containers from that volume.
+   */
+  @Test
+  public void testContainerIteratorPerVolume() throws StorageContainerException {
+    HddsVolume vol1 = mockHddsVolume("uuid-11");
+    HddsVolume vol2 = mockHddsVolume("uuid-12");
+
+    ContainerSet containerSet = new ContainerSet(1000);
+
+    // Add containers with specific IDs to each volume
+    List<Long> vol1Ids = new ArrayList<>();
+    List<Long> vol2Ids = new ArrayList<>();
+
+    for (int i = 0; i < 20; i++) {
+      KeyValueContainerData kvData = new KeyValueContainerData(i,
+          layout,
+          (long) StorageUnit.GB.toBytes(5), UUID.randomUUID().toString(),
+          UUID.randomUUID().toString());
+      if (i % 2 == 0) {
+        kvData.setVolume(vol1);
+        vol1Ids.add((long) i);
+      } else {
+        kvData.setVolume(vol2);
+        vol2Ids.add((long) i);
+      }
+      kvData.setState(ContainerProtos.ContainerDataProto.State.CLOSED);
+      containerSet.addContainer(new KeyValueContainer(kvData, new OzoneConfiguration()));
+    }
+
+    // Verify iterator only returns containers from vol1
+    Iterator<Container<?>> iter1 = containerSet.getContainerIterator(vol1);
+    List<Long> foundVol1Ids = new ArrayList<>();
+    while (iter1.hasNext()) {
+      foundVol1Ids.add(iter1.next().getContainerData().getContainerID());
+    }
+    assertEquals(vol1Ids.size(), foundVol1Ids.size());
+    assertTrue(foundVol1Ids.containsAll(vol1Ids));
+
+    // Verify iterator only returns containers from vol2
+    Iterator<Container<?>> iter2 = containerSet.getContainerIterator(vol2);
+    List<Long> foundVol2Ids = new ArrayList<>();
+    while (iter2.hasNext()) {
+      foundVol2Ids.add(iter2.next().getContainerData().getContainerID());
+    }
+    assertEquals(vol2Ids.size(), foundVol2Ids.size());
+    assertTrue(foundVol2Ids.containsAll(vol2Ids));
   }
 
 }
