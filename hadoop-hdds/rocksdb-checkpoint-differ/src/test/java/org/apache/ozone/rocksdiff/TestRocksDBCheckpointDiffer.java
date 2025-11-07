@@ -41,7 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,6 +108,8 @@ import org.apache.hadoop.util.Time;
 import org.apache.ozone.compaction.log.CompactionFileInfo;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
 import org.apache.ozone.rocksdb.util.RdbUtil;
+import org.apache.ozone.rocksdb.util.SstFileInfo;
+import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.DifferSnapshotVersion;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.NodeComparator;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -431,6 +435,13 @@ public class TestRocksDBCheckpointDiffer {
     return entries;
   }
 
+  private static DifferSnapshotInfo mockDifferSnapshotVersion(String dbPath, long generation) {
+    DifferSnapshotInfo differSnapshotInfo = mock(DifferSnapshotInfo.class);
+    when(differSnapshotInfo.getDbPath(anyInt())).thenReturn(Paths.get(dbPath));
+    when(differSnapshotInfo.getGeneration()).thenReturn(generation);
+    return differSnapshotInfo;
+  }
+
   /**
    * Test cases for testGetSSTDiffListWithoutDB.
    */
@@ -505,20 +516,14 @@ public class TestRocksDBCheckpointDiffer {
             Collections.singletonList("000107"))
     );
 
-    DifferSnapshotInfo snapshotInfo1 = new DifferSnapshotInfo(
-        "/path/to/dbcp1", UUID.randomUUID(), 3008L, null, Mockito.mock(ManagedRocksDB.class));
-    DifferSnapshotInfo snapshotInfo2 = new DifferSnapshotInfo(
-        "/path/to/dbcp2", UUID.randomUUID(), 14980L, null, Mockito.mock(ManagedRocksDB.class));
-    DifferSnapshotInfo snapshotInfo3 = new DifferSnapshotInfo(
-        "/path/to/dbcp3", UUID.randomUUID(), 17975L, null, Mockito.mock(ManagedRocksDB.class));
-    DifferSnapshotInfo snapshotInfo4 = new DifferSnapshotInfo(
-        "/path/to/dbcp4", UUID.randomUUID(), 18000L, null, Mockito.mock(ManagedRocksDB.class));
+    DifferSnapshotInfo snapshotInfo1 = mockDifferSnapshotVersion("/path/to/dbcp1", 3008L);
+    DifferSnapshotInfo snapshotInfo2 = mockDifferSnapshotVersion("/path/to/dbcp2", 14980L);
+    DifferSnapshotInfo snapshotInfo3 = mockDifferSnapshotVersion("/path/to/dbcp3",17975L);
+    DifferSnapshotInfo snapshotInfo4 = mockDifferSnapshotVersion("/path/to/dbcp4", 18000L);
 
     TablePrefixInfo prefixMap = new TablePrefixInfo(ImmutableMap.of("col1", "c", "col2", "d"));
-    DifferSnapshotInfo snapshotInfo5 = new DifferSnapshotInfo(
-        "/path/to/dbcp2", UUID.randomUUID(), 0L, prefixMap, Mockito.mock(ManagedRocksDB.class));
-    DifferSnapshotInfo snapshotInfo6 = new DifferSnapshotInfo(
-        "/path/to/dbcp2", UUID.randomUUID(), 100L, prefixMap, Mockito.mock(ManagedRocksDB.class));
+    DifferSnapshotInfo snapshotInfo5 = mockDifferSnapshotVersion("/path/to/dbcp2", 0L);
+    DifferSnapshotInfo snapshotInfo6 = mockDifferSnapshotVersion("/path/to/dbcp2", 100L);
 
     Set<String> snapshotSstFiles1 = ImmutableSet.of("000059", "000053");
     Set<String> snapshotSstFiles2 = ImmutableSet.of("000088", "000059",
@@ -550,7 +555,7 @@ public class TestRocksDBCheckpointDiffer {
                 "000095"),
             ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
                 "000095"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 2: Compaction log file crafted input: " +
                 "One source ('to' snapshot) SST file is never compacted " +
                 "(newly flushed)",
@@ -563,7 +568,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000088", "000105", "000059", "000053", "000095"),
             ImmutableSet.of("000108"),
             ImmutableSet.of("000108"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 3: Compaction log file crafted input: " +
                 "Same SST files found during SST expansion",
             compactionLog,
@@ -575,7 +580,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000066", "000059", "000053"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 4: Compaction log file crafted input: " +
                 "Skipping known processed SST.",
             compactionLog,
@@ -587,7 +592,7 @@ public class TestRocksDBCheckpointDiffer {
             Collections.emptySet(),
             Collections.emptySet(),
             Collections.emptySet(),
-            true, Collections.emptyMap()),
+            true, Collections.emptyMap(), null),
         Arguments.of("Test 5: Compaction log file hit snapshot" +
                 " generation early exit condition",
             compactionLog,
@@ -599,7 +604,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 6: Compaction log table regular case. " +
                 "Expands expandable SSTs in the initial diff.",
             null,
@@ -613,7 +618,7 @@ public class TestRocksDBCheckpointDiffer {
                 "000095"),
             ImmutableSet.of("000066", "000105", "000080", "000087", "000073",
                 "000095"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 7: Compaction log table crafted input: " +
                 "One source ('to' snapshot) SST file is never compacted " +
                 "(newly flushed)",
@@ -626,7 +631,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000088", "000105", "000059", "000053", "000095"),
             ImmutableSet.of("000108"),
             ImmutableSet.of("000108"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 8: Compaction log table crafted input: " +
                 "Same SST files found during SST expansion",
             null,
@@ -638,7 +643,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000066", "000059", "000053"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
             ImmutableSet.of("000080", "000087", "000073", "000095"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 9: Compaction log table crafted input: " +
                 "Skipping known processed SST.",
             null,
@@ -650,7 +655,7 @@ public class TestRocksDBCheckpointDiffer {
             Collections.emptySet(),
             Collections.emptySet(),
             Collections.emptySet(),
-            true, Collections.emptyMap()),
+            true, Collections.emptyMap(), null),
         Arguments.of("Test 10: Compaction log table hit snapshot " +
                 "generation early exit condition",
             null,
@@ -662,7 +667,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("000059", "000053"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
             ImmutableSet.of("000066", "000080", "000087", "000073", "000062"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), null),
         Arguments.of("Test 11: Older Compaction log got pruned and source snapshot delta files would be " +
                 "unreachable",
             null,
@@ -674,7 +679,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("1", "3", "13", "14"),
             ImmutableSet.of("2", "8", "9", "12"),
             ImmutableSet.of("2", "8", "9", "12"),
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), prefixMap),
         Arguments.of("Test 12: Older Compaction log got pruned and source snapshot delta files would be " +
                 "unreachable",
             null,
@@ -686,7 +691,7 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("3", "13", "14"),
             ImmutableSet.of("4", "5", "8", "9", "12"),
             null,
-            false, Collections.emptyMap()),
+            false, Collections.emptyMap(), prefixMap),
         Arguments.of("Test 13: Compaction log to test filtering logic based on range and column family",
             null,
             getPrunedCompactionEntries(false,
@@ -717,7 +722,7 @@ public class TestRocksDBCheckpointDiffer {
                 "8", new String[]{"a", "b", "col1"},
                 "9", new String[]{"a", "c", "col1"},
                 "15", new String[]{"a", "z", "col13"}
-            ))
+            ), prefixMap)
 
     );
   }
@@ -740,7 +745,8 @@ public class TestRocksDBCheckpointDiffer {
       Set<String> expectedDiffSstFiles,
       Set<String> expectedSSTDiffFiles,
       boolean expectingException,
-      Map<String, String[]> metaDataMap) {
+      Map<String, String[]> metaDataMap,
+      TablePrefixInfo prefixInfo) {
 
     boolean exceptionThrown = false;
     if (compactionLog != null) {
@@ -758,7 +764,7 @@ public class TestRocksDBCheckpointDiffer {
 
     Set<String> actualSameSstFiles = new HashSet<>();
     Set<String> actualDiffSstFiles = new HashSet<>();
-
+    DifferSnapshotVersion =
     try {
       rocksDBCheckpointDiffer.internalGetSSTDiffList(
           srcSnapshot,
@@ -800,8 +806,8 @@ public class TestRocksDBCheckpointDiffer {
               Function.identity())));
       Set<String> tablesToLookup;
       String dummyTable;
-      if (srcSnapshot.getTablePrefixes() != null) {
-        tablesToLookup = srcSnapshot.getTablePrefixes().getTableNames();
+      if (prefixInfo != null) {
+        tablesToLookup = prefixInfo.getTableNames();
         dummyTable = tablesToLookup.stream().findAny().get();
       } else {
         tablesToLookup = mock(Set.class);
@@ -822,7 +828,11 @@ public class TestRocksDBCheckpointDiffer {
       try {
         Assertions.assertEquals(Optional.ofNullable(expectedSSTDiffFiles)
                 .map(files -> files.stream().sorted().collect(Collectors.toList())).orElse(null),
-            rocksDBCheckpointDiffer.getSSTDiffList(srcSnapshot, destSnapshot, tablesToLookup)
+            rocksDBCheckpointDiffer.getSSTDiffList(
+                new DifferSnapshotVersion(srcSnapshot, 0, tablesToLookup),
+                new DifferSnapshotVersion(destSnapshot, 0, tablesToLookup),
+
+                    tablesToLookup).map(SstFileInfo::getFileName)
                 .map(i -> i.stream().sorted().collect(Collectors.toList())).orElse(null));
       } catch (RuntimeException rtEx) {
         if (!expectingException) {

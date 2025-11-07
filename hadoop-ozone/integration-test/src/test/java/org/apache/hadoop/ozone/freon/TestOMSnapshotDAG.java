@@ -223,9 +223,9 @@ public class TestOMSnapshotDAG {
             .getMetadataManager().getStore()).getDb().getManagedRocksDb());
 
       // RocksDB does checkpointing in a separate thread, wait for it
-    final File checkpointSnap1 = new File(snap1.getDbPath());
+    final File checkpointSnap1 = snap1.getDbPath(0).toFile();
     GenericTestUtils.waitFor(checkpointSnap1::exists, 2000, 20000);
-    final File checkpointSnap2 = new File(snap2.getDbPath());
+    final File checkpointSnap2 = snap2.getDbPath(0).toFile();
     GenericTestUtils.waitFor(checkpointSnap2::exists, 2000, 20000);
 
     List<String> sstDiffList21 = differ.getSSTDiffList(snap2, snap1, COLUMN_FAMILIES_TO_TRACK_IN_DAG)

@@ -84,6 +84,8 @@ import com.google.common.collect.Sets;
 import jakarta.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -378,7 +380,8 @@ public class TestSnapshotDiffManager {
           return snapshotCache.get(snapInfo.getSnapshotId());
         });
     when(ozoneManager.getOmSnapshotManager()).thenReturn(omSnapshotManager);
-    snapshotDiffManager = new SnapshotDiffManager(db, differ, ozoneManager,
+    OmSnapshotLocalDataManager localDataManager = mock(OmSnapshotLocalDataManager.class);
+    snapshotDiffManager = new SnapshotDiffManager(db, differ, ozoneManager, localDataManager,
         snapDiffJobTable, snapDiffReportTable, columnFamilyOptions, codecRegistry);
     when(omSnapshotManager.getDiffCleanupServiceInterval()).thenReturn(0L);
   }
@@ -427,15 +430,16 @@ public class TestSnapshotDiffManager {
 
     String diffDir = snapDiffDir.getAbsolutePath();
     String diffJobKey = snap1 + DELIMITER + snap2;
-    Set<String> randomStrings = IntStream.range(0, numberOfFiles)
-        .mapToObj(i -> RandomStringUtils.secure().nextAlphabetic(10))
+    Set<Path> randomStrings = IntStream.range(0, numberOfFiles)
+        .mapToObj(i -> Paths.get(RandomStringUtils.secure().nextAlphabetic(10)))
         .collect(Collectors.toSet());
 
     when(differ.getSSTDiffListWithFullPath(
         any(DifferSnapshotInfo.class),
         any(DifferSnapshotInfo.class),
-        anySet(),
-        eq(diffDir))
+        anyMap(),
+        any(TablePrefixInfo.class),
+        anySet())
     ).thenReturn(Optional.of(Lists.newArrayList(randomStrings)));
 
     UncheckedAutoCloseableSupplier<OmSnapshot> rcFromSnapshot =
@@ -453,11 +457,11 @@ public class TestSnapshotDiffManager {
              Mockito.CALLS_REAL_METHODS)) {
       mockedRdbUtil.when(() -> RdbUtil.getSSTFilesForComparison(any(), any()))
           .thenReturn(Collections.singleton(RandomStringUtils.secure().nextAlphabetic(10)));
-      mockedRocksDiffUtils.when(() -> RocksDiffUtils.filterRelevantSstFiles(any(), any(), anySet()))
-          .thenAnswer(i -> null);
+      mockedRocksDiffUtils.when(() -> RocksDiffUtils.filterRelevantSstFiles(anyMap(), anySet(),
+              any(TablePrefixInfo.class))).thenAnswer(i -> i.getArgument(0));
+      mockedRocksDiffUtils.when(() -> RocksDiffUtils.filterRelevantSstFiles(anySet(), anySet(),
+          any(TablePrefixInfo.class))).thenAnswer(i -> i.getArgument(0));
       SnapshotDiffManager spy = spy(snapshotDiffManager);
-      doNothing().when(spy).recordActivity(any(), any());
-      doNothing().when(spy).updateProgress(anyString(), anyDouble());
       Set<String> deltaFiles = spy.getDeltaFiles(
           fromSnapshot,
           toSnapshot,
@@ -720,7 +724,7 @@ public class TestSnapshotDiffManager {
       Set<Long> newParentIds = Sets.newHashSet();
 
       spy.addToObjectIdMap(toSnapshotTable,
-          fromSnapshotTable, Sets.newHashSet("dummy.sst"),
+          fromSnapshotTable, Sets.newHashSet(Paths.get("dummy.sst")),
           nativeLibraryLoaded, oldObjectIdKeyMap, newObjectIdKeyMap,
           objectIdsToCheck, Optional.of(oldParentIds),
           Optional.of(newParentIds),

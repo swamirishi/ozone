@@ -20,8 +20,10 @@ package org.apache.ozone.rocksdiff;
 import static org.apache.hadoop.hdds.StringUtils.getFirstNChars;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -54,40 +56,32 @@ public final class RocksDiffUtils {
         && prefixForColumnFamily.compareTo(endKeyPrefix) <= 0;
   }
 
-  public static void filterRelevantSstFiles(Set<String> inputFiles,
-                                            TablePrefixInfo tablePrefixInfo,
-                                            Set<String> columnFamiliesToLookup,
-                                            ManagedRocksDB... dbs) {
-    filterRelevantSstFiles(inputFiles, tablePrefixInfo, Collections.emptyMap(), columnFamiliesToLookup, dbs);
+  /**
+   * Filter sst files based on prefixes.
+   */
+  public static <T> Map<T, SstFileInfo> filterRelevantSstFiles(Map<T, SstFileInfo> inputFiles,
+      Set<String> tablesToLookup, TablePrefixInfo tablePrefixInfo) {
+    for (Iterator<Map.Entry<T, SstFileInfo>> fileIterator = inputFiles.entrySet().iterator(); fileIterator.hasNext();) {
+      SstFileInfo sstFileInfo = fileIterator.next().getValue();
+      if (shouldSkipNode(sstFileInfo, tablePrefixInfo, tablesToLookup)) {
+        fileIterator.remove();
+      }
+    }
+    return inputFiles;
   }
 
   /**
    * Filter sst files based on prefixes.
    */
-  public static void filterRelevantSstFiles(Set<String> inputFiles,
-                                            TablePrefixInfo tablePrefixInfo,
-                                            Map<String, CompactionNode> preExistingCompactionNodes,
-                                            Set<String> columnFamiliesToLookup,
-                                            ManagedRocksDB... dbs) {
-    Map<String, LiveFileMetaData> liveFileMetaDataMap = new HashMap<>();
-    int dbIdx = 0;
-    for (Iterator<String> fileIterator =
-         inputFiles.iterator(); fileIterator.hasNext();) {
-      String filename = FilenameUtils.getBaseName(fileIterator.next());
-      while (!preExistingCompactionNodes.containsKey(filename) && !liveFileMetaDataMap.containsKey(filename)
-          && dbIdx < dbs.length) {
-        liveFileMetaDataMap.putAll(dbs[dbIdx].getLiveMetadataForSSTFiles());
-        dbIdx += 1;
-      }
-      CompactionNode compactionNode = preExistingCompactionNodes.get(filename);
-      if (compactionNode == null) {
-        compactionNode = new CompactionNode(new CompactionFileInfo.Builder(filename)
-            .setValues(liveFileMetaDataMap.get(filename)).build());
-      }
-      if (shouldSkipNode(compactionNode, tablePrefixInfo, columnFamiliesToLookup)) {
+  public static <T> Set<SstFileInfo> filterRelevantSstFiles(Set<SstFileInfo> inputFiles,
+      Set<String> tablesToLookup, TablePrefixInfo tablePrefixInfo) {
+    for (Iterator<SstFileInfo> fileIterator = inputFiles.iterator(); fileIterator.hasNext();) {
+      SstFileInfo sstFileInfo = fileIterator.next();
+      if (shouldSkipNode(sstFileInfo, tablePrefixInfo, tablesToLookup)) {
         fileIterator.remove();
       }
     }
+    return inputFiles;
   }
 
   @VisibleForTesting
