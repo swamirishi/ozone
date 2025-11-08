@@ -84,7 +84,7 @@ class FullDiffComputer extends FileLinkDeltaFileComputer {
         }
         for (Map.Entry<Object, SstFileInfo> entry : toSnapshotFiles.entrySet()) {
           if (!fromSnapshotFiles.containsKey(entry.getKey())) {
-            Path source = entry.getValue().getFilePath(fromSnapshotPath);
+            Path source = entry.getValue().getFilePath(toSnapshotPath);
             paths.put(source, Pair.of(createLink(source), entry.getValue()));
           }
         }
