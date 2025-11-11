@@ -18,7 +18,7 @@
 
 import React from 'react';
 import Plot from 'react-plotly.js';
-import {Row, Col, Icon, Button, Input, Menu, Dropdown} from 'antd';
+import {Row, Col, Icon, Button, Input, Menu, Dropdown, Modal} from 'antd';
 import {DetailPanel} from 'components/rightDrawer/rightDrawer';
 import * as Plotly from 'plotly.js';
 import {showDataFetchError} from 'utils/common';
@@ -56,6 +56,9 @@ interface IDUState {
   returnPath: string;
   inputPath: string;
   displayLimit: number;
+  showModal: boolean;
+  isMetadataModal: boolean;
+  metadataPath: string;
 }
 
 let cancelPieSignal: AbortController
@@ -75,7 +78,10 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
       panelValues: [],
       returnPath: '/',
       inputPath: '/',
-      displayLimit: DEFAULT_DISPLAY_LIMIT
+      displayLimit: DEFAULT_DISPLAY_LIMIT,
+      showModal: false,
+      isMetadataModal: false,
+      metadataPath: ''
     };
   }
 
@@ -93,11 +99,77 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
     return `${Number.parseFloat((bytes / (k ** i)).toFixed(dm))} ${sizes[i]}`;
   };
 
+  // Recompute the pie chart locally using existing duResponse and a new limit
+  recalcPieChart = (limit: number) => {
+    const { duResponse } = this.state as unknown as { duResponse: IDUResponse };
+    if (!duResponse || !duResponse.subPaths && this.state.inputPath !== '/') {
+      // Fallback: if we don't have cached data yet, fetch it
+      this.updatePieChart(this.state.returnPath || '/', limit);
+      return;
+    }
+
+    const dataSize = duResponse.size;
+    let subpaths: IDUSubpath[] = (duResponse.subPaths || []).slice();
+
+    subpaths.sort((a, b) => (a.size < b.size) ? 1 : -1);
+
+    if (subpaths.length > limit) {
+      subpaths = subpaths.slice(0, limit);
+      let topSize = 0;
+      for (let i = 0; i < limit; ++i) {
+        topSize += subpaths[i].size;
+      }
+      const otherSize = dataSize - topSize;
+      const other: IDUSubpath = {path: OTHER_PATH_NAME, size: otherSize, sizeWithReplica: 0, isKey: false};
+      subpaths.push(other);
+    }
+
+    let pathLabels, values, percentage, sizeStr, pieces, subpathName;
+
+    if (duResponse.subPathCount === 0 || subpaths === 0) {
+      pieces = duResponse && duResponse.path != null && duResponse.path.split('/');
+      subpathName = pieces[pieces.length - 1];
+      pathLabels = [subpathName];
+      values = [0.1];
+      percentage = [100.00];
+      sizeStr = [this.byteToSize(duResponse.size, 1)];
+    } else {
+      pathLabels = subpaths.map(subpath => {
+        pieces = subpath.path.split('/');
+        subpathName = pieces[pieces.length - 1];
+        return (subpath.isKey || subpathName === OTHER_PATH_NAME) ? subpathName : subpathName + '/';
+      });
+      values = subpaths.map(subpath => subpath.size / dataSize);
+      percentage = values.map(value => (value * 100).toFixed(2));
+      sizeStr = subpaths.map(subpath => this.byteToSize(subpath.size, 1));
+    }
+
+    this.setState({
+      isLoading: false,
+      showPanel: false,
+      displayLimit: limit,
+      plotData: [{
+        type: 'pie',
+        hole: 0.2,
+        values: values,
+        customdata: percentage,
+        labels: pathLabels,
+        text: sizeStr,
+        textinfo: 'label',
+        hovertemplate: 'Percentage: %{customdata}%<br>Total Data Size: %{text}<extra></extra>'
+      }],
+      showModal: false
+    });
+  };
+
   handleChange = e => {
     this.setState({inputPath: e.target.value, showPanel: false});
   };
 
-  handleSubmit = _e => {
+  handleSubmit = e => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     // Avoid empty request trigger 400 response
     cancelRequests([
       cancelKeyMetadataSignal,
@@ -106,8 +178,15 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
       cancelPieSignal
     ]);
 
-    if (!this.state.inputPath) {
-      this.updatePieChart('/', DEFAULT_DISPLAY_LIMIT);
+    if (this.state.inputPath === '/'
+        && this.state.duResponse.length === 0
+        && this.state.plotData.length === 0) {
+      this.setState(prev => ({
+        ...prev,
+        showModal: true,
+        isMetadataModal: false,
+        showPanel: false
+      }));
       return;
     }
 
@@ -140,9 +219,11 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
   // Take the request path, make a DU request, inject response
   // into the pie chart
   updatePieChart = (path: string, limit: number) => {
-    this.setState({
-      isLoading: true
-    });
+    this.setState(prev => ({
+      ...prev,
+      isLoading: true,
+      showModal: false
+    }));
     const duEndpoint = `/api/v1/namespace/du?path=${path}&files=true`;
     const { request, controller } = AxiosGetHelper(duEndpoint, cancelPieSignal)
     cancelPieSignal = controller;
@@ -234,13 +315,15 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
     });
   };
 
-  componentDidMount(): void {
-    this.setState({
-      isLoading: true
-    });
-    // By default render the DU for root path
-    this.updatePieChart('/', DEFAULT_DISPLAY_LIMIT);
-  }
+  // This is commented out as root path DU calculation is expensive operation.
+  // componentDidMount(): void {
+  //   this.setState({
+  //     isLoading: true
+  //   });
+    
+  //   // By default render the DU for root path
+  //   this.updatePieChart('/', DEFAULT_DISPLAY_LIMIT);
+  // }
 
   componentWillUnmount(): void {
     cancelRequests([
@@ -260,7 +343,7 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
     const path = (curPath === '/') ? `${curPath}${subPath}` : `${curPath}/${subPath}`;
 
     // Reset to default everytime
-    this.updatePieChart(path, DEFAULT_DISPLAY_LIMIT);
+    this.updatePieChart(path, this.state.displayLimit);
   }
 
   refreshCurPath(e, path: string): void {
@@ -269,6 +352,14 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
       cancelQuotaSignal,
       cancelSummarySignal
     ]);
+
+
+    if (path === '/') {
+      this.setState({
+        showModal: true
+      });
+      return;
+    }
 
     if (!path) {
       return;
@@ -285,51 +376,80 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
       res = Number.parseInt(e.key, 10);
     }
 
-    this.updatePieChart(this.state.inputPath, res);
+    // Only recompute locally without making another API call
+    this.recalcPieChart(res);
   }
 
   // Show the right side panel that display metadata details of path
   showMetadataDetails(e, path: string): void {
-    const summaryEndpoint = `/api/v1/namespace/summary?path=${path}`;
-    const keys = [];
-    const values = [];
+    if (!path) {
+      return;
+    }
+    if (this.state.metadataPath === path) {
+      this.setState(prev => ({
+        ...prev,
+        showPanel: true,
+        showModal: false,
+        isMetadataModal: false
+      }));
+      return;
+    }
+    if (path === '/' && !this.state.isMetadataModal) {
+      this.setState(prev => ({
+        ...prev,
+        showModal: true,
+        isMetadataModal: true
+      }));
+      return;
+    }
+    this.fetchMetadataDetails(path);
+  }
 
-    const { request: summaryRequest, controller: summaryNewController } = AxiosGetHelper(summaryEndpoint, cancelSummarySignal);
-    cancelSummarySignal = summaryNewController;
-    summaryRequest.then(response => {
-      const summaryResponse = response.data;
+  private fetchMetadataDetails = async (path: string): Promise<void> => {
+    const summaryEndpoint = `/api/v1/namespace/summary?path=${path}`;
+    const keys: string[] = [];
+    const values: string[] = [];
+
+    try {
+      const { request: summaryRequest, controller: summaryNewController } = AxiosGetHelper(summaryEndpoint, cancelSummarySignal);
+      cancelSummarySignal = summaryNewController;
+      const summaryResponse = (await summaryRequest).data;
+
+      if (summaryResponse.countStats.status === 'PATH_NOT_FOUND') {
+        this.setState(prev => ({
+          ...prev,
+          metadataPath: '',
+          showPanel: false
+        }));
+        showDataFetchError(`Invalid Path: ${path}`);
+        return;
+      }
+
       keys.push('Entity Type');
       values.push(summaryResponse.type);
 
       if (summaryResponse.countStats.type === 'KEY') {
-        const keyEndpoint = `/api/v1/namespace/du?path=${path}&replica=true`;
-        const { request: metadataRequest, controller: metadataNewController } = AxiosGetHelper(keyEndpoint, cancelKeyMetadataSignal);
-        cancelKeyMetadataSignal = metadataNewController;
-        metadataRequest.then(response => {
+        try {
+          const keyEndpoint = `/api/v1/namespace/du?path=${path}&replica=true`;
+          const { request: metadataRequest, controller: metadataNewController } = AxiosGetHelper(keyEndpoint, cancelKeyMetadataSignal);
+          cancelKeyMetadataSignal = metadataNewController;
+          const metadataResponse = (await metadataRequest).data;
           keys.push('File Size');
-          values.push(this.byteToSize(response.data.size, 3));
+          values.push(this.byteToSize(metadataResponse.size, 3));
           keys.push('File Size With Replication');
-          values.push(this.byteToSize(response.data.sizeWithReplica, 3));
-          console.log(values);
-
-          this.setState({
-            showPanel: true,
-            panelKeys: keys,
-            panelValues: values
-          });
-        }).catch(error => {
+          values.push(this.byteToSize(metadataResponse.sizeWithReplica, 3));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           this.setState({
             isLoading: false,
-            showPanel: false
+            showPanel: false,
+            showModal: false,
+            metadataPath: '',
+            isMetadataModal: false
           });
-          showDataFetchError(error.toString());
-        });
-        return;
-      }
-
-      if (summaryResponse.countStats.status === 'PATH_NOT_FOUND') {
-        showDataFetchError(`Invalid Path: ${path}`);
-        return;
+          showDataFetchError(message);
+          return;
+        }
       }
 
       if (summaryResponse.countStats.numVolume !== -1) {
@@ -462,58 +582,68 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
         values.push(summaryResponse.objectInfo.volume);
       }
 
+      try {
+        const quotaEndpoint = `/api/v1/namespace/quota?path=${path}`;
+        const { request: quotaRequest, controller: quotaNewController } = AxiosGetHelper(quotaEndpoint, cancelQuotaSignal);
+        cancelQuotaSignal = quotaNewController;
+        const quotaResponse = (await quotaRequest).data;
+
+        if (quotaResponse.status === 'PATH_NOT_FOUND') {
+          this.setState(prev => ({
+            ...prev,
+            metadataPath: '',
+            showPanel: false
+          }));
+          showDataFetchError(`Invalid Path: ${path}`);
+          return;
+        }
+
+        // If quota request not applicable for this path, silently return
+        if (quotaResponse.status !== 'TYPE_NOT_APPLICABLE') {
+          // Append quota information
+          // In case the object's quota isn't set
+          if (quotaResponse.allowed !== -1) {
+            keys.push('Quota Allowed');
+            values.push(this.byteToSize(quotaResponse.allowed, 3));
+          }
+
+          keys.push('Quota Used');
+          values.push(this.byteToSize(quotaResponse.used, 3));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.setState({
+          isLoading: false,
+          showPanel: false,
+          showModal: false,
+          metadataPath: '',
+          isMetadataModal: false
+        });
+        showDataFetchError(message);
+        return;
+      }
+
       // Show the right drawer
       this.setState({
         showPanel: true,
         panelKeys: keys,
-        panelValues: values
+        panelValues: values,
+        showModal: false,
+        isMetadataModal: false,
+        metadataPath: path
       });
-    }).catch(error => {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.setState({
         isLoading: false,
-        showPanel: false
+        showPanel: false,
+        showModal: false,
+        metadataPath: '',
+        isMetadataModal: false
       });
-      showDataFetchError(error.toString());
-    });
-
-    const quotaEndpoint = `/api/v1/namespace/quota?path=${path}`;
-    const { request: quotaRequest, controller: quotaNewController } = AxiosGetHelper(quotaEndpoint, cancelQuotaSignal);
-    cancelQuotaSignal = quotaNewController;
-    quotaRequest.then(response => {
-      const quotaResponse = response.data;
-
-      if (quotaResponse.status === 'PATH_NOT_FOUND') {
-        showDataFetchError(`Invalid Path: ${path}`);
-        return;
-      }
-
-      // If quota request not applicable for this path, silently return
-      if (quotaResponse.status === 'TYPE_NOT_APPLICABLE') {
-        return;
-      }
-
-      // Append quota information
-      // In case the object's quota isn't set
-      if (quotaResponse.allowed !== -1) {
-        keys.push('Quota Allowed');
-        values.push(this.byteToSize(quotaResponse.allowed, 3));
-      }
-
-      keys.push('Quota Used');
-      values.push(this.byteToSize(quotaResponse.used, 3));
-      this.setState({
-        showPanel: true,
-        panelKeys: keys,
-        panelValues: values
-      });
-    }).catch(error => {
-      this.setState({
-        isLoading: false,
-        showPanel: false
-      });
-      showDataFetchError(error.toString());
-    });
-  }
+      showDataFetchError(message);
+    }
+  };
 
   render() {
     const {plotData, duResponse, returnPath, panelKeys, panelValues, showPanel, isLoading, inputPath, displayLimit} = this.state;
@@ -538,6 +668,22 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
     );
     return (
       <div className='du-container'>
+        <Modal
+          centered
+          title="Confirm fetching Root Path Disk Usage"
+          onOk={_e => {
+            if (this.state.isMetadataModal) {
+              this.fetchMetadataDetails('/');
+            } else {
+              this.updatePieChart('/', this.state.displayLimit)
+            }
+          }}
+          onCancel={_e => this.setState({showModal: false, isMetadataModal: false})}
+          visible={this.state.showModal}
+        >
+          <p>Root path DU is a time consuming operation for a large number of files.</p>
+          <p><strong>Are you sure you want to continue?</strong></p>
+        </Modal>
         <div className='page-header'>
           Disk Usage
         </div>
@@ -597,8 +743,7 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
                   </div>
                     :
                   <div style={{height: 800}} className='metadatainformation'><br/>
-                    This object is empty. Add files to it to see a visualization on disk usage.{' '}<br/>
-                      You can also view its metadata details by clicking the top right button.
+                    Disk Usage for this path is not available, or not yet fetched.
                   </div>}
                 <DetailPanel path={returnPath} keys={panelKeys} values={panelValues} visible={showPanel}/>
               </Row>
