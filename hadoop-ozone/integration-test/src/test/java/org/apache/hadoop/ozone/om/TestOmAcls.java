@@ -49,8 +49,10 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_ACL_ENABLED;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_ADMINISTRATORS;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_ADMINISTRATORS_WILDCARD;
 import static org.apache.hadoop.ozone.audit.AuditLogTestUtils.verifyAuditLog;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -204,6 +206,21 @@ public class TestOmAcls {
     assertTrue(logCapturer.getOutput().contains("doesn't have READ " +
             "permission to access key"));
     verifyAuditLog(OMAction.READ_KEY, AuditEventStatus.FAILURE);
+  }
+
+  @Test
+  public void testGetFileStatusPermissionDenied() throws Exception {
+    OzoneBucket bucket = TestDataUtil.createVolumeAndBucket(client);
+    TestDataUtil.createKey(bucket, "testKey", "testcontent");
+
+    TestOmAcls.keyAclAllow = false;
+    OMException exception = assertThrows(OMException.class,
+            () -> bucket.getFileStatus("testKey"));
+
+    assertEquals(ResultCodes.PERMISSION_DENIED, exception.getResult());
+    assertThat(logCapturer.getOutput()).contains("doesn't have READ " +
+            "permission to access key");
+    verifyAuditLog(OMAction.GET_FILE_STATUS, AuditEventStatus.FAILURE);
   }
 
   @Test
