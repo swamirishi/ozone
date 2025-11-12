@@ -20,19 +20,11 @@ package org.apache.ozone.rocksdiff;
 import static org.apache.hadoop.hdds.StringUtils.getFirstNChars;
 
 import com.google.common.annotations.VisibleForTesting;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.hadoop.hdds.utils.db.TablePrefixInfo;
-import org.apache.hadoop.hdds.utils.db.managed.ManagedRocksDB;
-import org.apache.ozone.compaction.log.CompactionFileInfo;
 import org.apache.ozone.rocksdb.util.SstFileInfo;
-import org.rocksdb.LiveFileMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +65,7 @@ public final class RocksDiffUtils {
   /**
    * Filter sst files based on prefixes.
    */
-  public static <T> Set<SstFileInfo> filterRelevantSstFiles(Set<SstFileInfo> inputFiles,
+  public static Set<SstFileInfo> filterRelevantSstFiles(Set<SstFileInfo> inputFiles,
       Set<String> tablesToLookup, TablePrefixInfo tablePrefixInfo) {
     for (Iterator<SstFileInfo> fileIterator = inputFiles.iterator(); fileIterator.hasNext();) {
       SstFileInfo sstFileInfo = fileIterator.next();

@@ -20,15 +20,14 @@ package org.apache.ozone.rocksdiff;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.hadoop.hdds.utils.db.TablePrefixInfo;
 import org.apache.ozone.rocksdb.util.SstFileInfo;
 
 /**
@@ -64,6 +63,13 @@ public class DifferSnapshotInfo {
     return versionSstFiles.get(version).stream()
         .filter(sstFileInfo -> tablesToLookup.contains(sstFileInfo.getColumnFamily()))
         .collect(Collectors.toList());
+  }
+
+  @VisibleForTesting
+  SstFileInfo getSstFile(int version, String fileName) {
+    return versionSstFiles.get(version).stream()
+        .filter(sstFileInfo -> sstFileInfo.getFileName().equals(fileName))
+        .findFirst().orElse(null);
   }
 
   Integer getMaxVersion() {

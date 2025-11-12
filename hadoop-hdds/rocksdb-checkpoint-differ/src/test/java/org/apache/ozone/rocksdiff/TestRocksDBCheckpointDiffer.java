@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
@@ -78,10 +79,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.StringUtils;
@@ -107,6 +106,8 @@ import org.apache.hadoop.ozone.lock.BootstrapStateHandler;
 import org.apache.hadoop.util.Time;
 import org.apache.ozone.compaction.log.CompactionFileInfo;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
+import org.apache.ozone.rocksdb.util.SstFileInfo;
+import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.DifferSnapshotVersion;
 import org.apache.ozone.rocksdb.util.RdbUtil;
 import org.apache.ozone.rocksdb.util.SstFileInfo;
 import org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.DifferSnapshotVersion;
@@ -116,6 +117,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -135,6 +137,8 @@ import org.slf4j.event.Level;
  * Test RocksDBCheckpointDiffer basic functionality.
  */
 public class TestRocksDBCheckpointDiffer {
+  @TempDir
+  private static File dbDir;
 
   private static final Logger LOG = LoggerFactory.getLogger(TestRocksDBCheckpointDiffer.class);
 
@@ -283,8 +287,6 @@ public class TestRocksDBCheckpointDiffer {
 
   private final List<File> cpDirList = new ArrayList<>();
 
-  private final List<List<ColumnFamilyHandle>> colHandles = new ArrayList<>();
-
   private static final String ACTIVE_DB_DIR_NAME = "./rocksdb-data";
   private static final String METADATA_DIR_NAME = "./metadata";
   private static final String COMPACTION_LOG_DIR_NAME = "compaction-log";
@@ -412,7 +414,7 @@ public class TestRocksDBCheckpointDiffer {
     }
   }
 
-  private static List<CompactionLogEntry> getPrunedCompactionEntries(boolean prune, Map<String, String[]> metadata) {
+  private static List<CompactionLogEntry> getPrunedCompactionEntries(boolean prune, Map<String, SstFileInfo> metadata) {
     List<CompactionLogEntry> entries = new ArrayList<>();
     if (!prune) {
       entries.add(createCompactionEntry(1,
@@ -515,15 +517,15 @@ public class TestRocksDBCheckpointDiffer {
             Arrays.asList("000105", "000095", "000088"),
             Collections.singletonList("000107"))
     );
-
-    DifferSnapshotInfo snapshotInfo1 = mockDifferSnapshotVersion("/path/to/dbcp1", 3008L);
-    DifferSnapshotInfo snapshotInfo2 = mockDifferSnapshotVersion("/path/to/dbcp2", 14980L);
-    DifferSnapshotInfo snapshotInfo3 = mockDifferSnapshotVersion("/path/to/dbcp3",17975L);
-    DifferSnapshotInfo snapshotInfo4 = mockDifferSnapshotVersion("/path/to/dbcp4", 18000L);
+    Path baseDir = dbDir.toPath().resolve("path").resolve("to").toAbsolutePath();
+    DifferSnapshotInfo snapshotInfo1 = mockDifferSnapshotVersion(baseDir.resolve("dbcp1").toString(), 3008L);
+    DifferSnapshotInfo snapshotInfo2 = mockDifferSnapshotVersion(baseDir.resolve("dbcp2").toString(), 14980L);
+    DifferSnapshotInfo snapshotInfo3 = mockDifferSnapshotVersion(baseDir.resolve("dbcp3").toString(), 17975L);
+    DifferSnapshotInfo snapshotInfo4 = mockDifferSnapshotVersion(baseDir.resolve("dbcp4").toString(), 18000L);
 
     TablePrefixInfo prefixMap = new TablePrefixInfo(ImmutableMap.of("col1", "c", "col2", "d"));
-    DifferSnapshotInfo snapshotInfo5 = mockDifferSnapshotVersion("/path/to/dbcp2", 0L);
-    DifferSnapshotInfo snapshotInfo6 = mockDifferSnapshotVersion("/path/to/dbcp2", 100L);
+    DifferSnapshotInfo snapshotInfo5 = mockDifferSnapshotVersion(baseDir.resolve("dbcp2").toString(), 0L);
+    DifferSnapshotInfo snapshotInfo6 = mockDifferSnapshotVersion(baseDir.resolve("dbcp2").toString(), 100L);
 
     Set<String> snapshotSstFiles1 = ImmutableSet.of("000059", "000053");
     Set<String> snapshotSstFiles2 = ImmutableSet.of("000088", "000059",
@@ -695,18 +697,18 @@ public class TestRocksDBCheckpointDiffer {
         Arguments.of("Test 13: Compaction log to test filtering logic based on range and column family",
             null,
             getPrunedCompactionEntries(false,
-                new HashMap<String, String[]>() {{
-                  put("1", new String[]{"a", "c", "col1"});
-                  put("3", new String[]{"a", "d", "col2"});
-                  put("13", new String[]{"a", "c", "col13"});
-                  put("14", new String[]{"a", "c", "col1"});
-                  put("2", new String[]{"a", "c", "col1"});
-                  put("4", new String[]{"a", "b", "col1"});
-                  put("5", new String[]{"b", "b", "col1"});
-                  put("10", new String[]{"a", "b", "col1"});
-                  put("8", new String[]{"a", "b", "col1"});
-                  put("6", new String[]{"a", "z", "col13"});
-                  put("7", new String[]{"a", "z", "col13"});
+                new HashMap<String, SstFileInfo>() {{
+                  put("1", new SstFileInfo("1", "a", "c", "col1"));
+                  put("3", new SstFileInfo("3", "a", "d", "col2"));
+                  put("13", new SstFileInfo("13", "a", "c", "col13"));
+                  put("14", new SstFileInfo("14", "a", "c", "col1"));
+                  put("2", new SstFileInfo("2", "a", "c", "col1"));
+                  put("4", new SstFileInfo("4", "a", "b", "col1"));
+                  put("5", new SstFileInfo("5", "b", "b", "col1"));
+                  put("10", new SstFileInfo("10", "a", "b", "col1"));
+                  put("8", new SstFileInfo("8", "a", "b", "col1"));
+                  put("6", new SstFileInfo("6", "a", "z", "col13"));
+                  put("7", new SstFileInfo("7", "a", "z", "col13"));
                 }}),
             snapshotInfo6,
             snapshotInfo5,
@@ -717,11 +719,11 @@ public class TestRocksDBCheckpointDiffer {
             ImmutableSet.of("2", "9", "12"),
             false,
             ImmutableMap.of(
-                "2", new String[]{"a", "b", "col1"},
-                "12", new String[]{"a", "d", "col2"},
-                "8", new String[]{"a", "b", "col1"},
-                "9", new String[]{"a", "c", "col1"},
-                "15", new String[]{"a", "z", "col13"}
+                "2", new SstFileInfo("2", "a", "b", "col1"),
+                "12", new SstFileInfo("12", "a", "d", "col2"),
+                "8", new SstFileInfo("8", "a", "b", "col1"),
+                "9", new SstFileInfo("9", "a", "c", "col1"),
+                "15", new SstFileInfo("15", "a", "z", "col13")
             ), prefixMap)
 
     );
@@ -745,7 +747,7 @@ public class TestRocksDBCheckpointDiffer {
       Set<String> expectedDiffSstFiles,
       Set<String> expectedSSTDiffFiles,
       boolean expectingException,
-      Map<String, String[]> metaDataMap,
+      Map<String, SstFileInfo> metaDataMap,
       TablePrefixInfo prefixInfo) {
 
     boolean exceptionThrown = false;
@@ -762,15 +764,33 @@ public class TestRocksDBCheckpointDiffer {
     }
     rocksDBCheckpointDiffer.loadAllCompactionLogs();
 
-    Set<String> actualSameSstFiles = new HashSet<>();
-    Set<String> actualDiffSstFiles = new HashSet<>();
-    DifferSnapshotVersion =
+    Set<String> tablesToLookup;
+    String dummyTable;
+    if (prefixInfo != null) {
+      tablesToLookup = prefixInfo.getTableNames();
+      dummyTable = tablesToLookup.stream().findAny().get();
+    } else {
+      tablesToLookup = mock(Set.class);
+      when(tablesToLookup.contains(anyString())).thenReturn(true);
+      dummyTable = "dummy";
+    }
+
+    Map<String, SstFileInfo> actualSameSstFiles = new HashMap<>();
+    Map<String, SstFileInfo> actualDiffSstFiles = new HashMap<>();
+    List<SstFileInfo> sourceSnapshotFiles = srcSnapshotSstFiles.stream()
+        .map(fileName -> new SstFileInfo(fileName, "", "", dummyTable))
+        .collect(Collectors.toList());
+    List<SstFileInfo> destSnapshotFiles = destSnapshotSstFiles.stream()
+        .map(fileName -> new SstFileInfo(fileName, "", "", dummyTable))
+        .collect(Collectors.toList());
+    when(srcSnapshot.getSstFiles(eq(0), eq(tablesToLookup))).thenReturn(sourceSnapshotFiles);
+    when(destSnapshot.getSstFiles(eq(0), eq(tablesToLookup))).thenReturn(destSnapshotFiles);
+    DifferSnapshotVersion srcVersion = new DifferSnapshotVersion(srcSnapshot, 0, tablesToLookup);
+    DifferSnapshotVersion destVersion = new DifferSnapshotVersion(destSnapshot, 0, tablesToLookup);
     try {
       rocksDBCheckpointDiffer.internalGetSSTDiffList(
-          srcSnapshot,
-          destSnapshot,
-          srcSnapshotSstFiles,
-          destSnapshotSstFiles,
+          srcVersion,
+          destVersion,
           actualSameSstFiles,
           actualDiffSstFiles);
     } catch (RuntimeException rtEx) {
@@ -786,61 +806,31 @@ public class TestRocksDBCheckpointDiffer {
     }
 
     // Check same and different SST files result
-    assertEquals(expectedSameSstFiles, actualSameSstFiles);
-    assertEquals(expectedDiffSstFiles, actualDiffSstFiles);
-    try (MockedStatic<RdbUtil> mockedHandler = Mockito.mockStatic(RdbUtil.class, Mockito.CALLS_REAL_METHODS)) {
-      RocksDB rocksDB = Mockito.mock(RocksDB.class);
-      Mockito.when(rocksDB.getName()).thenReturn("dummy");
-      Mockito.when(srcSnapshot.getRocksDB().get()).thenReturn(rocksDB);
-      Mockito.when(destSnapshot.getRocksDB().get()).thenReturn(rocksDB);
-      Mockito.when(srcSnapshot.getRocksDB().getLiveMetadataForSSTFiles())
-          .thenAnswer(invocation -> srcSnapshotSstFiles.stream().filter(metaDataMap::containsKey).map(file -> {
-            LiveFileMetaData liveFileMetaData = Mockito.mock(LiveFileMetaData.class);
-            String[] metaData = metaDataMap.get(file);
-            Mockito.when(liveFileMetaData.fileName()).thenReturn("/" + file + SST_FILE_EXTENSION);
-            Mockito.when(liveFileMetaData.smallestKey()).thenReturn(metaData[0].getBytes(UTF_8));
-            Mockito.when(liveFileMetaData.largestKey()).thenReturn(metaData[1].getBytes(UTF_8));
-            Mockito.when(liveFileMetaData.columnFamilyName()).thenReturn(metaData[2].getBytes(UTF_8));
-            return liveFileMetaData;
-          }).collect(Collectors.toMap(liveFileMetaData -> FilenameUtils.getBaseName(liveFileMetaData.fileName()),
-              Function.identity())));
-      Set<String> tablesToLookup;
-      String dummyTable;
-      if (prefixInfo != null) {
-        tablesToLookup = prefixInfo.getTableNames();
-        dummyTable = tablesToLookup.stream().findAny().get();
-      } else {
-        tablesToLookup = mock(Set.class);
-        when(tablesToLookup.contains(anyString())).thenReturn(true);
-        dummyTable = "dummy";
-      }
-      mockedHandler.when(() -> RdbUtil.getLiveSSTFilesForCFs(any(), any()))
-          .thenAnswer(i -> {
-            Set<String> sstFiles = i.getArgument(0).equals(srcSnapshot.getRocksDB()) ? srcSnapshotSstFiles
-                : destSnapshotSstFiles;
-            return sstFiles.stream().map(fileName -> {
-              LiveFileMetaData liveFileMetaData = mock(LiveFileMetaData.class);
-              when(liveFileMetaData.fileName()).thenReturn("/" + fileName + SST_FILE_EXTENSION);
-              when(liveFileMetaData.columnFamilyName()).thenReturn(dummyTable.getBytes(UTF_8));
-              return liveFileMetaData;
-            }).collect(Collectors.toList());
-          });
-      try {
-        Assertions.assertEquals(Optional.ofNullable(expectedSSTDiffFiles)
-                .map(files -> files.stream().sorted().collect(Collectors.toList())).orElse(null),
-            rocksDBCheckpointDiffer.getSSTDiffList(
-                new DifferSnapshotVersion(srcSnapshot, 0, tablesToLookup),
-                new DifferSnapshotVersion(destSnapshot, 0, tablesToLookup),
+    assertEquals(expectedSameSstFiles, actualSameSstFiles.keySet());
+    assertEquals(expectedDiffSstFiles, actualDiffSstFiles.keySet());
+    when(srcSnapshot.getSstFiles(eq(0), eq(tablesToLookup)))
+        .thenAnswer(invocation -> srcSnapshotSstFiles.stream()
+            .map(file -> metaDataMap.getOrDefault(file, new SstFileInfo(file, null, null, null)))
+            .collect(Collectors.toList()));
+    when(destSnapshot.getSstFiles(eq(0), eq(tablesToLookup)))
+        .thenAnswer(invocation -> destSnapshotSstFiles.stream()
+            .map(file -> metaDataMap.getOrDefault(file, new SstFileInfo(file, null, null, null)))
+            .collect(Collectors.toList()));
 
-                    tablesToLookup).map(SstFileInfo::getFileName)
-                .map(i -> i.stream().sorted().collect(Collectors.toList())).orElse(null));
-      } catch (RuntimeException rtEx) {
-        if (!expectingException) {
-          rtEx.printStackTrace();
-          fail("Unexpected exception thrown in test.");
-        } else {
-          exceptionThrown = true;
-        }
+    try {
+      Assertions.assertEquals(Optional.ofNullable(expectedSSTDiffFiles)
+              .map(files -> files.stream().sorted().collect(Collectors.toList())).orElse(null),
+          rocksDBCheckpointDiffer.getSSTDiffList(
+                  new DifferSnapshotVersion(srcSnapshot, 0, tablesToLookup),
+                  new DifferSnapshotVersion(destSnapshot, 0, tablesToLookup), prefixInfo, tablesToLookup,
+                  true)
+              .map(i -> i.stream().map(SstFileInfo::getFileName).sorted().collect(Collectors.toList())).orElse(null));
+    } catch (RuntimeException rtEx) {
+      if (!expectingException) {
+        rtEx.printStackTrace();
+        fail("Unexpected exception thrown in test.");
+      } else {
+        exceptionThrown = true;
       }
     }
     if (expectingException && !exceptionThrown) {
@@ -887,19 +877,6 @@ public class TestRocksDBCheckpointDiffer {
         10000);
     if (LOG.isDebugEnabled()) {
       rocksDBCheckpointDiffer.dumpCompactionNodeTable();
-    }
-
-    cleanUpSnapshots();
-  }
-
-  public void cleanUpSnapshots() {
-    for (DifferSnapshotInfo snap : snapshots) {
-      snap.getRocksDB().close();
-    }
-    for (List<ColumnFamilyHandle> colHandle : colHandles) {
-      for (ColumnFamilyHandle handle : colHandle) {
-        handle.close();
-      }
     }
   }
 
@@ -951,18 +928,21 @@ public class TestRocksDBCheckpointDiffer {
           if (rocksDBCheckpointDiffer.getCompactionNodeMap().containsKey(diffFile)) {
             columnFamily = rocksDBCheckpointDiffer.getCompactionNodeMap().get(diffFile).getColumnFamily();
           } else {
-            columnFamily = bytes2String(src.getRocksDB().getLiveMetadataForSSTFiles().get(diffFile).columnFamilyName());
+            columnFamily = src.getSstFile(0, diffFile).getColumnFamily();
           }
           if (columnFamily == null || tableToLookUp.contains(columnFamily)) {
             expectedDiffFiles.add(diffFile);
           }
         }
-        List<String> sstDiffList = differ.getSSTDiffList(src, snap, tableToLookUp).orElse(Collections.emptyList());
+        DifferSnapshotVersion srcSnapVersion = new DifferSnapshotVersion(src, 0, tableToLookUp);
+        DifferSnapshotVersion destSnapVersion = new DifferSnapshotVersion(snap, 0, tableToLookUp);
+        List<SstFileInfo> sstDiffList = differ.getSSTDiffList(srcSnapVersion, destSnapVersion, null,
+                tableToLookUp, true).orElse(Collections.emptyList());
         LOG.info("SST diff list from '{}' to '{}': {} tables: {}",
-            src.getDbPath(), snap.getDbPath(), sstDiffList, tableToLookUp);
+            src.getDbPath(0), snap.getDbPath(0), sstDiffList, tableToLookUp);
 
-        assertEquals(expectedDiffFiles, sstDiffList);
-
+        assertEquals(expectedDiffFiles, sstDiffList.stream().map(SstFileInfo::getFileName)
+            .collect(Collectors.toList()));
       }
 
       ++index;
@@ -990,12 +970,14 @@ public class TestRocksDBCheckpointDiffer {
     createCheckPoint(ACTIVE_DB_DIR_NAME, cpPath, rocksDB);
     final UUID snapshotId = UUID.randomUUID();
     List<ColumnFamilyHandle> colHandle = new ArrayList<>();
-    colHandles.add(colHandle);
-    final DifferSnapshotInfo currentSnapshot =
-        new DifferSnapshotInfo(cpPath, snapshotId, snapshotGeneration, null,
-            ManagedRocksDB.openReadOnly(cpPath, getColumnFamilyDescriptors(),
-                colHandle));
-    this.snapshots.add(currentSnapshot);
+    try (ManagedRocksDB rdb = ManagedRocksDB.openReadOnly(cpPath, getColumnFamilyDescriptors(), colHandle)) {
+      TreeMap<Integer, List<SstFileInfo>> versionSstFilesMap = new TreeMap<>();
+      versionSstFilesMap.put(0, rdb.getLiveMetadataForSSTFiles().values().stream().map(SstFileInfo::new)
+          .collect(Collectors.toList()));
+      final DifferSnapshotInfo currentSnapshot = new DifferSnapshotInfo((version) -> Paths.get(cpPath),
+          snapshotId, snapshotGeneration, versionSstFilesMap);
+      this.snapshots.add(currentSnapshot);
+    }
 
     long t2 = Time.monotonicNow();
     LOG.trace("Current time: " + t2);
@@ -1357,18 +1339,18 @@ public class TestRocksDBCheckpointDiffer {
                                                           long compactionTime,
                                                           List<String> inputFiles,
                                                           List<String> outputFiles,
-                                                          Map<String, String[]> metadata) {
+                                                          Map<String, SstFileInfo> metadata) {
     return new CompactionLogEntry.Builder(dbSequenceNumber, compactionTime,
         toFileInfoList(inputFiles, metadata), toFileInfoList(outputFiles, metadata)).build();
   }
 
   private static List<CompactionFileInfo> toFileInfoList(List<String> files,
-                                                         Map<String, String[]> metadata) {
+                                                         Map<String, SstFileInfo> metadata) {
     return files.stream()
         .map(fileName -> new CompactionFileInfo.Builder(fileName)
-            .setStartRange(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[0]).orElse(null))
-            .setEndRange(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[1]).orElse(null))
-            .setColumnFamily(Optional.ofNullable(metadata.get(fileName)).map(meta -> meta[2]).orElse(null))
+            .setStartRange(Optional.ofNullable(metadata.get(fileName)).map(SstFileInfo::getStartKey).orElse(null))
+            .setEndRange(Optional.ofNullable(metadata.get(fileName)).map(SstFileInfo::getEndKey).orElse(null))
+            .setColumnFamily(Optional.ofNullable(metadata.get(fileName)).map(SstFileInfo::getColumnFamily).orElse(null))
             .build())
         .collect(Collectors.toList());
   }
@@ -1631,25 +1613,36 @@ public class TestRocksDBCheckpointDiffer {
 
     // Snapshot is used for logging purpose and short-circuiting traversal.
     // Using gen 0 for this test.
+    List<SstFileInfo> srcSnapshotSstFileInfoSet = srcSnapshotSstFiles.stream()
+        .map(fileName -> new SstFileInfo(fileName, "", "", "cf1")).collect(Collectors.toList());
+    List<SstFileInfo> destSnapshotSstFileInfoSet = destSnapshotSstFiles.stream()
+        .map(fileName -> new SstFileInfo(fileName, "", "", "cf1")).collect(Collectors.toList());
+    TreeMap<Integer, List<SstFileInfo>> srcSnapshotSstFileInfoMap = new TreeMap<>();
+    srcSnapshotSstFileInfoMap.put(0, srcSnapshotSstFileInfoSet);
+    TreeMap<Integer, List<SstFileInfo>> destSnapshotSstFileInfoMap = new TreeMap<>();
+    destSnapshotSstFileInfoMap.put(0, destSnapshotSstFileInfoSet);
+    Path path1 = dbDir.toPath().resolve("path").resolve("to").resolve("dbcp1").toAbsolutePath();
+    Path path2 = dbDir.toPath().resolve("path").resolve("to").resolve("dbcp2").toAbsolutePath();
     DifferSnapshotInfo mockedSourceSnapshot = new DifferSnapshotInfo(
-        "/path/to/dbcp1", UUID.randomUUID(), 0L, columnFamilyPrefixInfo, null);
+        (version) -> path1, UUID.randomUUID(), 0L, srcSnapshotSstFileInfoMap);
     DifferSnapshotInfo mockedDestinationSnapshot = new DifferSnapshotInfo(
-        "/path/to/dbcp2", UUID.randomUUID(), 0L, columnFamilyPrefixInfo, null);
+        (version) -> path2, UUID.randomUUID(), 0L, destSnapshotSstFileInfoMap);
 
-    Set<String> actualSameSstFiles = new HashSet<>();
-    Set<String> actualDiffSstFiles = new HashSet<>();
-
+    Map<String, SstFileInfo> actualSameSstFiles = new HashMap<>();
+    Map<String, SstFileInfo> actualDiffSstFiles = new HashMap<>();
+    DifferSnapshotVersion srcSnapshotVersion = new DifferSnapshotVersion(mockedSourceSnapshot, 0,
+        Collections.singleton("cf1"));
+    DifferSnapshotVersion destSnapshotVersion = new DifferSnapshotVersion(mockedDestinationSnapshot, 0,
+        Collections.singleton("cf1"));
     rocksDBCheckpointDiffer.internalGetSSTDiffList(
-        mockedSourceSnapshot,
-        mockedDestinationSnapshot,
-        srcSnapshotSstFiles,
-        destSnapshotSstFiles,
+        srcSnapshotVersion,
+        destSnapshotVersion,
         actualSameSstFiles,
         actualDiffSstFiles);
 
     // Check same and different SST files result
-    assertEquals(expectedSameSstFiles, actualSameSstFiles);
-    assertEquals(expectedDiffSstFiles, actualDiffSstFiles);
+    assertEquals(expectedSameSstFiles, actualSameSstFiles.keySet());
+    assertEquals(expectedDiffSstFiles, actualDiffSstFiles.keySet());
   }
 
   private static Stream<Arguments> shouldSkipNodeCases() {
