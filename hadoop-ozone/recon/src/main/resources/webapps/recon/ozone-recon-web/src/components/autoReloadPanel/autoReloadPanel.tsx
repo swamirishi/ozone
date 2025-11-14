@@ -77,26 +77,23 @@ class AutoReloadPanel extends React.Component<IAutoReloadPanelProps> {
     
      const omDBDeltaFullToolTip = <span>
           {omSyncStatusDisplay}
-          {'Delta Update'}: {moment(lastUpdatedOMDBDelta).fromNow()}, {moment(lastUpdatedOMDBDelta).format('LT')}
-          <br/>
-          {'Full Update'}: {moment(lastUpdatedOMDBFull).fromNow()}, {moment(lastUpdatedOMDBFull).format('LT')}
        </span>
-
-      const lastUpdatedOMLatest = lastUpdatedOMDBDelta > lastUpdatedOMDBFull ? lastUpdatedOMDBDelta : lastUpdatedOMDBFull;
 
       const lastUpdatedDeltaFullToolTip = lastUpdatedOMDBDelta === 0 || lastUpdatedOMDBDelta === undefined || lastUpdatedOMDBFull === 0 || lastUpdatedOMDBFull === undefined ? 'NA' :
       (
-        <Tooltip
-          placement='bottom' title={omDBDeltaFullToolTip}
-        >
-          {moment(lastUpdatedOMLatest).format('LT')}
-        </Tooltip>
+        omSyncStatusDisplay !== ''
+        ? <Tooltip
+            placement='bottom' title={omDBDeltaFullToolTip}
+          >
+            Sync OM DB
+          </Tooltip>
+        : "Sync OM DB"
       );
 
      const lastUpdatedDeltaFullText = lastUpdatedOMDBDelta === 0 || lastUpdatedOMDBDelta === undefined || lastUpdatedOMDBFull === 0 || lastUpdatedOMDBFull === undefined ? '' :
      (
       <>
-      &nbsp; | DB Synced at {lastUpdatedDeltaFullToolTip}
+      &nbsp; | {lastUpdatedDeltaFullToolTip}
       &nbsp;<Button shape='circle' icon='play-circle' size='small' loading={isLoading} onClick={omSyncLoad} disabled={omStatus === '' ? false : true } />
       </>
      );
