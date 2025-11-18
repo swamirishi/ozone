@@ -102,7 +102,7 @@ export class DiskUsage extends React.Component<Record<string, object>, IDUState>
   // Recompute the pie chart locally using existing duResponse and a new limit
   recalcPieChart = (limit: number) => {
     const { duResponse } = this.state as unknown as { duResponse: IDUResponse };
-    if (!duResponse || !duResponse.subPaths && this.state.inputPath !== '/') {
+    if ((!duResponse || !duResponse.subPaths) && this.state.inputPath !== '/') {
       // Fallback: if we don't have cached data yet, fetch it
       this.updatePieChart(this.state.returnPath || '/', limit);
       return;
