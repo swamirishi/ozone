@@ -137,7 +137,7 @@ export class Overview extends React.Component<Record<string, object>, IOverviewS
       const taskStatus = taskstatusResponse && taskstatusResponse.data;
       const omDBDeltaObject = taskStatus && taskStatus.find((item:any) => item.taskName === 'OmDeltaRequest');
       const omDBFullObject = taskStatus && taskStatus.find((item: any) => item.taskName === 'OmSnapshotRequest');
-      const openKeysSummary = openResponse && openResponse.data && openResponse.data.keysSummary;
+      const openKeysSummary = openResponse && openResponse.data;
       const deletePendingSummary = deletePendingResponse && deletePendingResponse.data && deletePendingResponse.data.keysSummary;
       const healthcheckStatus = healthCheckResponse && healthCheckResponse.data && healthCheckResponse.data.message;
       const clusterNotEmptyCheck = clusterState !== undefined && Object.keys(clusterState).length !== 0;
