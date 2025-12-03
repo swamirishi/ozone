@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.utils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -29,13 +30,19 @@ import org.apache.hadoop.hdds.utils.db.TableIterator;
  */
 public class MapBackedTableIterator<V> implements TableIterator<String, Table.KeyValue<String, V>> {
 
+  private final Map<String, Integer> sizeMap;
   private Iterator<Table.KeyValue<String, V>> itr;
   private final String prefix;
   private final TreeMap<String, V> values;
 
   public MapBackedTableIterator(TreeMap<String, V> values, String prefix) {
+    this(values, Collections.emptyMap(), prefix);
+  }
+
+  public MapBackedTableIterator(TreeMap<String, V> values, Map<String, Integer> sizeMap, String prefix) {
     this.prefix = prefix;
     this.values = values;
+    this.sizeMap = sizeMap;
     this.seekToFirst();
   }
 
@@ -43,7 +50,7 @@ public class MapBackedTableIterator<V> implements TableIterator<String, Table.Ke
   public void seekToFirst() {
     this.itr = this.values.entrySet().stream()
         .filter(e -> prefix == null || e.getKey().startsWith(prefix))
-        .map(e -> Table.newKeyValue(e.getKey(), e.getValue())).iterator();
+        .map(e -> Table.newKeyValue(e.getKey(), e.getValue(), sizeMap.getOrDefault(e.getKey(), 0))).iterator();
   }
 
   @Override
@@ -56,9 +63,10 @@ public class MapBackedTableIterator<V> implements TableIterator<String, Table.Ke
     this.itr = this.values.entrySet().stream()
         .filter(e -> prefix == null || e.getKey().startsWith(prefix))
         .filter(e -> e.getKey().compareTo(s) >= 0)
-        .map(e -> Table.newKeyValue(e.getKey(), e.getValue())).iterator();
+        .map(e -> Table.newKeyValue(e.getKey(), e.getValue(), sizeMap.getOrDefault(e.getKey(), 0))).iterator();
     Map.Entry<String, V> firstEntry = values.ceilingEntry(s);
-    return firstEntry == null ? null : Table.newKeyValue(firstEntry.getKey(), firstEntry.getValue());
+    return firstEntry == null ? null : Table.newKeyValue(firstEntry.getKey(), firstEntry.getValue(),
+        sizeMap.getOrDefault(firstEntry.getKey(), 0));
   }
 
   @Override

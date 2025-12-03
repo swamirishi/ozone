@@ -18,14 +18,23 @@
 package org.apache.hadoop.ozone.om;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,6 +44,7 @@ import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.ratis.util.function.CheckedFunction;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -224,5 +234,36 @@ public class TestKeyManagerImpl {
     } else {
       assertEquals(expectedEntries, km.getDeletedDirEntries(volumeName, bucketName, numberOfEntries));
     }
+  }
+
+  @Test
+  public void testRatisLimitCheck() throws IOException {
+    OMMetadataManager omMetadataManager = mock(OMMetadataManager.class);
+    when(omMetadataManager.getOzonePathKey(anyLong(), anyLong(), anyLong(), anyString()))
+        .thenAnswer(i -> Arrays.stream(i.getArguments()).map(Object::toString)
+            .collect(Collectors.joining("/")));
+    OmKeyInfo parentInfo = mock(OmKeyInfo.class);
+    when(parentInfo.getFileName()).thenReturn("dir1");
+    when(parentInfo.getKeyName()).thenReturn("dir1");
+    when(parentInfo.getObjectID()).thenReturn(1L);
+    String seekKey = "1/1/1/";
+    Table<String, OmKeyInfo> keyTable = mock(Table.class);
+    when(omMetadataManager.getFileTable()).thenReturn(keyTable);
+    doAnswer(i -> {
+      TreeMap<String, OmKeyInfo> map = new TreeMap<>(ImmutableMap.of(seekKey + "key0", mock(OmKeyInfo.class),
+          seekKey + "key1", mock(OmKeyInfo.class),
+          seekKey + "key2", mock(OmKeyInfo.class)));
+      int idx = 0;
+      Map<String, Integer> sizeMap = new HashMap<>();
+      List<Integer> sizes = Arrays.asList(100, 200, 300);
+      for (Map.Entry<String, OmKeyInfo> key : map.entrySet()) {
+        when(key.getValue().getKeyName()).thenReturn("key" + idx);
+        sizeMap.put(key.getKey(), sizes.get(idx++));
+      }
+      return new MapBackedTableIterator<>(map, sizeMap, seekKey);
+    }).when(keyTable).iterator(eq(seekKey));
+    OzoneConfiguration configuration = new OzoneConfiguration();
+    KeyManagerImpl km = new KeyManagerImpl(null, null, omMetadataManager, configuration, null, null, null);
+    assertFalse(km.getPendingDeletionSubFiles(1, 1, parentInfo, (kv) -> true, 400).isProcessedKeys());
   }
 }

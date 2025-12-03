@@ -2187,12 +2187,14 @@ public class KeyManagerImpl implements KeyManager {
         parentInfo.getObjectID(), "");
     long consumedSize = 0;
     try (TableIterator<String, ? extends KeyValue<String, T>> iterator = table.iterator(seekFileInDB)) {
+      boolean allEntriesProcessed = true;
       while (iterator.hasNext() && remainingBufLimit > 0) {
         KeyValue<String, T> entry = iterator.next();
         final long objectSerializedSize = entry.getRawSize();
         // No need to check the table again as the value in cache and iterator would be same when directory
         // deleting service runs.
         if (remainingBufLimit - objectSerializedSize < 0) {
+          allEntriesProcessed = false;
           break;
         }
         KeyValue<String, OmKeyInfo> keyInfo = deleteKeyTransformer.apply(entry);
@@ -2202,7 +2204,7 @@ public class KeyManagerImpl implements KeyManager {
           consumedSize += objectSerializedSize;
         }
       }
-      return new DeleteKeysResult(keyInfos, consumedSize, !iterator.hasNext());
+      return new DeleteKeysResult(keyInfos, consumedSize, allEntriesProcessed);
     }
   }
 
