@@ -42,8 +42,7 @@ jint Java_org_apache_hadoop_hdds_utils_db_ManagedRawSSTFileIterator_getKey(JNIEn
                                                                            jobject jtarget,
                                                                            jint jtarget_off, jint jtarget_len) {
     ROCKSDB_NAMESPACE::Slice slice = reinterpret_cast<ROCKSDB_NAMESPACE::RawIterator*>(native_handle)->key();
-    return copyToDirect(env, slice, jtarget,
-                                                      jtarget_off, jtarget_len);
+    return copyToDirect(env, slice, jtarget, jtarget_off, jtarget_len);
 }
 
 

@@ -102,6 +102,7 @@ public class RDBSstFileWriter implements Closeable {
         if (keyCounter.get() > 0) {
           sstFileWriter.finish();
         }
+        System.out.println(keyCounter.get() + " keys written to " + sstFile);
       } catch (RocksDBException e) {
         throw new RocksDatabaseException("Failed to finish writing to " + sstFile, e);
       } finally {

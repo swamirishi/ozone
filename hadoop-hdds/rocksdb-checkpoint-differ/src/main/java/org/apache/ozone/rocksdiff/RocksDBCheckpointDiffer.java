@@ -34,11 +34,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.MutableGraph;
+import com.google.common.primitives.UnsignedBytes;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,6 +79,7 @@ import org.apache.hadoop.hdds.utils.Scheduler;
 import org.apache.hadoop.hdds.utils.db.CodecBuffer;
 import org.apache.hadoop.hdds.utils.db.ManagedRawSSTFileIterator;
 import org.apache.hadoop.hdds.utils.db.ManagedRawSSTFileReader;
+import org.apache.hadoop.hdds.utils.db.RDBSstFileWriter;
 import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.apache.hadoop.hdds.utils.db.TablePrefixInfo;
 import org.apache.hadoop.hdds.utils.db.managed.ManagedDBOptions;
@@ -1279,7 +1282,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
    * Defines the task that removes OMKeyInfo from SST files from backup directory to
    * save disk space.
    */
-  public void pruneSstFileValues() {
+  public synchronized void pruneSstFileValues() {
     if (!shouldRun()) {
       return;
     }
@@ -1323,7 +1326,7 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
 
             // Prune file.sst => pruned.sst.tmp
             Files.deleteIfExists(prunedSSTFilePath);
-            removeValueFromSSTFile(managedOptions, envOptions, sstFilePath.toFile().getAbsolutePath(),
+            removeValueFromSSTFile(managedOptions, sstFilePath.toFile().getAbsolutePath(),
                 prunedSSTFilePath.toFile().getAbsolutePath());
 
             // Move pruned.sst.tmp => file.sst and replace existing file atomically.
@@ -1364,28 +1367,40 @@ public class RocksDBCheckpointDiffer implements AutoCloseable,
     }
   }
 
-  private void removeValueFromSSTFile(ManagedOptions options, ManagedEnvOptions envOptions,
+  public synchronized static void removeValueFromSSTFile(ManagedOptions options,
       String sstFilePath, String prunedFilePath)
       throws IOException {
+    LOG.info("Removing OMKeyInfo from SST file: {} and writing to {}", sstFilePath, prunedFilePath);
     try (ManagedRawSSTFileReader sstFileReader = new ManagedRawSSTFileReader(options, sstFilePath, SST_READ_AHEAD_SIZE);
          ManagedRawSSTFileIterator<Pair<CodecBuffer, Integer>> itr = sstFileReader.newIterator(
              keyValue -> Pair.of(keyValue.getKey(), keyValue.getType()), null, null, KEY_ONLY);
-         ManagedSstFileWriter sstFileWriter = new ManagedSstFileWriter(envOptions, options);
+         RDBSstFileWriter sstFileWriter = new RDBSstFileWriter(new File(prunedFilePath));
          CodecBuffer emptyCodecBuffer = CodecBuffer.getEmptyBuffer()) {
-      sstFileWriter.open(prunedFilePath);
       while (itr.hasNext()) {
         Pair<CodecBuffer, Integer> keyValue = itr.next();
-        if (keyValue.getValue() == 0) {
-          try (ManagedDirectSlice directSlice = new ManagedDirectSlice(keyValue.getKey().asReadOnlyByteBuffer())) {
-            sstFileWriter.delete(directSlice);
-          }
-        } else {
-          sstFileWriter.put(keyValue.getKey().asReadOnlyByteBuffer(), emptyCodecBuffer.asReadOnlyByteBuffer());
+        byte[] bytes = keyValue.getKey().getArray();
+        StringBuilder x = new StringBuilder();
+        for (byte b : bytes) {
+          x.append(",").append(UnsignedBytes.toString(b));
         }
+        try (CodecBuffer codecBuffer = CodecBuffer.allocateDirect(bytes.length).put(ByteBuffer.wrap(bytes))) {
+          ByteBuffer byteBuffer = codecBuffer.asReadOnlyByteBuffer();
+          if (keyValue.getValue() == 0) {
+            LOG.info("Swaminathan Deleting value from SST file: {} for key: {}, byte: {}, length :{}, " +
+                    "readableBytes: {}, position: {}, remaining: {}",
+                sstFilePath, StringUtils.bytes2String(bytes), x.toString(), bytes.length, codecBuffer.readableBytes(),
+                byteBuffer.position(), byteBuffer.remaining());
+            sstFileWriter.delete(codecBuffer);
+          } else {
+            LOG.info("Swaminathan Putting value from SST file: {} for key: {}, byte: {}, length :{}, readableBytes: " +
+                    "{}, position: {}, remaining: {}",
+                sstFilePath, StringUtils.bytes2String(bytes), x.toString(), bytes.length, codecBuffer.readableBytes(),
+                byteBuffer.position(), byteBuffer.remaining());
+            sstFileWriter.put(codecBuffer, emptyCodecBuffer);
+          }
+        }
+
       }
-      sstFileWriter.finish();
-    } catch (RocksDBException ex) {
-      throw new RocksDatabaseException("Failed to write pruned entries for " + sstFilePath, ex);
     }
   }
 
